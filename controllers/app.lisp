@@ -9,7 +9,8 @@
     (declare (ignore res))
     (let ((future (make-future)))
       ;; TODO: check user auth, finish future when it checks out =]
-      (let ((user-info '(:id 1)))
+      (let ((user-info '(:id "516b9c503dc42c17a4000003")))
         (setf (request-data req) user-info)
         (finish future))
       future)))
+

@@ -7,3 +7,9 @@
 
 (define-condition validation-failed (tagit-error)
   ((code :initform 400)))
+
+(define-condition insufficient-privileges (tagit-error)
+  ((code :initform 403)))
+
+(define-condition not-found (tagit-error)
+  ((code :initform 404)))

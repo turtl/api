@@ -23,14 +23,22 @@
                  :headers '(:content-type "application/json")
                  :body (with-output-to-string (s) (yason:encode object s))))
 
-(defmacro defvalidator (name &body body)
+(defun do-validate (object validation-form &key edit)
+  "Validation a hash object against a set of rules. Returns nil on *success* and
+   returns the errors on failure."
+  nil)
+
+(defmacro defvalidator (name validation-form)
   "Makes defining a validation function for a data type simpler."
-  (let ((object (gensym "object")))
-    `(defun ,name (,object)
-       (declare (ignore ,object))
-       ,@body
-       nil)))
+  `(defmacro ,name ((object future &key edit) &body body)
+     (let ((validation (gensym "validation")))
+       `(let ((,validation (do-validate ,object ,'',validation-form :edit ,edit)))
+          (if ,validation
+              (signal-error ,future (make-instance 'validation-failed
+                                                   :msg (format nil "Validation failed: ~s~%" ,validation)))
+              (progn ,@body))))))
 
 (defun add-id (hash-object &key (id "id"))
   "Add a mongo id to a hash table object."
-  (setf (gethash id hash-object) (cl-mongo-id:oid)))
+  (setf (gethash id hash-object) (string-downcase (mongoid:oid-str (mongoid:oid)))))
+

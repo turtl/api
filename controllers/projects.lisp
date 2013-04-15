@@ -14,3 +14,9 @@
     (alet ((project (add-project user-id project-data)))
       (send-json res project))))
 
+(defroute (:delete "/api/projects/([0-9a-f-]+)") (req res args)
+  (alet* ((project-id (car args))
+          (user-id (user-id req))
+          (nil (delete-project user-id project-id)))
+    (send-json res t)))
+

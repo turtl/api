@@ -17,8 +17,6 @@
 
   ;; start the server
   (let ((listener (make-instance 'listener :bind bind :port port)))
-    (as:start-event-loop
-      (lambda ()
-        (start-server listener))
-      :catch-app-errors nil)))
+    (as:with-event-loop (:catch-app-errors t)
+      (start-server listener))))
 
