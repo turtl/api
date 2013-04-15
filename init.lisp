@@ -1,7 +1,9 @@
 (in-package :tagit)
 
 (setf cl-who:*attribute-quote-char* #\"
-      (cl-who:html-mode) :html5)
+      (cl-who:html-mode) :html5
+      cl-rethinkdb:*sequence-type* :list
+      cl-rethinkdb:*object-type* :hash)
 
 ;; load all enabled wookie plugins
 (load-plugins :use-quicklisp t)

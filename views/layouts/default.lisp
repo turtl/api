@@ -72,16 +72,21 @@
                         "/config/routes.js"))
       (make-scripts s (get-files "./webroot/library" ".js"
                                  '("ignore" "plupload" "mootools-" "composer" "uservoice")))
-      (:script :src "/library/tagit.js")
-      (make-scripts s (get-files "tagit"))
-      (make-scripts s (get-files "handlers"))
-      (make-scripts s (get-files "controllers"))
-      (make-scripts s (get-files "models")))
-    (:body
+      (:script :src "/tagit.js")
+      (make-scripts s (get-files "./webroot/tagit"))
+      (make-scripts s (get-files "./webroot/handlers"))
+      (make-scripts s (get-files "./webroot/controllers"))
+      (make-scripts s (get-files "./webroot/models"))
+      
+      (:script
+        (format s "~%var __site_url = '~a';" *site-url*)
+        (format s "~%var __api_url = '~a';" *api-url*)
+        (format s "~%var __api_key = '~a';" *api-key*)))
+    (:body :class "initial"
       (:div :id "wrap-modal"
         (:div :id "wrap"
           (:header
-            (:h1 (:a :href "/" "tag.it")))
+            (:h1 (:a :href "/" "tag<span>.</span>it")))
           (:div :id "main" :class "maincontent")))
 
       (:div :id "footer"
