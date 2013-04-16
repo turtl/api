@@ -20,6 +20,12 @@
 (def-directory-route "/" (format nil "~awebroot" *root*)
                      :disable-directory-listing t)
 
+(defroute (:get "/api/.+") (req res)
+  (send-response res
+                 :status 404
+                 :headers '(:content-type "application/json")
+                 :body (to-json "Unknown resource.")))
+                 
 ;; set up a catch-all route which loads the app, no matter the URL
 (defroute (:get ".+") (req res)
   (let ((body (layout :default '(:content "" :title "tag.it"))))

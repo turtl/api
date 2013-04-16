@@ -50,6 +50,21 @@
            (file (subseq file search-pos)))
       (format stream "<link rel=\"stylesheet\" href=\"~a\">~%" file))))
 
+(defun generate-templates (stream view-dir)
+  "Make a bunch of pre-cached javascript templates as <script> tags."
+  (format stream "~%")
+  (let ((files (get-files view-dir ".html")))
+    (dolist (file files)
+      (let* ((contents (file-contents file))
+             (contents (cl-ppcre:regex-replace-all "</script>" contents "</%script%>"))
+             (contents (cl-ppcre:regex-replace-all "<script" contents "<%script%"))
+             (name (subseq file (1+ (length view-dir))))
+             (name (subseq name 0 (position #\. name :from-end t))))
+        (format stream "<script type=\"text/x-lb-tpl\" name=\"~a\">~%" name)
+        (write-string contents stream)
+        (format stream "</script>~%")))))
+
+;; TODO: cache me!
 (deflayout default (data :stream-var s :top-level t)
   (:html
     (:head
@@ -85,8 +100,10 @@
     (:body :class "initial"
       (:div :id "wrap-modal"
         (:div :id "wrap"
-          (:header
-            (:h1 (:a :href "/" "tag<span>.</span>it")))
+          (:header :class "clear"
+            (:h1 (:a :href "/" "tag<span>.</span>it"))
+            (:div :class "loading"
+              (:img :src "/images/site/icons/load_42x11.gif")))
           (:div :id "main" :class "maincontent")))
 
       (:div :id "footer"
@@ -94,5 +111,6 @@
           (:div :class "gutter"
             (str (conc "Copyright &copy; "
                        (write-to-string (nth-value 5 (decode-universal-time (get-universal-time))))
-                       " Lyon Bros. Enterprises, LLC."))))))))
+                       " Lyon Bros. Enterprises, LLC.")))))
+      (generate-templates s (format nil "~awebroot/views" (namestring *root*))))))
 
