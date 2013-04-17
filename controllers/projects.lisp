@@ -1,18 +1,17 @@
 (in-package :tagit)
 
-(defroute (:get "/api/projects/user/([0-9a-f-]+)") (req res args)
+(defroute (:get "/api/projects/users/([0-9a-f-]+)") (req res args)
   ;; TODO: AUTH: make sure user-id == (user-id req)
   (catch-errors (res)
     (alet* ((user-id (car args))
             (projects (get-user-projects user-id)))
       (send-json res projects))))
 
-(defroute (:post "/api/projects/user/([0-9a-f-]+)") (req res args)
+(defroute (:post "/api/projects/users/([0-9a-f-]+)") (req res args)
   ;; TODO: AUTH: make sure user-id == (user-id req)
   (catch-errors (res)
     (alet* ((user-id (car args))
-            (project-json (http-parse:http-body (request-http req)))
-            (project-data (yason:parse (babel:octets-to-string project-json :encoding :utf-8))))
+            (project-data (post-var req "data")))
       (alet ((project (add-project user-id project-data)))
         (send-json res project)))))
 

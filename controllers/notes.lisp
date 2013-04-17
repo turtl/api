@@ -11,8 +11,7 @@
   (catch-errors (res)
     (alet* ((user-id (user-id req))
             (project-id (car args))
-            (note-json (http-parse:http-body (request-http req)))
-            (note-data (yason:parse (babel:octets-to-string note-json :encoding :utf-8))))
+            (note-data (post-var req "data")))
       (alet ((note (add-note user-id project-id note-data)))
         (send-json res note)))))
 
@@ -20,8 +19,7 @@
   (catch-errors (res)
     (alet* ((note-id (car args))
             (user-id (user-id req))
-            (note-json (http-parse:http-body (request-http req)))
-            (note-data (yason:parse (babel:octets-to-string note-json :encoding :utf-8))))
+            (note-data (post-var req "data")))
       (alet ((note (edit-note user-id note-id note-data)))
         (send-json res note)))))
 
