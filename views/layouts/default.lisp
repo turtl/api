@@ -70,7 +70,7 @@
     (:head
       (:meta :http-equiv "Content-Type" :content "test/html; charset=utf-8")
       (:meta :http-equiv "Content-Language" :content "en")
-      (:title (str (conc (getf data :title) " | Tag.it")))
+      (:title "tag.it")
       (:link :rel "stylesheet" :href "/css/reset.css")
       (:link :rel "stylesheet" :href "/css/template.css")
       (:link :rel "stylesheet" :href "/css/general.css")
