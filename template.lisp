@@ -14,6 +14,7 @@
   (let ((view-name (intern (string-upcase (format nil "layout-~a" name)) :tagit)))
     `(progn
        (defun ,view-name (,data-var)
+         (declare (ignorable ,data-var))
          (cl-who:with-html-output-to-string (,stream-var nil :prologue ,top-level :indent t)
            ,@body))
        ',view-name)))
