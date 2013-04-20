@@ -62,20 +62,19 @@
 
 (defafun delete-note (future) (user-id note-id)
   "Delete a note."
-  (alet* ((sock (db-sock))
-          (query (r:r (:delete
-                        (:filter
-                          (:table "notes")
-                          `(("id" . ,note-id)
-                            ("user_id" . ,user-id))))))
-          (res (r:run sock query)))
-    (r:disconnect sock)
-    (if (and (hash-table-p res)
-             (gethash "deleted" res)
-             (< 0 (gethash "deleted" res)))
-        (finish future t)
-        (signal-error future (make-instance 'not-found
-                                            :msg "That note wasn't found.")))))
+  (alet ((perms (get-user-note-permissions user-id note-id)))
+    (if (<= 3 perms)
+        (alet* ((sock (db-sock))
+                (query (r:r (:delete
+                              (:filter
+                                (:table "notes")
+                                `(("id" . ,note-id)
+                                  ("user_id" . ,user-id))))))
+                (res (r:run sock query)))
+          (r:disconnect sock)
+          (finish future t))
+        (signal-error future (make-instance 'insufficient-privileges
+                                            :msg "Sorry, you are deleting a note you aren't the owner of.")))))
 
 (defafun get-user-note-permissions (future) (user-id note-id)
   "'Returns' an integer used to determine a user's permissions for the given

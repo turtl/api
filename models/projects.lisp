@@ -37,22 +37,42 @@
       (r:disconnect sock)
       (finish future project-data))))
 
+(defafun edit-project (future) (user-id project-id project-data)
+  "Edit an existing project."
+  ;; first, check if the user owns the project
+  (alet ((perms (get-user-project-permissions user-id project-id)))
+    (if (<= 2 perms)
+        (validate-project (project-data future :edit t)
+          (alet* ((sock (db-sock))
+                  (query (r:r (:update
+                                (:get (:table "projects") project-id)
+                                project-data)))
+                  (nil (r:run sock query)))
+            (r:disconnect sock)
+            (finish future project-data)))
+        (signal-error future (make-instance 'insufficient-privileges
+                                            :msg "Sorry, you are editing a project you aren't a member of.")))))
+
 (defafun delete-project (future) (user-id project-id)
   "Delete a project."
-  (alet* ((sock (db-sock))
-          (query (r:r (:delete
-                        (:filter
-                          (:table "projects")
-                          `(("id" . ,project-id)
-                            ("user_id" . ,user-id))))))
-          (res (r:run sock query)))
-    (r:disconnect sock)
-    (if (and (hash-table-p res)
-             (gethash "deleted" res)
-             (< 0 (gethash "deleted" res)))
-        (finish future t)
-        (signal-error future (make-instance 'not-found
-                                            :msg "That project wasn't found.")))))
+  (alet ((perms (get-user-project-permissions user-id project-id)))
+    (if (<= 3 perms)
+        (alet* ((sock (db-sock))
+                (query (r:r (:delete
+                              (:filter
+                                (:table "projects")
+                                `(("id" . ,project-id)
+                                  ("user_id" . ,user-id))))))
+                (res (r:run sock query)))
+          (alet* ((query (r:r (:delete
+                                (:filter
+                                  (:table "notes")
+                                  `(("project_id" . ,project-id))))))
+                  (res (r:run sock query)))
+            (r:disconnect sock)
+            (finish future t)))
+        (signal-error future (make-instance 'insufficient-privileges
+                                            :msg "Sorry, you are deleting a project you aren't the owner of.")))))
 
 (defafun get-user-project-permissions (future) (user-id project-id)
   "'Returns' an integer used to determine a user's permissions for the given

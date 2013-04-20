@@ -15,6 +15,14 @@
       (alet ((project (add-project user-id project-data)))
         (send-json res project)))))
 
+(defroute (:put "/api/projects/([0-9a-f-]+)") (req res args)
+  (catch-errors (res)
+    (alet* ((user-id (user-id req))
+            (project-id (car args))
+            (project-data (post-var req "data")))
+      (alet ((project (edit-project user-id project-id project-data)))
+        (send-json res project)))))
+
 (defroute (:delete "/api/projects/([0-9a-f-]+)") (req res args)
   (catch-errors (res)
     (alet* ((project-id (car args))
