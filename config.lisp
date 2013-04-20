@@ -25,3 +25,7 @@
   "The email used for admin communications. This is reported to users on a
    server error, and possibly other instances.")
 
+(defvar *display-errors* t
+  "Whether or not to show errors in HTTP responses. Useful for debugging, bad
+   for production.")
+

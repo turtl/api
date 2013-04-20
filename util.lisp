@@ -87,7 +87,14 @@
       (send-response ,response
                      :status 500
                      :headers '(:content-type "application/json")
-                     :body (to-json (format nil "Internal server error. Please report to ~a" *admin-email*))))))
+                     :body (to-json
+                             (with-output-to-string (s)
+                               (format s "Internal server error. Please report to ~a" *admin-email*)
+                               (when *display-errors*
+                                 (format s "~%(~a)" (type-of e))
+                                 (if (typep e 'cl-rethinkdb:query-error)
+                                     (format s ": ~a~%" (cl-rethinkdb::query-error-msg e))
+                                     (format s "~%")))))))))
                      
        
 
