@@ -95,6 +95,4 @@
                                  (if (typep e 'cl-rethinkdb:query-error)
                                      (format s ": ~a~%" (cl-rethinkdb::query-error-msg e))
                                      (format s "~%")))))))))
-                     
-       
 
