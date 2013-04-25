@@ -2,7 +2,7 @@
 
 (defvalidator validate-user
   (("id" :type 'string :required t :length 24)
-   ("k" :type 'string :required t)
+   ("a" :type 'string :required t)
    ("body" :type 'cl-async-util:bytes-or-string)))
 
 (defafun check-auth (future) (auth-key)
@@ -13,7 +13,7 @@
           (query (r:r (:pluck
                         (:filter
                           (:table "users")
-                          `(("k" . ,auth-key)))
+                          `(("a" . ,auth-key)))
                         "id")))
           (cursor (r:run sock query)))
     ;; NOTE: normally it's a faux pas to disconnect the sock if you intend to use
@@ -28,7 +28,7 @@
 (defafun add-user (future) (user-data)
   "Add a new user"
   (add-id user-data)
-  (alet ((user (check-auth (gethash "k" user-data))))
+  (alet ((user (check-auth (gethash "a" user-data))))
     (if user
         (signal-error future (make-instance 'user-exists
                                             :msg "You are joining with existing login credentials. Did you mean to log in?"))
