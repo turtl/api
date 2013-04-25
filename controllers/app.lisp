@@ -2,18 +2,29 @@
 
 (defun user-id (request)
   "Grab a user id from a request."
-  (getf (request-data request) :id))
+  (gethash "id" (request-data request)))
 
 ;; this is responsible for checking user auth
+;; TODO: if this ever does MORE than just check auth, be sure to split into
+;;       multiple functions
 (add-hook :pre-route
   (lambda (req res)
     (let ((future (make-future)))
       (let* ((auth (getf (request-headers req) :authorization))
              (path (puri:uri-path (request-uri req)))
-             (method (request-method req)))
-        (if (and (eq method :post)
-                 (string= path "/users"))
-            ;; this is a signup. let it fly with no auth
+             (method (request-method req))
+             (auth-fail-fn (lambda ()
+                             (let ((err (make-instance 'auth-failed :msg "Authentication failed.")))
+                               (send-response res
+                                              :status (error-code err)
+                                              :headers '(:content-type "application/json")
+                                              :body (error-json err))
+                               (signal-error future err)))))
+        (if (or (< (length path) 5)
+                (not (string= (subseq path 0 5) "/api/"))
+                (and (eq method :post)
+                     (string= path "/api/users")))
+            ;; this is a signup or file serve. let it fly with no auth
             (finish future)
             ;; not a signup, test the auth...
             (if auth
@@ -23,13 +34,14 @@
                        (auth-key (if split-pos
                                      (subseq auth (1+ split-pos))
                                      nil)))
-                  (alet* ((user (check-auth auth-key)))
-                    (setf (request-data req) user)))
-                (let ((err (make-instance 'auth-failed :msg "Authentication failed.")))
-                  (send-response res
-                                 :status (error-code err)
-                                 :headers '(:content-type "application/json")
-                                 :body (error-json err))
-                  (finish future)))))
-      future)))
+                  (catch-errors (res)
+                    (alet* ((user (check-auth auth-key)))
+                      (if user
+                          (progn 
+                            (setf (request-data req) user)
+                            (finish future))
+                          (funcall auth-fail-fn)))))
+                (funcall auth-fail-fn))))
+      future))
+  :tagit-auth)
 

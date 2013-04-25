@@ -8,8 +8,9 @@
   ((:file "package")
    (:file "config" :depends-on ("package"))
    (:file "util" :depends-on ("config"))
-   (:file "errors" :depends-on ("util" "config"))
-   (:file "template" :depends-on ("util" "errors"))
-   (:file "init" :depends-on ("template" "errors"))
-   (:file "routes" :depends-on ("init" "errors"))))
+   (:file "crypto" :depends-on ("util" "config"))
+   (:file "errors" :depends-on ("util" "config" "crypto"))
+   (:file "template" :depends-on ("util" "crypto" "errors"))
+   (:file "init" :depends-on ("template" "crypto" "errors"))
+   (:file "routes" :depends-on ("init" "crypto" "errors"))))
 

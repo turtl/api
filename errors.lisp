@@ -8,6 +8,9 @@
 (define-condition validation-failed (tagit-error)
   ((code :initform 400)))
 
+(define-condition user-exists (tagit-error)
+  ((code :initform 400)))
+  
 (define-condition auth-failed (tagit-error)
   ((code :initform 401)))
 
