@@ -4,8 +4,8 @@
   (("id" :type 'string :required t :length 24)
    ("user_id" :type 'string :required t :length 24)
    ("project_id" :type 'string :required t :length 24)
+   ("keys" :type 'list :required t)
    ("body" :type 'cl-async-util:bytes-or-string)
-   ("meta" :type 'string)
    ("sort" :type 'integer :required t :default 99999)))
 
 (defafun get-user-notes (future) (user-id project-id)

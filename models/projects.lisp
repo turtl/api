@@ -3,6 +3,7 @@
 (defvalidator validate-project
   (("id" :type 'string :required t :length 24)
    ("user_id" :type 'string :required t :length 24)
+   ("keys" :type 'list :required t)
    ("body" :type 'cl-async-util:bytes-or-string)
    ("sort" :type 'integer :required t :default 99999)))
 
