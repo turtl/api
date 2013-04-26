@@ -16,7 +16,6 @@
                           (:table "notes")
                           `(("user_id" . ,user-id)
                             ("project_id" . ,project-id)))
-                        (:asc "sort")
                         (:asc "id"))))
           (cursor (r:run sock query)))
     (alet ((results (r:to-array sock cursor)))
