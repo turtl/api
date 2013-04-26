@@ -23,7 +23,7 @@ scientist's disseration on why relativity is only half-correct. This means that
 while I've implemented encryption, I may have done so stupidly. *Please use
 tag.it at your own risk (for the time being).*
 
-- andrew
+\- andrew
 
 Open-source
 -----------
