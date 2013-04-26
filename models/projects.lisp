@@ -40,6 +40,13 @@
 
 (defafun edit-project (future) (user-id project-id project-data)
   "Edit an existing project."
+
+  ;; TODO remove once validation is built
+  (let* ((sort (gethash "sort" project-data))
+         (sort (ignore-errors (parse-integer sort))))
+    (when sort
+      (setf (gethash "sort" project-data) sort)))
+
   ;; first, check if the user owns the project
   (alet ((perms (get-user-project-permissions user-id project-id)))
     (if (<= 2 perms)

@@ -16,6 +16,7 @@
                           (:table "notes")
                           `(("user_id" . ,user-id)
                             ("project_id" . ,project-id)))
+                        (:asc "sort")
                         (:asc "id"))))
           (cursor (r:run sock query)))
     (alet ((results (r:to-array sock cursor)))
@@ -45,6 +46,13 @@
 
 (defafun edit-note (future) (user-id note-id note-data)
   "Edit an existing note."
+
+  ;; TODO remove once validation is built
+  (let* ((sort (gethash "sort" note-data))
+         (sort (ignore-errors (parse-integer sort))))
+    (when sort
+      (setf (gethash "sort" note-data) sort)))
+
   ;; first, check if the user owns the note
   (alet ((perms (get-user-note-permissions user-id note-id)))
     (if (<= 2 perms)
