@@ -9,7 +9,8 @@
 (load-plugins :use-quicklisp t)
 
 (defun error-handler (err)
-  (format t "(tagit) error: ~a~%" err))
+  (unless (typep err 'as:tcp-info)
+    (format t "(tagit) error: ~a~%" err)))
 
 (defun start (&key bind (port 81))
   ;; setup the wookie log
