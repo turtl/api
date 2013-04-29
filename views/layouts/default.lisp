@@ -5,8 +5,19 @@
    excluding the patterns given."
   (unless (cl-fad:directory-exists-p dir)
     (return-from get-files nil))
+  (when (and (stringp dir)
+             (not (eq (aref dir (1- (length dir))) #\/)))
+    (setf dir (format nil "~a/" dir)))
   (let* ((files (cl-fad:list-directory dir))
-         (files (mapcar (lambda (file) (namestring file)) files))
+         (files (mapcar (lambda (file)
+                          (if (cl-fad:directory-exists-p file)
+                              (namestring file)
+                              (let ((ext (pathname-type file)))
+                              (concatenate 'string
+                                           dir
+                                           (pathname-name file)
+                                           (when ext (format nil ".~a" ext))))))
+                          files))
          (ext-length (length ext))
          (files (remove-if (lambda (file)
                              (and (not (string= (subseq file (- (length file) ext-length))
