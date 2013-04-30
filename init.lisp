@@ -10,7 +10,7 @@
 
 (defun error-handler (err)
   (unless (typep err 'as:tcp-info)
-    (format t "(tagit) error: ~a~%" err)))
+    (format t "(tagit) UNcaught error: ~a~%" err)))
 
 (defun start (&key bind (port 81))
   ;; setup the wookie log

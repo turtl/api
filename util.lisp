@@ -54,7 +54,7 @@
   (let* ((docstring (car body))
          (docstring (if (stringp docstring)
                         docstring
-                        nil)))
+                        "")))
     (when (stringp docstring)
       (setf body (cdr body)))
     `(defun ,name ,args
@@ -63,7 +63,7 @@
          ,(if forward-errors
               `(future-handler-case
                  (progn ,@body)
-                 ((or error simple-error) (e)
+                 ((or error simple-error condition) (e)
                   (signal-error ,future-var e)))
               `(progn ,@body))
          ,future-var))))
@@ -83,16 +83,19 @@
                      :status (error-code e)
                      :headers '(:content-type "application/json")
                      :body (error-json e)))
-     ((or cl-rethinkdb:query-error cl-rethinkdb:cursor-error) (e)
-      (send-response ,response
-                     :status 500
-                     :headers '(:content-type "application/json")
-                     :body (to-json
-                             (with-output-to-string (s)
-                               (format s "Internal server error. Please report to ~a" *admin-email*)
-                               (when *display-errors*
-                                 (format s "~%(~a)" (type-of e))
-                                 (if (typep e 'cl-rethinkdb:query-error)
-                                     (format s ": ~a~%" (cl-rethinkdb::query-error-msg e))
-                                     (format s "~%")))))))))
+     ;; catch anything else and send a response out for it
+     (t (e)
+      (format t "(tagit) Caught error: ~a~%" e)
+      (unless (as:socket-closed-p (get-socket ,response))
+        (send-response ,response
+                       :status 500
+                       :headers '(:content-type "application/json")
+                       :body (to-json
+                               (with-output-to-string (s)
+                                 (format s "Internal server error. Please report to ~a" *admin-email*)
+                                 (when *display-errors*
+                                   (format s "~%(~a)" (type-of e))
+                                   (if (typep e 'cl-rethinkdb:query-error)
+                                       (format s ": ~a~%" (cl-rethinkdb::query-error-msg e))
+                                       (format s ": ~a~%" e))))))))))
 
