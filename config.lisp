@@ -6,7 +6,7 @@
 (defvar *db-name* "tagit"
   "The name of the database we'll be using LOL")
 
-(defvar *db-host* "127.0.0.1"
+(defvar *db-host* "192.168.0.134"
   "The database hostname/ip.")
 
 (defvar *db-port* 28015
