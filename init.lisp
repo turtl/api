@@ -29,5 +29,6 @@
         (lambda (sig)
           (declare (ignore sig))
           (as:free-signal-handler 2)
-          (as:close-tcp-server server))))))
+          (as:close-tcp-server server)
+          (as:exit-event-loop))))))
 
