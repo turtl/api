@@ -22,12 +22,12 @@
   (load-views)
 
   ;; start the server
-  (let ((listener (make-instance 'listener :bind bind :port port)))
-    (as:with-event-loop (:catch-app-errors t)
-      (let ((server (start-server listener)))
-        (as:signal-handler 2
-          (lambda (sig)
-            (declare (ignore sig))
-            (as:free-signal-handler 2)
-            (as:close-tcp-server server)))))))
+  (as:with-event-loop (:catch-app-errors t)
+    (let* ((listener (make-instance 'listener :bind bind :port port))
+           (server (start-server listener)))
+      (as:signal-handler 2
+        (lambda (sig)
+          (declare (ignore sig))
+          (as:free-signal-handler 2)
+          (as:close-tcp-server server))))))
 
