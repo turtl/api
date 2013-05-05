@@ -99,7 +99,7 @@
                         "/config/auth.js"
                         "/config/routes.js"))
       (make-scripts s (get-files "./webroot/library" ".js"
-                                 '("ignore" "plupload" "mootools-" "composer" "uservoice")))
+                                 '("ignore" "plupload" "mootools-" "composer" "uservoice" "bookmarklet")))
       (:script :src "/tagit.js")
       (make-scripts s (get-files "./webroot/tagit"))
       (make-scripts s (get-files "./webroot/handlers"))
