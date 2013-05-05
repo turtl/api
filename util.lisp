@@ -32,9 +32,68 @@
   "Add a mongo id to a hash table object."
   (setf (gethash id hash-object) (string-downcase (mongoid:oid-str (mongoid:oid)))))
 
+(defun parse-float (string)
+  "Return a float read from string, and the index to the remainder of string."
+  (multiple-value-bind (integer i)
+      (parse-integer string :junk-allowed t)
+    (when (<= (1- (length string)) i) (return-from parse-float integer))
+    (multiple-value-bind (fraction j)
+        (parse-integer string :start (+ i 1) :junk-allowed t)
+      (values (float (+ integer (/ fraction (expt 10 (- j i 1))))) j))))
+
 (defun do-validate (object validation-form &key edit)
   "Validation a hash object against a set of rules. Returns nil on *success* and
    returns the errors on failure."
+  (flet ((val-form (key)
+           (let ((form nil))
+             (dolist (entry validation-form)
+               (when (string= key (car entry))
+                 (setf form entry)
+                 (return)))
+             form))
+         (val-error (str)
+           (return-from do-validate str)))
+    (dolist (entry validation-form)
+      (let* ((key (car entry))
+             (entry (cdr entry))
+             (entry-type (getf entry :type))
+             (obj-val (gethash key object))
+             (default-val (getf entry :default)))
+        ;; check required fields
+        (when (and (getf entry :required)
+                   (not edit)
+                   (not obj-val))
+          (if default-val
+              (setf obj-val default-val)
+              (val-error (format nil "Required field `~a` not present." key))))
+
+        ;; do some typing work
+        (when entry-type
+          ;; convert strings to int/float if needed
+          (when (and (typep obj-val 'string)
+                     (subtypep entry-type 'number))
+            (let ((new-val (ignore-errors (parse-float obj-val))))
+              (when new-val
+                (setf obj-val new-val))))
+          ;; make sure the types match up
+          (when (not (typep obj-val entry-type))
+            (val-error (format nil "Field `~a` is not of the expected type ~a" key entry-type))))
+        
+        (case entry-type
+          (string
+            (let ((slength (getf entry :length)))
+              (when (and (integerp slength)
+                         (not (= slength (length obj-val))))
+                (val-error (format nil "Field `~a` is not the required length (~a characters)" key slength))))))
+
+        ;; TODO validate subobject/subsequence
+
+        ;; set the value (in its processed form) back into the object
+        (setf (gethash key object) obj-val)))
+    ;; remove junk keys from object data
+    (loop for key being the hash-keys of object do
+      (unless (val-form key)
+        (remhash key object))))
   nil)
 
 (defmacro defvalidator (name validation-form)

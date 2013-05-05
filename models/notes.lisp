@@ -1,12 +1,12 @@
 (in-package :tagit)
 
 (defvalidator validate-note
-  (("id" :type 'string :required t :length 24)
-   ("user_id" :type 'string :required t :length 24)
-   ("project_id" :type 'string :required t :length 24)
-   ("keys" :type 'list :required t)
-   ("body" :type 'cl-async-util:bytes-or-string)
-   ("sort" :type 'integer :required t :default 99999)))
+  (("id" :type string :required t :length 24)
+   ("user_id" :type string :required t :length 24)
+   ("project_id" :type string :required t :length 24)
+   ("keys" :type sequence :required t)
+   ("body" :type cl-async-util:bytes-or-string)
+   ("sort" :type integer :required t :default 99999)))
 
 (defafun get-user-notes (future) (user-id project-id)
   "Get the notes for a user/project."
@@ -46,13 +46,6 @@
 
 (defafun edit-note (future) (user-id note-id note-data)
   "Edit an existing note."
-
-  ;; TODO remove once validation is built
-  (let* ((sort (gethash "sort" note-data))
-         (sort (ignore-errors (parse-integer sort))))
-    (when sort
-      (setf (gethash "sort" note-data) sort)))
-
   ;; first, check if the user owns the note
   (alet ((perms (get-user-note-permissions user-id note-id)))
     (if (<= 2 perms)

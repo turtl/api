@@ -1,9 +1,9 @@
 (in-package :tagit)
 
 (defvalidator validate-user
-  (("id" :type 'string :required t :length 24)
-   ("a" :type 'string :required t)
-   ("body" :type 'cl-async-util:bytes-or-string)))
+  (("id" :type string :required t :length 24)
+   ("a" :type string :required t)
+   ("body" :type cl-async-util:bytes-or-string)))
 
 (defafun check-auth (future) (auth-key)
   "Check if the given auth key exists. Finishes with the user id if so, nil

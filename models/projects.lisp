@@ -1,11 +1,11 @@
 (in-package :tagit)
 
 (defvalidator validate-project
-  (("id" :type 'string :required t :length 24)
-   ("user_id" :type 'string :required t :length 24)
-   ("keys" :type 'list :required t)
-   ("body" :type 'cl-async-util:bytes-or-string)
-   ("sort" :type 'integer :required t :default 99999)))
+  (("id" :type string :required t :length 24)
+   ("user_id" :type string :required t :length 24)
+   ("keys" :type sequence :required t)
+   ("body" :type cl-async-util:bytes-or-string)
+   ("sort" :type integer :required t :default 99999)))
 
 (defafun get-user-projects (future) (user-id)
   "Get all projects for a user, ordered by sort order."
@@ -40,13 +40,6 @@
 
 (defafun edit-project (future) (user-id project-id project-data)
   "Edit an existing project."
-
-  ;; TODO remove once validation is built
-  (let* ((sort (gethash "sort" project-data))
-         (sort (ignore-errors (parse-integer sort))))
-    (when sort
-      (setf (gethash "sort" project-data) sort)))
-
   ;; first, check if the user owns the project
   (alet ((perms (get-user-project-permissions user-id project-id)))
     (if (<= 2 perms)
@@ -91,12 +84,12 @@
    2 == update permissions
    3 == owner"
   (alet* ((sock (db-sock))
-          (privs-query (r:r (:== (:attr (:get (:table "projects") project-id) "user_id")
-                                 user-id)))
-          (is-kewl (r:run sock privs-query)))
+          (privs-query (r:r (:get (:table "projects") project-id)))
+          (res (r:run sock privs-query)))
     (r:disconnect sock)
     ;; right now, you either own it or you don't...
-    (finish future (if is-kewl
+    (finish future (if (and (hash-table-p res)
+                            (string= (gethash "user_id" res) user-id))
                        3
                        0))))
 
