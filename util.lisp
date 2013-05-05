@@ -57,7 +57,9 @@
       (let* ((key (car entry))
              (entry (cdr entry))
              (entry-type (getf entry :type))
-             (obj-val (gethash key object))
+             (obj-entry (multiple-value-list (gethash key object)))
+             (obj-val (car obj-entry))
+             (exists (cadr obj-entry))
              (default-val (getf entry :default)))
         ;; check required fields
         (when (and (getf entry :required)
@@ -66,6 +68,9 @@
           (if default-val
               (setf obj-val default-val)
               (val-error (format nil "Required field `~a` not present." key))))
+
+        ;; if the field doesn't exist, there's no point in validating it further
+        (unless exists (return))
 
         ;; do some typing work
         (when entry-type
