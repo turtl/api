@@ -32,6 +32,14 @@
   "Add a mongo id to a hash table object."
   (setf (gethash id hash-object) (string-downcase (mongoid:oid-str (mongoid:oid)))))
 
+(defun add-mod (hash-object &key (key "mod"))
+  "Add a mongo id to a hash table object."
+  (setf (gethash key hash-object) (get-timestamp)))
+
+(defun get-timestamp ()
+  "Get the current unix timestamp."
+  (local-time:timestamp-to-unix (local-time:now)))
+
 (defun parse-float (string)
   "Return a float read from string, and the index to the remainder of string."
   (multiple-value-bind (integer i)
@@ -54,47 +62,51 @@
          (val-error (str)
            (return-from do-validate str)))
     (dolist (entry validation-form)
-      (let* ((key (car entry))
-             (entry (cdr entry))
-             (entry-type (getf entry :type))
-             (obj-entry (multiple-value-list (gethash key object)))
-             (obj-val (car obj-entry))
-             (exists (cadr obj-entry))
-             (default-val (getf entry :default)))
-        ;; check required fields
-        (when (and (getf entry :required)
-                   (not edit)
-                   (not obj-val))
-          (if default-val
-              (setf obj-val default-val)
-              (val-error (format nil "Required field `~a` not present." key))))
+      (block do-validate
+        (let* ((key (car entry))
+               (entry (cdr entry))
+               (entry-type (getf entry :type))
+               (obj-entry (multiple-value-list (gethash key object)))
+               (obj-val (car obj-entry))
+               (exists (cadr obj-entry))
+               (default-val (getf entry :default)))
+          ;; check required fields
+          (when (and (getf entry :required)
+                     (not edit)
+                     (not obj-val))
+            (cond ((symbolp default-val)
+                   (setf obj-val (funcall default-val)))
+                  (default-val
+                   (setf obj-val default-val))
+                  (t
+                   (val-error (format nil "Required field `~a` not present." key)))))
 
-        ;; if the field doesn't exist, there's no point in validating it further
-        (unless exists (return))
+          ;; if the field doesn't exist, there's no point in validating it further
+          (unless exists (return-from do-validate))
 
-        ;; do some typing work
-        (when entry-type
-          ;; convert strings to int/float if needed
-          (when (and (typep obj-val 'string)
-                     (subtypep entry-type 'number))
-            (let ((new-val (ignore-errors (parse-float obj-val))))
-              (when new-val
-                (setf obj-val new-val))))
-          ;; make sure the types match up
-          (when (not (typep obj-val entry-type))
-            (val-error (format nil "Field `~a` is not of the expected type ~a" key entry-type))))
-        
-        (case entry-type
-          (string
-            (let ((slength (getf entry :length)))
-              (when (and (integerp slength)
-                         (not (= slength (length obj-val))))
-                (val-error (format nil "Field `~a` is not the required length (~a characters)" key slength))))))
+          ;; do some typing work
+          (when entry-type
+            ;; convert strings to int/float if needed
+            (when (and (typep obj-val 'string)
+                       (subtypep entry-type 'number))
+              (let ((new-val (ignore-errors (parse-float obj-val))))
+                (when new-val
+                  (setf obj-val new-val))))
+            ;; make sure the types match up
+            (when (not (typep obj-val entry-type))
+              (val-error (format nil "Field `~a` is not of the expected type ~a" key entry-type))))
+          
+          (case entry-type
+            (string
+              (let ((slength (getf entry :length)))
+                (when (and (integerp slength)
+                           (not (= slength (length obj-val))))
+                  (val-error (format nil "Field `~a` is not the required length (~a characters)" key slength))))))
 
-        ;; TODO validate subobject/subsequence
+          ;; TODO validate subobject/subsequence
 
-        ;; set the value (in its processed form) back into the object
-        (setf (gethash key object) obj-val)))
+          ;; set the value (in its processed form) back into the object
+          (setf (gethash key object) obj-val))))
     ;; remove junk keys from object data
     (loop for key being the hash-keys of object do
       (unless (val-form key)
@@ -149,7 +161,7 @@
                      :body (error-json e)))
      ;; catch anything else and send a response out for it
      (t (e)
-      (format t "(tagit) Caught error: ~a~%" e)
+      ;(format t "(tagit) Caught error: ~a~%" e)
       (unless (as:socket-closed-p (get-socket ,response))
         (send-response ,response
                        :status 500

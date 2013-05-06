@@ -6,6 +6,7 @@
    ("project_id" :type string :required t :length 24)
    ("keys" :type sequence :required t)
    ("body" :type cl-async-util:bytes-or-string)
+   ("mod" :type integer :required t :default 'get-timestamp)
    ("sort" :type integer :required t :default 99999)))
 
 (defafun get-user-notes (future) (user-id project-id)
@@ -30,6 +31,7 @@
         (gethash "project_id" note-data) project-id
         (gethash "sort" note-data) 99999)
   (add-id note-data)
+  (add-mod note-data)
   ;; first, check that the user is a member of this project
   (alet ((perms (get-user-project-permissions user-id project-id)))
     (if (<= 2 perms)
@@ -50,6 +52,7 @@
   (alet ((perms (get-user-note-permissions user-id note-id)))
     (if (<= 2 perms)
         (validate-note (note-data future :edit t)
+          (add-mod note-data)
           (alet* ((sock (db-sock))
                   (query (r:r (:update
                                 (:get (:table "notes") note-id)

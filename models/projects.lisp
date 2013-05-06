@@ -5,6 +5,7 @@
    ("user_id" :type string :required t :length 24)
    ("keys" :type sequence :required t)
    ("body" :type cl-async-util:bytes-or-string)
+   ("mod" :type integer :required t :default 'get-timestamp)
    ("sort" :type integer :required t :default 99999)))
 
 (defafun get-user-projects (future) (user-id)
@@ -29,6 +30,7 @@
   (unless (gethash "sort" project-data)
     (setf (gethash "sort" project-data) 99999))
   (add-id project-data)
+  (add-mod project-data)
   (validate-project (project-data future)
     (alet* ((sock (db-sock))
             (query (r:r (:insert
@@ -44,6 +46,7 @@
   (alet ((perms (get-user-project-permissions user-id project-id)))
     (if (<= 2 perms)
         (validate-project (project-data future :edit t)
+          (add-mod project-data)
           (alet* ((sock (db-sock))
                   (query (r:r (:update
                                 (:get (:table "projects") project-id)
