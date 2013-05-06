@@ -8,7 +8,7 @@
    ("mod" :type integer :required t :default 'get-timestamp)
    ("sort" :type integer :required t :default 99999)))
 
-(defafun get-user-projects (future) (user-id)
+(defafun get-user-projects (future) (user-id get-notes)
   "Get all projects for a user, ordered by sort order."
   (alet* ((sock (db-sock))
           (query (r:r (:order-by
@@ -18,11 +18,20 @@
                             (:== (:attr p "user_id") user-id)))
                         (:asc "sort")
                         (:asc "id"))))
-          (cursor (r:run sock query)))
-    (alet ((results (r:to-array sock cursor)))
-      (wait-for (r:stop sock cursor)
-        (r:disconnect sock)
-        (finish future results)))))
+          (cursor (r:run sock query))
+          (results nil))
+    (wait-for (if get-notes
+                  (wait-for (r:each sock cursor
+                              (lambda (row)
+                                (alet ((notes (get-user-notes user-id
+                                                              (gethash "id" row))))
+                                  (setf (gethash "notes" row) notes)
+                                  (push row results))))
+                    (setf results (reverse results)))
+                  (alet ((res (r:to-array sock cursor)))
+                    (setf results res)))
+      (r:disconnect sock)
+      (finish future results))))
 
 (defafun add-project (future) (user-id project-data)
   "Save a project with a user."

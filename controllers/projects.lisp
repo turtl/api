@@ -2,10 +2,11 @@
 
 (defroute (:get "/api/projects/users/([0-9a-f-]+)") (req res args)
   (catch-errors (res)
-    (let ((user-id (car args)))
+    (let ((user-id (car args))
+          (get-notes (ignore-errors (< 0 (parse-integer (get-var req "get_notes"))))))
       (unless (string= (user-id req) user-id)
         (error 'insufficient-privileges :msg "You are trying to access another user's projects. For shame."))
-      (alet* ((projects (get-user-projects user-id)))
+      (alet* ((projects (get-user-projects user-id get-notes)))
         (send-json res projects)))))
 
 (defroute (:post "/api/projects/users/([0-9a-f-]+)") (req res args)
