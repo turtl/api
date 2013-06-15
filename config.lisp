@@ -15,6 +15,9 @@
 (defvar *site-url* "http://tagit.dev:81"
   "The main URL the site will load from.")
 
+(defvar *site-assets* (namestring (truename (format nil "~a../js" *root*)))
+  "Where the static files are.")
+
 (defvar *api-url* "/api"
   "The location (absolute or relative to *site-url*) that API calls will go to.")
 
