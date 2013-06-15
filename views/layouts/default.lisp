@@ -42,11 +42,13 @@
    file onto the stream."
   (format stream "~%")
   (dolist (file files)
-    (let* ((search-pos (search "webroot/" file))
+    (format t "file: ~a~%" file)
+    (let* ((search-pos (search *site-assets* file))
            (search-pos (when search-pos
-                         (+ (1- (length "webroot/")) search-pos)))
+                         (+ (1- (length *site-assets*)) search-pos)))
            (search-pos (or search-pos 0))
            (file (subseq file search-pos)))
+      (format t "search-pos: ~a, ~a~%" search-pos file)
       (format stream "<script src=\"~a\"></script>~%" file))))
 
 (defun make-css (stream files)
@@ -54,9 +56,9 @@
    file on the stream."
   (format stream "~%")
   (dolist (file files)
-    (let* ((search-pos (search "webroot/" file))
+    (let* ((search-pos (search *site-assets* file))
            (search-pos (when search-pos
-                         (+ (1- (length "webroot/")) search-pos)))
+                         (+ (1- (length *site-assets*)) search-pos)))
            (search-pos (or search-pos 0))
            (file (subseq file search-pos)))
       (format stream "<link rel=\"stylesheet\" href=\"~a\">~%" file))))
@@ -85,7 +87,7 @@
       (:link :rel "stylesheet" :href "/css/reset.css")
       (:link :rel "stylesheet" :href "/css/template.css")
       (:link :rel "stylesheet" :href "/css/general.css")
-      (make-css s (get-files "./webroot/css" ".css"
+      (make-css s (get-files *site-assets* ".css"
                              '("template.css" "reset.css" "general.css")))
       (:link :rel "shortcut icon" :href "/favicon.png" :type "image/png")
       (:script :src "/library/mootools-1.4.1.js")
@@ -98,13 +100,13 @@
       (make-scripts s '("/config/config.js"
                         "/config/auth.js"
                         "/config/routes.js"))
-      (make-scripts s (get-files "./webroot/library" ".js"
+      (make-scripts s (get-files (format nil "~alibrary" *site-assets*) ".js"
                                  '("ignore" "plupload" "mootools-" "composer" "uservoice" "bookmarklet")))
       (:script :src "/tagit.js")
-      (make-scripts s (get-files "./webroot/tagit"))
-      (make-scripts s (get-files "./webroot/handlers"))
-      (make-scripts s (get-files "./webroot/controllers"))
-      (make-scripts s (get-files "./webroot/models"))
+      (make-scripts s (get-files (format nil "~atagit" *site-assets*)))
+      (make-scripts s (get-files (format nil "~ahandlers" *site-assets*)))
+      (make-scripts s (get-files (format nil "~acontrollers" *site-assets*)))
+      (make-scripts s (get-files (format nil "~amodels" *site-assets*)))
       
       (:script
         (format s "~%var __site_url = '~a';" *site-url*)
@@ -127,5 +129,5 @@
                        " "))
             (:a :href "http://www.lyonbros.com" :target "_blank"
               "Lyon Bros. Enterprises, LLC."))))
-      (generate-templates s (format nil "~awebroot/views" (namestring *root*))))))
+      (generate-templates s (format nil "~aviews" (namestring *site-assets*))))))
 

@@ -17,7 +17,7 @@
   (send-response res :status 301 :headers '(:location "/favicon.png")))
 
 ;; set up a general file-serving route
-(def-directory-route "/" (format nil "~awebroot" *root*)
+(def-directory-route "/" *site-assets*
                      :disable-directory-listing t)
 
 (defroute (:get "/api/.+") (req res)
