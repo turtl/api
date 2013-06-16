@@ -42,13 +42,11 @@
    file onto the stream."
   (format stream "~%")
   (dolist (file files)
-    (format t "file: ~a~%" file)
     (let* ((search-pos (search *site-assets* file))
            (search-pos (when search-pos
                          (+ (1- (length *site-assets*)) search-pos)))
            (search-pos (or search-pos 0))
            (file (subseq file search-pos)))
-      (format t "search-pos: ~a, ~a~%" search-pos file)
       (format stream "<script src=\"~a\"></script>~%" file))))
 
 (defun make-css (stream files)
