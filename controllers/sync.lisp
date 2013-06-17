@@ -6,5 +6,8 @@
 
 (defroute (:post "/api/sync") (req res)
   (catch-errors (res)
-    (send-json res "LOL")))
+    (alet* ((user-id (user-id req))
+            (sync-time (post-var req "time"))
+            (notes (get-user-notes user-id project-id)))
+      (sync-changes user-id ))))
 
