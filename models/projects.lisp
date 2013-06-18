@@ -5,8 +5,7 @@
    ("user_id" :type string :required t :length 24)
    ("keys" :type sequence :required t)
    ("body" :type cl-async-util:bytes-or-string)
-   ("mod" :type integer :required t :default 'get-timestamp)
-   ("sort" :type integer :required t :default 99999)))
+   ("mod" :type integer :required t :default 'get-timestamp)))
 
 (defafun get-user-projects (future) (user-id get-notes)
   "Get all projects for a user, ordered by sort order."

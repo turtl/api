@@ -20,3 +20,7 @@
 
 (define-condition not-found (tagit-error)
   ((code :initform 404)))
+
+(define-condition server-error (tagit-error)
+  ((code :initform 500)))
+

@@ -162,16 +162,18 @@
      ;; catch anything else and send a response out for it
      (t (e)
       ;(format t "(tagit) Caught error: ~a~%" e)
-      (unless (as:socket-closed-p (get-socket ,response))
-        (send-response ,response
-                       :status 500
-                       :headers '(:content-type "application/json")
-                       :body (to-json
-                               (with-output-to-string (s)
-                                 (format s "Internal server error. Please report to ~a" *admin-email*)
-                                 (when *display-errors*
-                                   (format s "~%(~a)" (type-of e))
-                                   (if (typep e 'cl-rethinkdb:query-error)
-                                       (format s ": ~a~%" (cl-rethinkdb::query-error-msg e))
-                                       (format s ": ~a~%" e))))))))))
+      (if (wookie:response-finished-p ,response)
+          (wookie-util:wlog :error "(tagit) double error: ~a~%" e)
+          (unless (as:socket-closed-p (get-socket ,response))
+            (send-response ,response
+                           :status 500
+                           :headers '(:content-type "application/json")
+                           :body (to-json
+                                   (with-output-to-string (s)
+                                     (format s "Internal server error. Please report to ~a" *admin-email*)
+                                     (when *display-errors*
+                                       (format s "~%(~a)" (type-of e))
+                                       (if (typep e 'cl-rethinkdb:query-error)
+                                           (format s ": ~a~%" (cl-rethinkdb::query-error-msg e))
+                                           (format s ": ~a~%" e)))))))))))
 

@@ -6,8 +6,7 @@
    ("project_id" :type string :required t :length 24)
    ("keys" :type sequence :required t)
    ("body" :type cl-async-util:bytes-or-string)
-   ("mod" :type integer :required t :default 'get-timestamp)
-   ("sort" :type integer :required t :default 99999)))
+   ("mod" :type integer :required t :default 'get-timestamp)))
 
 (defafun get-user-notes (future) (user-id project-id)
   "Get the notes for a user/project."
@@ -15,8 +14,10 @@
           (query (r:r (:order-by
                         (:filter
                           (:table "notes")
-                          `(("user_id" . ,user-id)
-                            ("project_id" . ,project-id)))
+                          (r:fn (note)
+                            (:&& (:== (:attr note "user_id") user-id)
+                                 (:== (:attr note "project_id") project-id)
+                                 (:== (:default (:attr note "deleted") nil) nil))))
                         (:asc "sort")
                         (:asc "id"))))
           (cursor (r:run sock query)))
@@ -63,19 +64,32 @@
         (signal-error future (make-instance 'insufficient-privileges
                                             :msg "Sorry, you are editing a note you aren't a member of.")))))
 
-(defafun delete-note (future) (user-id note-id)
+(defafun delete-note (future) (user-id note-id &key permanent)
   "Delete a note."
   (alet ((perms (get-user-note-permissions user-id note-id)))
     (if (<= 3 perms)
         (alet* ((sock (db-sock))
-                (query (r:r (:delete
-                              (:filter
-                                (:table "notes")
-                                `(("id" . ,note-id)
-                                  ("user_id" . ,user-id))))))
+                (query (r:r (if permanent
+                                (:delete
+                                  (:filter
+                                    (:table "notes")
+                                    `(("id" . ,note-id)
+                                      ("user_id" . ,user-id))))
+                                (:replace
+                                  (:get (:table "notes") note-id)
+                                  (r:fn (note)
+                                    ;; mitigate double-delete
+                                    (:branch (:has-fields note "deleted")
+                                      note
+                                      (:merge (:pluck note "id" "project_id" "user_id")
+                                              `(("deleted" . t)
+                                                ("mod" . ,(get-timestamp))))))))))
                 (res (r:run sock query)))
           (r:disconnect sock)
-          (finish future t))
+          (if (gethash "first_error" res)
+              (signal-error future (make-instance 'server-error
+                                                  :msg "There was an error deleting your note. Please try again."))
+              (finish future t)))
         (signal-error future (make-instance 'insufficient-privileges
                                             :msg "Sorry, you are deleting a note you aren't the owner of.")))))
 
