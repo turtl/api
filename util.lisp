@@ -139,8 +139,7 @@
          ,(if forward-errors
               `(future-handler-case
                  (progn ,@body)
-                 ((or error simple-error condition) (e)
-                  (signal-error ,future-var e)))
+                 (t (e) (signal-error ,future-var e)))
               `(progn ,@body))
          ,future-var))))
 
@@ -161,9 +160,9 @@
                      :body (error-json e)))
      ;; catch anything else and send a response out for it
      (t (e)
-      ;(format t "(tagit) Caught error: ~a~%" e)
+      (format t "(tagit) Caught error: ~a~%" e)
       (if (wookie:response-finished-p ,response)
-          (wookie-util:wlog :error "(tagit) double error: ~a~%" e)
+          (wookie-util:wlog :error "(tagit) ...double error: ~a~%" e)
           (unless (as:socket-closed-p (get-socket ,response))
             (send-response ,response
                            :status 500
