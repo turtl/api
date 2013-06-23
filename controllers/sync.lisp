@@ -7,7 +7,7 @@
 (defroute (:post "/api/sync") (req res)
   (catch-errors (res)
     (alet* ((user-id (user-id req))
-            (sync-time (or (parse-integer (post-var req "time") :junk-allowed t) 99999999))
+            (sync-time (varint (post-var req "time") 999999999))
             (note-sync (sync-notes user-id sync-time))
             (response (make-hash-table :test #'equal)))
       (setf (gethash "time" response) (get-timestamp)

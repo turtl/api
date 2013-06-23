@@ -49,6 +49,11 @@
         (parse-integer string :start (+ i 1) :junk-allowed t)
       (values (float (+ integer (/ fraction (expt 10 (- j i 1))))) j))))
 
+(defmacro varint (str-input &optional default)
+  "Wraps parsing an integer from a form where the return may be a string integer
+   or may be nil. Meant to be used to parse numbers from GET/POST data."
+  `(or (parse-integer (or ,str-input "") :junk-allowed t) ,default))
+
 (defun do-validate (object validation-form &key edit)
   "Validation a hash object against a set of rules. Returns nil on *success* and
    returns the errors on failure."
