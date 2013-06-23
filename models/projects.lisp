@@ -18,19 +18,18 @@
                         (:asc "sort")
                         (:asc "id"))))
           (cursor (r:run sock query))
-          (results nil))
-    (wait-for (if get-notes
-                  (wait-for (r:each sock cursor
-                              (lambda (row)
-                                (alet ((notes (get-user-notes user-id
-                                                              (gethash "id" row))))
-                                  (setf (gethash "notes" row) notes)
-                                  (push row results))))
-                    (setf results (reverse results)))
-                  (alet ((res (r:to-array sock cursor)))
-                    (setf results res)))
-      (r:disconnect sock)
-      (finish future results))))
+          (projects (r:to-array sock cursor)))
+    (wait-for (r:stop sock cursor)
+      (r:disconnect sock))
+    (if get-notes
+        (loop for i = 0
+              for project across projects do
+          (alet ((notes (get-user-notes user-id (gethash "id" project))))
+            (setf (gethash "notes" project) notes)
+            (incf i)
+            (when (<= (length projects) i)
+              (finish future projects))))
+        (finish future projects))))
 
 (defafun add-project (future) (user-id project-data)
   "Save a project with a user."

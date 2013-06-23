@@ -20,11 +20,11 @@
                                  (:== (:default (:attr note "deleted") nil) nil))))
                         (:asc "sort")
                         (:asc "id"))))
-          (cursor (r:run sock query)))
-    (alet ((results (r:to-array sock cursor)))
-      (wait-for (r:stop sock cursor)
-        (r:disconnect sock))
-      (finish future results))))
+          (cursor (r:run sock query))
+          (results (r:to-array sock cursor)))
+    (wait-for (r:stop sock cursor)
+      (r:disconnect sock))
+    (finish future results)))
 
 (defafun add-note (future) (user-id project-id note-data)
   "Add a new note."

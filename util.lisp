@@ -127,14 +127,11 @@
   "Define an asynchronous function with a returned future that will be finished
    when the funciton completes. Also has the option to forward all async errors
    encountered during excution (in this lexical scope) to the returned future."
-  (let* ((docstring (car body))
-         (docstring (if (stringp docstring)
-                        docstring
-                        "")))
+  (let* ((docstring (car body)))
     (when (stringp docstring)
       (setf body (cdr body)))
     `(defun ,name ,args
-       ,docstring
+       ,(if (stringp docstring) docstring "")
        (let ((,future-var (make-future)))
          ,(if forward-errors
               `(future-handler-case

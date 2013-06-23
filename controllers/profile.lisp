@@ -12,13 +12,3 @@
               (gethash response "settings") settings)
         (send-json res response)))))
 
-(defun mock ()
-  (let ((res (make-instance 'wookie:response)))
-    (catch-errors (res)
-      (alet* ((projects (get-user-projects "517b193a3dc42c1b2c000002" t))
-              (response (make-hash-table :test #'equal)))
-        (format t "projects: ~a~%" projects)
-        (setf (gethash response "lololol") nil)
-        (send-json res response)))))
-
-(as:with-event-loop () (mock))
