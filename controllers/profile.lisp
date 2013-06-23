@@ -8,7 +8,7 @@
       (alet* ((projects (get-user-projects user-id t))
               (settings nil)
               (response (make-hash-table :test #'equal)))
-        (setf (gethash response "projects") projects
-              (gethash response "settings") settings)
+        (setf (gethash "projects" response) projects
+              (gethash "settings" response) settings)
         (send-json res response)))))
 
