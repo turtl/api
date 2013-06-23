@@ -16,8 +16,9 @@
                                     (:attr note "project_id"))
                          (:> (:default (:attr note "mod") 0)
                              sync-time))))))
-          (cur (r:run sock query)))
-    (alet ((arr (r:to-array sock cur)))
-      (r:disconnect sock)
+          (cursor (r:run sock query)))
+    (alet ((arr (r:to-array sock cursor)))
+      (wait-for (r:stop sock cursor)
+        (r:disconnect sock))
       (finish future arr))))
 
