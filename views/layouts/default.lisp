@@ -111,6 +111,11 @@
         (format s "~%var __api_url = '~a';" *api-url*)
         (format s "~%var __api_key = '~a';" *api-key*)))
     (:body :class "initial"
+      (:div :id "loading-overlay"
+        (:div
+          (:span "LOADING")
+          (:span :class "spin" "/")
+          (:img :src "/images/site/icons/load_128x78.gif" :width "128" :height "78" :alt "Reticulating splines" :title "Reticulating splines")))
       (:div :id "wrap-modal"
         (:div :id "wrap"
           (:header :class "clear"
