@@ -24,7 +24,8 @@
     (if get-notes
         (loop for i = 0
               for project across projects do
-          (alet ((notes (get-user-notes user-id (gethash "id" project))))
+          (alet ((project project) ;; bind for inner form or loop will shit all over it
+                 (notes (get-user-notes user-id (gethash "id" project))))
             (setf (gethash "notes" project) notes)
             (incf i)
             (when (<= (length projects) i)
