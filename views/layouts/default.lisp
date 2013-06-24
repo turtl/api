@@ -133,6 +133,6 @@
                        " "))
             (:a :href "http://www.lyonbros.com" :target "_blank"
               "Lyon Bros. Enterprises, LLC.")
-            "...and Drew")))
+            "&amp; Drew")))
       (generate-templates s (format nil "~aviews" (namestring *site-assets*))))))
 
