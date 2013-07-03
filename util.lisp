@@ -22,9 +22,10 @@
   (with-output-to-string (s)
     (yason:encode object s)))
 
-(defun send-json (response object)
+(defun send-json (response object &key (status 200))
   "Wraps sending of JSON back to the client."
   (send-response response
+                 :status status
                  :headers '(:content-type "application/json")
                  :body (to-json object)))
 
@@ -177,4 +178,17 @@
                                        (if (typep e 'cl-rethinkdb:query-error)
                                            (format s ": ~a~%" (cl-rethinkdb::query-error-msg e))
                                            (format s ": ~a~%" e)))))))))))
+
+(defun is-public-action (method path)
+  "Checks if the given method/path combination are in the configured list of
+   actions that do not require a user login."
+  (loop for (check-method . check-resource) in *public-actions* do
+    (let ((check (ignore-errors   ;; just in case
+                   (and (eq check-method method)
+                        (if (stringp check-resource)
+                            ;; it's a bording ol' string
+                            (string= check-resource path)
+                            ;; it's a regex (hopefully)
+                            (cl-ppcre:scan check-resource path))))))
+      (when check (return-from is-public-action t)))))
 

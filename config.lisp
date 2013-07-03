@@ -32,3 +32,8 @@
   "Whether or not to show errors in HTTP responses. Useful for debugging, bad
    for production.")
 
+(defparameter *public-actions*
+  `((:post . "/api/users")
+    (:get . ,(cl-ppcre:create-scanner "/api/personas/screenname/([a-zA-Z0-9\/\.]+)")))
+  "A list of public resources/actions that do not require authentication.")
+

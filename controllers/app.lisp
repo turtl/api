@@ -22,8 +22,7 @@
                                (signal-error future err)))))
         (if (or (< (length path) 5)
                 (not (string= (subseq path 0 5) "/api/"))
-                (and (eq method :post)
-                     (string= path "/api/users")))
+                (is-public-action method path))
             ;; this is a signup or file serve. let it fly with no auth
             (finish future)
             ;; not a signup, test the auth...
