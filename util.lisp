@@ -80,7 +80,7 @@
           (when (and (getf entry :required)
                      (not edit)
                      (not obj-val))
-            (cond ((symbolp default-val)
+            (cond ((and default-val (symbolp default-val))
                    (setf obj-val (funcall default-val)))
                   (default-val
                    (setf obj-val default-val))
