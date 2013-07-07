@@ -92,10 +92,10 @@
           (cursor (r:run sock query))
           (persona (when (r:has-next cursor)
                      (r:next sock cursor))))
-    (r:stop sock cursor)
-    (r:disconnect sock)
+    (wait-for (r:stop sock cursor)
+      (r:disconnect sock))
     (if (and (hash-table-p persona)
-             (not (eq ignore-persona-id (gethash "id" persona))))
+             (not (string= ignore-persona-id (gethash "id" persona))))
         (finish future persona)
         (finish future nil))))
 
