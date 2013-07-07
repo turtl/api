@@ -1,10 +1,12 @@
 (in-package :tagit)
 
+(define-condition user-exists (tagit-error)
+  ((code :initform 403)))
+
 (defvalidator validate-user
   (("id" :type string :required t :length 24)
    ("a" :type string :required t)
-   ("body" :type cl-async-util:bytes-or-string)
-   ("mod" :type integer :required t :default 'get-timestamp)))
+   ("body" :type cl-async-util:bytes-or-string)))
 
 (defafun check-auth (future) (auth-key)
   "Check if the given auth key exists. Finishes with the user id if so, nil
@@ -29,7 +31,6 @@
 (defafun add-user (future) (user-data)
   "Add a new user"
   (add-id user-data)
-  (add-mod user-data)
   (alet ((user (check-auth (gethash "a" user-data))))
     (if user
         (signal-error future (make-instance 'user-exists
@@ -43,3 +44,6 @@
             (r:disconnect sock)
             (finish future user-data))))))
 
+(defafun edit-user (future) (user-id mod-user-id user-data)
+  "Edit a user. Mainly used to update a user's private (encrypted) data and
+   settings."

@@ -50,6 +50,25 @@
         (parse-integer string :start (+ i 1) :junk-allowed t)
       (values (float (+ integer (/ fraction (expt 10 (- j i 1))))) j))))
 
+(defun sha256 (sequence/string)
+  "Return a *string* sha256 hash of the given string/byte sequence."
+  (string-downcase
+    (to-hex
+      (ironclad:digest-sequence (ironclad:make-digest 'ironclad:sha256)
+                                (if (stringp sequence/string)
+                                    (babel:string-to-octets sequence/string)
+                                    sequence/string)))))
+
+(defun to-hex (byte-array)
+  "Covert a byte array to a hex string."
+  (let ((hex-string (make-string (* (length byte-array) 2))))
+    (loop for byte across byte-array
+          for i from 0 by 2 do
+      (let ((byte-hex (format nil "~2,'0X" byte)))
+        (setf (aref hex-string i) (aref byte-hex 0)
+              (aref hex-string (1+ i)) (aref byte-hex 1))))
+    hex-string))
+
 (defmacro varint (str-input &optional default)
   "Wraps parsing an integer from a form where the return may be a string integer
    or may be nil. Meant to be used to parse numbers from GET/POST data."
