@@ -4,7 +4,9 @@
   (catch-errors (res)
     (alet* ((persona-id (car args))
             (persona (get-persona-by-id persona-id)))
-      (send-json res persona))))
+      (if persona
+          (send-json res persona)
+          (send-json res "Persona not found." :status 404)))))
 
 (defroute (:post "/api/personas") (req res)
   (catch-errors (res)

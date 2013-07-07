@@ -6,9 +6,9 @@
       (unless (string= (user-id req) user-id)
         (error 'insufficient-privileges :msg "You are trying to access another user's projects. For shame."))
       (alet* ((projects (get-user-projects user-id t))
-              (settings nil)
+              (user-data (get-user-data user-id))
               (response (make-hash-table :test #'equal)))
         (setf (gethash "projects" response) projects
-              (gethash "settings" response) settings)
+              (gethash "user" response) user-data)
         (send-json res response)))))
 

@@ -5,7 +5,7 @@
   
 (defvalidator validate-persona
   (("id" :type string :required t :length 24)
-   ("secret" :type string :required t :length 36)
+   ("secret" :type string :required t)
    ("pubkey" :type string :required t)
    ("screenname" :type string :required t)
    ("name" :type string)
@@ -16,12 +16,17 @@
   "Get a persona by id."
   (alet* ((sock (db-sock))
           (query (r:r (:without
-                        (:get (:table "personas") persona-id))
-                      "secret"
-                      "challenge"))
+                        (:default
+                          (:get (:table "personas") persona-id)
+                          #())
+                        "secret"
+                        "challenge")))
           (persona (r:run sock query)))
+    (r:disconnect sock)
     (finish future persona)))
 
+;; TODO: find a way to limit number of personas per account/user.
+;; might not be possible with current method of obscuring the links.
 (defafun add-persona (future) (secret persona-data)
   "Add a persona to the system."
   (setf (gethash "secret" persona-data) secret)
@@ -49,16 +54,18 @@
                                  nil)))
            (if availablep
                (alet* ((sock (db-sock))
-                       (query (r:r (:update
+                       (query (r:r (:replace
                                      (:get (:table "personas") persona-id)
-                                     persona-data)))
+                                     (r:fn (persona)
+                                       (:merge persona-data
+                                               (:pluck persona "secret"))))))
                        (nil (r:run sock query)))
                  (r:disconnect sock)
                  (finish future persona-data))
                (signal-error future (make-instance 'persona-screenname-exists
                                                    :msg "That screenname is taken.")))))
        (signal-error future (make-instance 'insufficient-privileges
-                                           :msg "Sorry, the persona you are modifying does not exist or you passed the wrong UUID."))))
+                                           :msg "Sorry, the persona you are modifying does not exist or you passed the wrong challenge response."))))
 
 (defafun delete-persona (future) (persona-id challenge-response)
   "Delete a persona. Validates the passed challenge-response."
@@ -69,7 +76,7 @@
          (r:disconnect sock)
          (finish future t))
        (signal-error future (make-instance 'insufficient-privileges
-                                           :msg "Sorry, the persona you are modifying does not exist or you passed the wrong UUID."))))
+                                           :msg "Sorry, the persona you are modifying does not exist or you passed the wrong challenge response."))))
 
 (defafun get-persona-by-screenname (future) (screenname &optional ignore-persona-id)
   "Grab a persona via its screenname. Must be an exact match (for now)."
@@ -87,10 +94,10 @@
                      (r:next sock cursor))))
     (r:stop sock cursor)
     (r:disconnect sock)
-    (if (and persona
-             (eq ignore-persona-id (gethash "id" persona)))
-        (finish future nil)
-        (finish future persona))))
+    (if (and (hash-table-p persona)
+             (not (eq ignore-persona-id (gethash "id" persona))))
+        (finish future persona)
+        (finish future nil))))
 
 (defafun persona-screenname-available-p (future) (screenname &optional ignore-id)
   "Test whether or not a screenname is available."
@@ -106,7 +113,13 @@
                         (:get (:table "personas") persona-id)
                         "secret"
                         "challenge")))
-          (persona (r:run sock query)))
+          (persona (r:run sock query))
+          ;; remove the challenge value
+          (query (r:r (:replace
+                        (:get (:table "personas") persona-id)
+                        (r:fn (persona)
+                          (:without persona "challenge")))))
+          (r:run sock query))
     (r:disconnect sock)
     (if (and (hash-table-p persona)
              (stringp (gethash "secret" persona))
@@ -119,7 +132,7 @@
 
 (defafun generate-persona-challenge (future) (persona-id)
   "Generate a challenge value for modifying a persona."
-  (alet* ((challenge (sha256 (format nil "~a" (get-timestamp))))
+  (alet* ((challenge (sha256 (format nil "~a.~a" persona-id (get-internal-real-time))))
           (sock (db-sock))
           (query (r:r (:update
                         (:get (:table "personas") persona-id)

@@ -3,6 +3,9 @@
 (define-condition user-exists (tagit-error)
   ((code :initform 403)))
 
+(define-condition user-mismatch (tagit-error)
+  ((code :initform 403)))
+
 (defvalidator validate-user
   (("id" :type string :required t :length 24)
    ("a" :type string :required t)
@@ -47,3 +50,25 @@
 (defafun edit-user (future) (user-id mod-user-id user-data)
   "Edit a user. Mainly used to update a user's private (encrypted) data and
    settings."
+   (if (string= user-id mod-user-id)
+       (validate-user (user-data future :edit t)
+         (alet* ((sock (db-sock))
+                 (query (r:r (:update
+                               (:get (:table "users") user-id)
+                               user-data)))
+                 (nil (r:run sock query)))
+           (r:disconnect sock)
+           (finish future user-data)))
+       (signal-error future (make-instance 'user-mismatch
+                                           :msg "You tried to edit someone else's account. For shame."))))
+
+(defafun get-user-data (future) (user-id)
+  "Get the private data section (`body` key) for a user."
+  (alet* ((sock (db-sock))
+          (query (r:r (:pluck
+                        (:get (:table "users") user-id)
+                        "body")))
+          (user (r:run sock query)))
+    (r:disconnect sock)
+    (finish future user)))
+
