@@ -3,7 +3,19 @@
   :license "MIT"
   :version "0.1.0"
   :description "An encrypted note/bookmark/data organizer."
-  :depends-on (#:cl-async-future #:cl-async #:wookie #:cl-rethinkdb #:cl-ppcre #:cl-who #:cl-fad #:yason #:cl-mongo-id #:cl-base64 #:local-time #:ironclad)
+  :depends-on (#:cl-async-future
+               #:cl-async
+               #:wookie
+               #:cl-rethinkdb
+               #:cl-ppcre
+               #:cl-who
+               #:cl-fad
+               #:yason
+               #:cl-mongo-id
+               #:cl-base64
+               #:local-time
+               #:ironclad
+               #:secure-random)
   :components
   ((:file "package")
    (:file "config" :depends-on ("package"))

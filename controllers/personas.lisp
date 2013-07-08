@@ -33,16 +33,8 @@
 (defroute (:post "/api/personas/([0-9a-f-]+)/challenge") (req res args)
   (catch-errors (res)
     (alet* ((persona-id (car args))
-            (challenge (generate-persona-challenge persona-id)))
+            (challenge (generate-challenge :persona persona-id :expire 5 :one-time t)))
       (send-json res challenge))))
-
-(defroute (:post "/api/personas/challenges") (req res)
-  (catch-errors (res)
-    (alet* ((personas (post-var req personas))
-            (persona-ids (ignore-errors (yason:parse personas))))
-      (if persona-ids
-          ;(alet* ((challenges (generate-persona-challenges 
-          (send-json res "No personas given" :status 400)))))
 
 (defroute (:get "/api/personas/screenname/([a-zA-Z0-9\/\.]+)") (req res args)
   (catch-errors (res)

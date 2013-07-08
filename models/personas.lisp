@@ -19,8 +19,7 @@
                         (:default
                           (:get (:table "personas") persona-id)
                           #())
-                        "secret"
-                        "challenge")))
+                        "secret")))
           (persona (r:run sock query)))
     (r:disconnect sock)
     (finish future persona)))
@@ -86,14 +85,15 @@
                           (:get-all (:table "personas")
                                     screenname
                                     :index "screenname")
-                          "secret"
-                          "challenge")
+                          "secret")
                         1)))
           (cursor (r:run sock query))
           (persona (when (r:has-next cursor)
                      (r:next sock cursor))))
-    (wait-for (r:stop sock cursor)
-      (r:disconnect sock))
+    (if (r:cursorp cursor)
+        (wait-for (r:stop sock cursor)
+          (r:disconnect sock))
+        (r:disconnect sock))
     (if (and (hash-table-p persona)
              (not (string= ignore-persona-id (gethash "id" persona))))
         (finish future persona)
@@ -111,53 +111,9 @@
   (alet* ((sock (db-sock))
           (query (r:r (:pluck
                         (:get (:table "personas") persona-id)
-                        "secret"
-                        "challenge")))
+                        "secret")))
           (persona (r:run sock query))
-          ;; remove the challenge value
-          (query (r:r (:replace
-                        (:get (:table "personas") persona-id)
-                        (r:fn (persona)
-                          (:without persona "challenge")))))
-          (r:run sock query))
+          (validp (verify-challenge :persona persona-id (gethash "secret" persona) response)))
     (r:disconnect sock)
-    (if (and (hash-table-p persona)
-             (stringp (gethash "secret" persona))
-             (stringp (gethash "challenge" persona))
-             (string= (sha256 (concatenate 'string (gethash "secret" persona)
-                                                   (gethash "challenge" persona)))
-                      response))
-        (finish future t)
-        (finish future nil))))
+    (finish future validp)))
 
-(defun make-persona-challenge (persona-id)
-  "Generates a persona challenge based on the persona's ID and the current
-   internal time."
-  (sha256 (format nil "~a.~a" persona-id (get-internal-real-time))))
-
-(defafun generate-persona-challenge (future) (persona-id)
-  "Generate a challenge value for modifying a persona."
-  (alet* ((challenge (make-persona-challenge persona-id))
-          (sock (db-sock))
-          (query (r:r (:update
-                        (:get (:table "personas") persona-id)
-                        `(("challenge" . ,challenge)))))
-          (nil (r:run sock query)))
-    (r:disconnect sock)
-    (finish future challenge)))
-
-(defafun persona-challenge-responses-valid-p (future) (responses)
-  "Verifies multiple persona challenge responses. Responses are in the format:
-     {
-       persona-id: challenge-response,
-       persona-id: challenge-response,
-       ...
-     }
-   Invalid entries are ignored, valid entries are all returned as one list of
-   persona IDs."
-  )
-
-(defafun generate-persona-challenges (future) (persona-ids)
-  "Generates *multiple* challenges, one for each persona ID given. Returns them
-   all as an erray. Useful for verifying many personas in one post."
-  )

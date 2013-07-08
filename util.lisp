@@ -29,9 +29,9 @@
                  :headers '(:content-type "application/json")
                  :body (to-json object)))
 
-(defun add-id (hash-object &key (id "id"))
+(defun add-id (hash-object &key (id-key "id"))
   "Add a mongo id to a hash table object."
-  (setf (gethash id hash-object) (string-downcase (mongoid:oid-str (mongoid:oid)))))
+  (setf (gethash id-key hash-object) (string-downcase (mongoid:oid-str (mongoid:oid)))))
 
 (defun add-mod (hash-object &key (key "mod"))
   "Add a mongo id to a hash table object."
@@ -58,6 +58,11 @@
                                 (if (stringp sequence/string)
                                     (babel:string-to-octets sequence/string)
                                     sequence/string)))))
+
+(defun crypto-random ()
+  "Generate a cryptographically-secure random number between 0 and 1. Works by
+   calling out to OpenSSL."
+  (coerce (/ (secure-random:number most-positive-fixnum) most-positive-fixnum) 'single-float))
 
 (defun to-hex (byte-array)
   "Covert a byte array to a hex string."
