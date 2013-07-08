@@ -85,7 +85,7 @@
                         (:without
                           (:get-all (:table "personas")
                                     screenname
-                                    "screenname")
+                                    :index "screenname")
                           "secret"
                           "challenge")
                         1)))
@@ -130,9 +130,14 @@
         (finish future t)
         (finish future nil))))
 
+(defun make-persona-challenge (persona-id)
+  "Generates a persona challenge based on the persona's ID and the current
+   internal time."
+  (sha256 (format nil "~a.~a" persona-id (get-internal-real-time))))
+
 (defafun generate-persona-challenge (future) (persona-id)
   "Generate a challenge value for modifying a persona."
-  (alet* ((challenge (sha256 (format nil "~a.~a" persona-id (get-internal-real-time))))
+  (alet* ((challenge (make-persona-challenge persona-id))
           (sock (db-sock))
           (query (r:r (:update
                         (:get (:table "personas") persona-id)
@@ -141,3 +146,18 @@
     (r:disconnect sock)
     (finish future challenge)))
 
+(defafun persona-challenge-responses-valid-p (future) (responses)
+  "Verifies multiple persona challenge responses. Responses are in the format:
+     {
+       persona-id: challenge-response,
+       persona-id: challenge-response,
+       ...
+     }
+   Invalid entries are ignored, valid entries are all returned as one list of
+   persona IDs."
+  )
+
+(defafun generate-persona-challenges (future) (persona-ids)
+  "Generates *multiple* challenges, one for each persona ID given. Returns them
+   all as an erray. Useful for verifying many personas in one post."
+  )

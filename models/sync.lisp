@@ -11,7 +11,7 @@
                          (:contains (:map
                                       (:get-all (:table "projects")
                                                 user-id
-                                                "user_id")
+                                                :index "user_id")
                                       (r:fn (project) (:attr project "id")))
                                     (:attr note "project_id"))
                          (:> (:default (:attr note "mod") 0)
