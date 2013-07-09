@@ -30,12 +30,6 @@
             (nil (delete-persona persona-id challenge-response)))
       (send-json res t))))
 
-(defroute (:post "/api/personas/([0-9a-f-]+)/challenge") (req res args)
-  (catch-errors (res)
-    (alet* ((persona-id (car args))
-            (challenge (generate-challenge :persona persona-id :expire 5 :one-time t)))
-      (send-json res challenge))))
-
 (defroute (:get "/api/personas/screenname/([a-zA-Z0-9\/\.]+)") (req res args)
   (catch-errors (res)
     (alet* ((screenname (car args))
@@ -44,4 +38,16 @@
       (if persona
           (send-json res persona)
           (send-json res "Persona not found ='[" :status 404)))))
+
+(defroute (:post "/api/personas/([0-9a-f-]+)/challenge") (req res args)
+  (catch-errors (res)
+    (alet* ((persona-id (car args))
+            (challenge (generate-challenge :persona persona-id :expire 5 :one-time t)))
+      (send-json res challenge))))
+
+(defroute (:post "/api/personas/challenges") (req res)
+  (catch-errors (res)
+    (alet* ((persona-ids (ignore-errors (yason:parse (post-var req "personas"))))
+            (challenges (generate-multiple-challenges :persona persona-ids :expire 1800)))
+      (send-json res challenges))))
 

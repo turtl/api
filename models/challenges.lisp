@@ -20,7 +20,7 @@
   "Generates a challenge-response based on given values."
   (sha256 (concatenate 'string secret challenge)))
 
-(defafun generate-challenge (future) (type item-id &key (expire *challenge-expire*) (one-time t))
+(defafun generate-challenge (future) (type item-id &key (expire *challenge-expire*) one-time)
   "Generate a challenge with the given item type/id. Saves the challenge into
    the challenges table for later verification. Challenges will expire after
    *challenge-expire* many seconds, however :expire can be passed to specify a
@@ -41,6 +41,10 @@
           (nil (r:run sock query)))
     (r:disconnect sock)
     (finish future challenge data)))
+
+(defafun generate-multiple-challenges (future) (type item-ids &key (expire *challenge-expire*) one-time)
+  "Generate multiple challenges for the given type/id list. Follows the same
+   method for one-time/expiration as generate-challenge."
 
 (defafun verify-challenge (future) (type item-id secret response)
   "Verify that a given challenge-response is valid for the given item type/id."
@@ -68,6 +72,4 @@
                 (nil (r:run sock query)))
           (r:disconnect sock)))
       (finish future (when found t)))))
-
-(cl-rethinkdb-reql::is-array '())
 
