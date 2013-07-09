@@ -20,24 +20,24 @@
   "Generates a challenge-response based on given values."
   (sha256 (concatenate 'string secret challenge)))
 
-(defun make-challenge-object (type item-id expire one-time &key add-id)
+(defun make-challenge-object (type item-id expire persist &key add-id)
   "Abstracts making a challenge object passed into the database."
   (let ((hash (make-hash-table :test #'equal))
         (challenge (make-challenge item-id)))
     (setf (gethash "type" hash) (get-challenge-type-int type)
           (gethash "item_id" hash) item-id
           (gethash "challenge" hash) challenge
-          (gethash "one_time" hash) (not (not one-time))
+          (gethash "persist" hash) (not (not persist))
           (gethash "expire" hash) (+ expire (get-timestamp)))
     (when add-id (add-id hash))
     hash))
     
-(defafun generate-challenge (future) (type item-id &key (expire *challenge-expire*) one-time)
+(defafun generate-challenge (future) (type item-id &key (expire *challenge-expire*) persist)
   "Generate a challenge with the given item type/id. Saves the challenge into
    the challenges table for later verification. Challenges will expire after
    *challenge-expire* many seconds, however :expire can be passed to specify a
    different value (in seconds)."
-  (alet* ((challenge-obj (make-challenge-object type item-id expire one-time :add-id t))
+  (alet* ((challenge-obj (make-challenge-object type item-id expire persist :add-id t))
           (sock (db-sock))
           (query (r:r (:insert
                         (:table "challenges")
@@ -46,12 +46,12 @@
     (r:disconnect sock)
     (finish future (gethash "challenge" challenge-obj) challenge-obj)))
 
-(defafun generate-multiple-challenges (future) (type item-ids &key (expire *challenge-expire*) one-time)
+(defafun generate-multiple-challenges (future) (type item-ids &key (expire *challenge-expire*) persist)
   "Generate multiple challenges for the given type/id list. Follows the same
-   method for one-time/expiration as generate-challenge."
+   method for persist/expiration as generate-challenge."
   (let ((challenges nil))
     (dolist (item-id item-ids)
-      (push (make-challenge-object type item-id expire one-time :add-id t) challenges))
+      (push (make-challenge-object type item-id expire persist :add-id t) challenges))
     (alet* ((sock (db-sock))
             (query (r:r (:insert
                           (:table "challenges")
@@ -83,8 +83,8 @@
             (when (string= response gen-response)
               (setf found challenge)
               (return)))))
-      ;; remove the challenge if it's a one-timer
-      (when (and found (gethash "one_time" found))
+      ;; remove the challenge if it's not set to persist
+      (when (and found (null (gethash "persist" found)))
         (alet* ((challenge-id (gethash "id" found))
                 (sock (db-sock))
                 (query (r:r (:delete (:get (:table "challenges") challenge-id))))

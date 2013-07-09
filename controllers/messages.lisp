@@ -1,6 +1,6 @@
 (in-package :tagit)
 
-(defroute (:get "/api/messages/persona/([0-9a-f-]+)") (req res args)
+(defroute (:get "/api/messages/personas/([0-9a-f-]+)") (req res args)
   (catch-errors (res)
     (alet* ((persona-id (car args))
             (after (get-var req "after"))
