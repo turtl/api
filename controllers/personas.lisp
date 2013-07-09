@@ -42,12 +42,16 @@
 (defroute (:post "/api/personas/([0-9a-f-]+)/challenge") (req res args)
   (catch-errors (res)
     (alet* ((persona-id (car args))
-            (challenge (generate-challenge :persona persona-id :expire 5 :one-time t)))
+            (expire (varint (post-var req "expire") 10))
+            (one-time (if (zerop (varint (post-var req "onetime") 1))
+                          nil
+                          t))
+            (challenge (generate-challenge :persona persona-id :expire 5 :one-time one-time)))
       (send-json res challenge))))
 
 (defroute (:post "/api/personas/challenges") (req res)
   (catch-errors (res)
-    (alet* ((persona-ids (ignore-errors (yason:parse (post-var req "personas"))))
+    (alet* ((persona-ids (yason:parse (post-var req "personas")))
             (challenges (generate-multiple-challenges :persona persona-ids :expire 1800)))
       (send-json res challenges))))
 
