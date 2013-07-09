@@ -31,7 +31,8 @@
 
 (defun add-id (hash-object &key (id-key "id"))
   "Add a mongo id to a hash table object."
-  (setf (gethash id-key hash-object) (string-downcase (mongoid:oid-str (mongoid:oid)))))
+  (setf (gethash id-key hash-object) (string-downcase (mongoid:oid-str (mongoid:oid))))
+  hash-object)
 
 (defun add-mod (hash-object &key (key "mod"))
   "Add a mongo id to a hash table object."
