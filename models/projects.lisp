@@ -11,19 +11,23 @@
   "Get all projects for a user, ordered by sort order."
   (alet* ((sock (db-sock))
           (query (r:r (:order-by
-                        (:filter
+                        (:get-all
                           (:table "projects")
-                          (r:fn (p)
-                            (:== (:attr p "user_id") user-id)))
+                          user-id
+                          :index "user_id")
                         (:asc "sort")
                         (:asc "id"))))
           (cursor (r:run sock query))
           (projects (r:to-array sock cursor)))
-    (wait-for (r:stop sock cursor)
-      (r:disconnect sock))
-    (if get-notes
+    (if (r:cursorp cursor)
+        (wait-for (r:stop sock cursor)
+          (r:disconnect sock))
+        (r:disconnect sock))
+    (if (and get-notes
+             (< 0 (length projects)))
         (loop for i = 0
               for project across projects do
+              (format t "getting notes for ~a~%" (gethash "id" project))
           (alet ((project project) ;; bind for inner form or loop will shit all over it
                  (notes (get-user-notes user-id (gethash "id" project))))
             (setf (gethash "notes" project) notes)
