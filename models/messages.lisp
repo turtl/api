@@ -5,11 +5,24 @@
    only get messages after that ID."
   (aif (persona-challenge-response-valid-p persona-id challenge-response)
        (alet* ((sock (db-sock))
-               (query (r:r (:between
-                             (:table "messages")
-                             :left (list persona-id after)
-                             :right (list persona-id "zzzzzzzzzzzzzzzzzzzzzzzzz")  ;; lol h4x
-                             :index "get_messages")))
+               (query (r:r (:map
+                             (:eq-join
+                               (:between
+                                 (:table "messages")
+                                 :left (list persona-id after)
+                                 :right (list persona-id "zzzzzzzzzzzzzzzzzzzzzzzzz")  ;; lol h4x
+                                 :index "get_messages")
+                               "from"
+                               (:table "personas"))
+                             (r:fn (row)
+                               (:without
+                                 (:merge
+                                   (:merge
+                                     row
+                                     (:attr row "left"))
+                                   `(("persona" . ,(:without (:attr row "right") "secret"))))
+                                 "left"
+                                 "right")))))
                (cursor (r:run sock query))
                (res (r:to-array sock cursor)))
          (if (r:cursorp cursor)
