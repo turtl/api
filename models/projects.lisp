@@ -27,7 +27,6 @@
              (< 0 (length projects)))
         (loop for i = 0
               for project across projects do
-              (format t "getting notes for ~a~%" (gethash "id" project))
           (alet ((project project) ;; bind for inner form or loop will shit all over it
                  (notes (get-user-notes user-id (gethash "id" project))))
             (setf (gethash "notes" project) notes)
