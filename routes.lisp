@@ -9,10 +9,12 @@
 ;; load all our controllers (and their contained routes)
 (load-folder (concatenate 'string (namestring *root*) "controllers/"))
 
-(defroute (:get "/refresh-views") (req res)
-  (load-views)
-  (send-response res :body "Views refreshed!!"))
-
+(defroute (:* "/api/.+") (req res)
+  (send-response res
+                 :status 404
+                 :headers '(:content-type "application/json")
+                 :body (to-json "Unknown resource.")))
+                 
 (defroute (:get "/favicon.ico") (req res)
   (send-response res :status 301 :headers '(:location "/favicon.png")))
 
@@ -20,14 +22,11 @@
 (def-directory-route "/" *site-assets*
                      :disable-directory-listing t)
 
-(defroute (:get "/api/.+") (req res)
-  (send-response res
-                 :status 404
-                 :headers '(:content-type "application/json")
-                 :body (to-json "Unknown resource.")))
-                 
 ;; set up a catch-all route which loads the app, no matter the URL
 (defroute (:get ".+") (req res)
   (let ((body (layout :default '(:content "" :title "tag.it"))))
     (send-response res :headers '(:content-type "text/html") :body body)))
+
+(defroute (:* ".+") (req res)
+  (send-response res :body "Page not found." :status 404))
 
