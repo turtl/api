@@ -24,6 +24,22 @@
     (r:disconnect sock)
     (finish future persona)))
 
+(defafun search-personas (future) (&key screenname)
+  "Search personas by various criteria."
+  (alet* ((sock (db-sock))
+          (query (r:r (:limit
+                        (:filter
+                          (:table "personas")
+                          (r:fn (p)
+                            (:match (:attr p "screenname")
+                                    (concatenate 'string "^" screenname))))
+                        10)))
+          (cursor (r:run sock query))
+          (personas (r:to-array sock cursor)))
+    (wait-for (r:stop sock cursor)
+      (r:disconnect sock))
+    (finish future personas)))
+
 ;; TODO: find a way to limit number of personas per account/user.
 ;; might not be possible with current method of obscuring the links.
 (defafun add-persona (future) (secret persona-data)

@@ -30,6 +30,12 @@
             (nil (delete-persona persona-id challenge-response)))
       (send-json res t))))
 
+(defroute (:get "/api/personas/screenname/([a-zA-Z0-9\/\.]+)\\*") (req res args)
+  (catch-errors (res)
+    (alet* ((screenname (car args))
+            (personas (search-personas :screenname screenname)))
+      (send-json res personas))))
+
 (defroute (:get "/api/personas/screenname/([a-zA-Z0-9\/\.]+)") (req res args)
   (catch-errors (res)
     (alet* ((screenname (car args))
