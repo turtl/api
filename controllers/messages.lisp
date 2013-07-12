@@ -10,10 +10,8 @@
 
 (defroute (:post "/api/messages") (req res)
   (catch-errors (res)
-    (alet* ((from-persona-id (post-var req "from"))
-            (from-persona-challenge (post-var req "challenge"))
-            (to-persona-id (post-var req "to"))
-            (body (post-var req "body"))
-            (message (send-message from-persona-id from-persona-challenge to-persona-id body)))
+    (alet* ((message-data (post-var req "data"))
+            (challenge (post-var req "challenge"))
+            (message (send-message message-data challenge)))
       (send-json res (gethash "id" message)))))
 

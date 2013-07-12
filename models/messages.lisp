@@ -1,5 +1,11 @@
 (in-package :tagit)
 
+(defvalidator validate-message
+  (("id" :type string :required t :length 24)
+   ("from" :type string :required t :length 24)
+   ("to" :type string :required t :length 24)
+   ("data" :type cl-async-util:bytes-or-string)))
+
 (defafun get-messages-for-persona (future) (persona-id challenge-response &key (after ""))
   "Gets messages for a persona. If a message ID is specified for :after, will
    only get messages after that ID."
@@ -9,8 +15,8 @@
                              (:eq-join
                                (:between
                                  (:table "messages")
-                                 :left (list persona-id after)
-                                 :right (list persona-id "zzzzzzzzzzzzzzzzzzzzzzzzz")  ;; lol h4x
+                                 :left (list persona-id (concatenate 'string after ".")) ;; moar hax
+                                 :right (list persona-id "zzzzzzzzzzzzzzzzzzzzzzzzz")    ;; lol h4x
                                  :index "get_messages")
                                "from"
                                (:table "personas"))
@@ -33,21 +39,21 @@
        (signal-error future (make-instance 'insufficient-privileges
                                            :msg "Sorry, either the persona you are getting messages for doesn't exist or you don't have access to it."))))
 
-(defafun send-message (future) (from-persona-id from-persona-challenge to-persona-id body)
+(defafun send-message (future) (message-data challenge)
   "Send a message from one persona to another. The message body is pubkey
    encrypted."
-  (aif (persona-challenge-response-valid-p from-persona-id from-persona-challenge)
-       (let* ((message (make-hash-table :test #'equal)))
-         (add-id message)
-         (setf (gethash "from" message) from-persona-id
-               (gethash "to" message) to-persona-id
-               (gethash "body" message) body)
-         (alet* ((sock (db-sock))
-                 (query (:insert
-                          (:table "messages")
-                          message))
-                 (nil (r:run sock query)))
-           (finish future message)))
-       (signal-error future (make-instance 'insufficient-privileges
-                                           :msg "Sorry, either the persona you're sending from doesn't exit, or you don't have access to it."))))
+  (let ((from-persona-id (gethash "from" message-data)))
+    (add-id message-data)
+    (validate-message (message-data future)
+      (aif (persona-challenge-response-valid-p from-persona-id challenge)
+           (progn
+             (alet* ((sock (db-sock))
+                     (query (r:r (:insert
+                                   (:table "messages")
+                                   message-data)))
+                     (nil (r:run sock query)))
+               (r:disconnect sock)
+               (finish future message-data)))
+           (signal-error future (make-instance 'insufficient-privileges
+                                               :msg "Sorry, either the persona you're sending from doesn't exit, or you don't have access to it."))))))
 
