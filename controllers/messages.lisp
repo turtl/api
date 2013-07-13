@@ -13,5 +13,5 @@
     (alet* ((message-data (post-var req "data"))
             (challenge (post-var req "challenge"))
             (message (send-message message-data challenge)))
-      (send-json res (gethash "id" message)))))
+      (send-json res message))))
 
