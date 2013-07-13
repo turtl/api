@@ -4,6 +4,7 @@
   (("id" :type string :required t :length 24)
    ("from" :type string :required t :length 24)
    ("to" :type string :required t :length 24)
+   ("keys" :type sequence :required t)
    ("data" :type cl-async-util:bytes-or-string)))
 
 (defafun get-messages-for-persona (future) (persona-id challenge-response &key (after ""))
