@@ -33,3 +33,21 @@
             (nil (delete-project user-id project-id)))
       (send-json res t))))
 
+(defroute (:put "/api/projects/([0-9a-f-]+)/permissions/persona/([0-9a-f-]+)") (req res args)
+  (catch-errors (res)
+    (alet* ((user-id (user-id req))
+            (project-id (car args))
+            (persona-id (cadr args))
+            (permissions (post-var req "permissions"))
+            (perms (set-project-persona-permissions user-id project-id persona-id permissions)))
+      (send-json res perms))))
+
+(defroute (:put "/api/projects/([0-9a-f-]+)/keys/persona/([0-9a-f-]+)") (req res args)
+  (catch-errors (res)
+    (alet* ((project-id (car args))
+            (persona-id (cadr args))
+            (challenge (post-var req "challenge"))
+            (keydata (post-var req "keydata"))
+            (success (project-add-persona-key project-id persona-id challenge keydata)))
+      (send-json res success))))
+
