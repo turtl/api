@@ -16,13 +16,10 @@
 (defafun get-user-projects (future) (user-id get-notes)
   "Get all projects for a user, ordered by sort order."
   (alet* ((sock (db-sock))
-          (query (r:r (:order-by
-                        (:get-all
+          (query (r:r (:get-all
                           (:table "projects")
                           user-id
-                          :index "user_id")
-                        (:asc "sort")
-                        (:asc "id"))))
+                          :index "user_id")))
           (cursor (r:run sock query))
           (projects (r:to-array sock cursor)))
     (if (r:cursorp cursor)
@@ -44,8 +41,6 @@
 (defafun add-project (future) (user-id project-data)
   "Save a project with a user."
   (setf (gethash "user_id" project-data) user-id)
-  (unless (gethash "sort" project-data)
-    (setf (gethash "sort" project-data) 99999))
   (add-id project-data)
   (add-mod project-data)
   (validate-project (project-data future)
@@ -59,7 +54,9 @@
 
 (defafun edit-project (future) (user-id project-id project-data)
   "Edit an existing project."
-  ;; first, check if the user owns the project
+  ;; first, check if the user owns the project. any non-owner edits have to be
+  ;; done via different (more specific) methods than just "LOL replace all teh
+  ;; dataz immy projectt!"
   (alet ((perms (get-user-project-permissions user-id project-id)))
     (if (<= 3 perms)
         (validate-project (project-data future :edit t)
@@ -105,9 +102,8 @@
    3 == owner"
   (alet* ((sock (db-sock))
           (query (r:r (:get (:table "projects") project-id)))
-          (project (r:run sock privs-query)))
+          (project (r:run sock query)))
     (r:disconnect sock)
-    ;; right now, you either own it or you don't...
     (if (hash-table-p project)
         (let* ((user-id (gethash "user_id" project))
                (privs (gethash "privs" project))
@@ -158,9 +154,15 @@
   "Add a persona's key to a project's key data."
   (validate-key (keydata future)
     (aif (persona-challenge-response-valid-p persona-id challenge-response)
-         (alet ((perms (get-user-project-permissions user-id project-id)))
+         ;; make sure this persona has some for of access to this project
+         (alet ((perms (get-user-project-permissions persona-id project-id)))
            (if (<= 1 perms)
                (alet* ((sock (db-sock))
+                       ;; this is a subquery that takes project.keys and updates
+                       ;; it according to its existing data: if keys already
+                       ;; contains an entry(s) for this persona, they are replaced
+                       ;; with the new entry, otherwise the new entry is slapped
+                       ;; onto the end of the keys array
                        (sub-query (r:r
                                     ;; if the keys array already contains {a: <persona-id>} ...
                                     (:branch (:contains
@@ -170,13 +172,23 @@
                                                    ;; :default prevents "BAD KEY" errors
                                                    (:default (:attr key "a") nil)))
                                                persona-id)
-                                      ;; key already exists in project, update it (ugh)
-                                      (:)
+                                      ;; key already exists in project, update it
+                                      (:append
+                                        ;; filter all keys out where key.a == <persona-id>
+                                        (:filter
+                                          (:row "keys")
+                                          (r:fn (k)
+                                            (:~ (:&& (:has-fields k "a")
+                                                     (:== (:attr k "a") persona-id)))))
+                                        `(("a" . ,persona-id)
+                                          ("k" . ,keydata)))
                                       ;; this is a new key, add it
                                       (:append
                                         (:row "keys")
                                         `(("a" . ,persona-id)
                                           ("k" . ,keydata))))))
+                       ;; main update, takes sub-query above and uses it to
+                       ;; update the projects's keys
                        (query (r:r
                                 (:update
                                   (:get (:table "projects") project-id)
@@ -184,7 +196,7 @@
                        (nil (r:run sock query)))
                  (finish future keydata))
                (signal-error future (make-instance 'insufficient-privileges
-                                                   :msg "Sorry, you are modifying a project you aren't a member of.")))))
+                                                   :msg "Sorry, you are modifying a project you aren't a member of."))))
          (signal-error future (make-instance 'insufficient-privileges
                                              :msg "Sorry, the persona you are modifying does not exist or you passed the wrong challenge response.")))))
 
