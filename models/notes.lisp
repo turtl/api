@@ -3,20 +3,20 @@
 (defvalidator validate-note
   (("id" :type string :required t :length 24)
    ("user_id" :type string :required t :length 24)
-   ("project_id" :type string :required t :length 24)
+   ("board_id" :type string :required t :length 24)
    ("keys" :type sequence :required t)
    ("body" :type cl-async-util:bytes-or-string)
    ("mod" :type integer :required t :default 'get-timestamp)))
 
-(defafun get-user-notes (future) (user-id project-id)
-  "Get the notes for a user/project."
+(defafun get-user-notes (future) (user-id board-id)
+  "Get the notes for a user/board."
   (alet* ((sock (db-sock))
           (query (r:r (:order-by
                         (:filter
                           (:table "notes")
                           (r:fn (note)
                             (:&& (:== (:attr note "user_id") user-id)
-                                 (:== (:attr note "project_id") project-id)
+                                 (:== (:attr note "board_id") board-id)
                                  (:== (:default (:attr note "deleted") nil) nil))))
                         (:asc "sort")
                         (:asc "id"))))
@@ -26,15 +26,15 @@
       (r:disconnect sock))
     (finish future results)))
 
-(defafun add-note (future) (user-id project-id note-data)
+(defafun add-note (future) (user-id board-id note-data)
   "Add a new note."
   (setf (gethash "user_id" note-data) user-id
-        (gethash "project_id" note-data) project-id
+        (gethash "board_id" note-data) board-id
         (gethash "sort" note-data) 99999)
   (add-id note-data)
   (add-mod note-data)
-  ;; first, check that the user is a member of this project
-  (alet ((perms (get-user-project-permissions user-id project-id)))
+  ;; first, check that the user is a member of this board
+  (alet ((perms (get-user-board-permissions user-id board-id)))
     (if (<= 2 perms)
         (validate-note (note-data future)
           (alet* ((sock (db-sock))
@@ -45,7 +45,7 @@
             (r:disconnect sock)
             (finish future note-data)))
         (signal-error future (make-instance 'insufficient-privileges
-                                            :msg "Sorry, you aren't a member of that project.")))))
+                                            :msg "Sorry, you aren't a member of that board.")))))
 
 (defafun edit-note (future) (user-id note-id note-data)
   "Edit an existing note."
@@ -81,7 +81,7 @@
                                     ;; mitigate double-delete
                                     (:branch (:has-fields note "deleted")
                                       note
-                                      (:merge (:pluck note "id" "project_id" "user_id")
+                                      (:merge (:pluck note "id" "board_id" "user_id")
                                               `(("deleted" . t)
                                                 ("mod" . ,(get-timestamp))))))))))
                 (res (r:run sock query)))

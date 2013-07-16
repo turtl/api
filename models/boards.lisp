@@ -1,112 +1,106 @@
 (in-package :tagit)
 
-(defvalidator validate-project
+(defvalidator validate-board
   (("id" :type string :required t :length 24)
    ("user_id" :type string :required t :length 24)
    ("keys" :type sequence :required t)
    ("body" :type cl-async-util:bytes-or-string)
    ("mod" :type integer :required t :default 'get-timestamp)))
 
-(defvalidator validate-key
-  (("k" :type string :required t)
-   ("a" :type string :required nil :length 24)    ;; persona ("[A]vatar")
-   ("u" :type string :required nil :length 24)    ;; user
-   ("p" :type string :required nil :length 24)))  ;; project
-
-(defafun get-user-projects (future) (user-id get-notes)
-  "Get all projects for a user, ordered by sort order."
+(defafun get-user-boards (future) (user-id get-notes)
+  "Get all boards for a user, ordered by sort order."
   (alet* ((sock (db-sock))
           (query (r:r (:get-all
-                          (:table "projects")
+                          (:table "boards")
                           user-id
                           :index "user_id")))
           (cursor (r:run sock query))
-          (projects (r:to-array sock cursor)))
+          (boards (r:to-array sock cursor)))
     (if (r:cursorp cursor)
         (wait-for (r:stop sock cursor)
           (r:disconnect sock))
         (r:disconnect sock))
     (if (and get-notes
-             (< 0 (length projects)))
+             (< 0 (length boards)))
         (loop for i = 0
-              for project across projects do
-          (alet ((project project) ;; bind for inner form or loop will shit all over it
-                 (notes (get-user-notes user-id (gethash "id" project))))
-            (setf (gethash "notes" project) notes)
+              for board across boards do
+          (alet ((board board) ;; bind for inner form or loop will shit all over it
+                 (notes (get-user-notes user-id (gethash "id" board))))
+            (setf (gethash "notes" board) notes)
             (incf i)
-            (when (<= (length projects) i)
-              (finish future projects))))
-        (finish future projects))))
+            (when (<= (length boards) i)
+              (finish future boards))))
+        (finish future boards))))
 
-(defafun add-project (future) (user-id project-data)
-  "Save a project with a user."
-  (setf (gethash "user_id" project-data) user-id)
-  (add-id project-data)
-  (add-mod project-data)
-  (validate-project (project-data future)
+(defafun add-board (future) (user-id board-data)
+  "Save a board with a user."
+  (setf (gethash "user_id" board-data) user-id)
+  (add-id board-data)
+  (add-mod board-data)
+  (validate-board (board-data future)
     (alet* ((sock (db-sock))
             (query (r:r (:insert
-                          (:table "projects")
-                          project-data)))
+                          (:table "boards")
+                          board-data)))
             (nil (r:run sock query)))
       (r:disconnect sock)
-      (finish future project-data))))
+      (finish future board-data))))
 
-(defafun edit-project (future) (user-id project-id project-data)
-  "Edit an existing project."
-  ;; first, check if the user owns the project. any non-owner edits have to be
+(defafun edit-board (future) (user-id board-id board-data)
+  "Edit an existing board."
+  ;; first, check if the user owns the board. any non-owner edits have to be
   ;; done via different (more specific) methods than just "LOL replace all teh
-  ;; dataz immy projectt!"
-  (alet ((perms (get-user-project-permissions user-id project-id)))
+  ;; dataz immy boardt!"
+  (alet ((perms (get-user-board-permissions user-id board-id)))
     (if (<= 3 perms)
-        (validate-project (project-data future :edit t)
-          (add-mod project-data)
+        (validate-board (board-data future :edit t)
+          (add-mod board-data)
           (alet* ((sock (db-sock))
                   (query (r:r (:update
-                                (:get (:table "projects") project-id)
-                                project-data)))
+                                (:get (:table "boards") board-id)
+                                board-data)))
                   (nil (r:run sock query)))
             (r:disconnect sock)
-            (finish future project-data)))
+            (finish future board-data)))
         (signal-error future (make-instance 'insufficient-privileges
-                                            :msg "Sorry, you are editing a project you aren't a member of.")))))
+                                            :msg "Sorry, you are editing a board you aren't a member of.")))))
 
-(defafun delete-project (future) (user-id project-id)
-  "Delete a project."
-  (alet ((perms (get-user-project-permissions user-id project-id)))
+(defafun delete-board (future) (user-id board-id)
+  "Delete a board."
+  (alet ((perms (get-user-board-permissions user-id board-id)))
     (if (<= 3 perms)
         (alet* ((sock (db-sock))
                 (query (r:r (:delete
                               (:filter
-                                (:table "projects")
-                                `(("id" . ,project-id)
+                                (:table "boards")
+                                `(("id" . ,board-id)
                                   ("user_id" . ,user-id))))))
                 (res (r:run sock query)))
           (alet* ((query (r:r (:delete
                                 (:filter
                                   (:table "notes")
-                                  `(("project_id" . ,project-id))))))
+                                  `(("board_id" . ,board-id))))))
                   (res (r:run sock query)))
             (r:disconnect sock)
             (finish future t)))
         (signal-error future (make-instance 'insufficient-privileges
-                                            :msg "Sorry, you are deleting a project you aren't the owner of.")))))
+                                            :msg "Sorry, you are deleting a board you aren't the owner of.")))))
 
-(defafun get-user-project-permissions (future) (user/persona-id project-id)
+(defafun get-user-board-permissions (future) (user/persona-id board-id)
   "Returns an integer used to determine a user's permissions for the given
-   project.
+   board.
    
    0 == no permissions
    1 == read permissions
    2 == update permissions
    3 == owner"
   (alet* ((sock (db-sock))
-          (query (r:r (:get (:table "projects") project-id)))
-          (project (r:run sock query)))
+          (query (r:r (:get (:table "boards") board-id)))
+          (board (r:run sock query)))
     (r:disconnect sock)
-    (if (hash-table-p project)
-        (let* ((user-id (gethash "user_id" project))
-               (privs (gethash "privs" project))
+    (if (hash-table-p board)
+        (let* ((user-id (gethash "user_id" board))
+               (privs (gethash "privs" board))
                (persona-privs (if (hash-table-p privs)
                                   (gethash user/persona-id privs)
                                   nil))
@@ -119,84 +113,34 @@
           (finish future user-privs))
         (finish future 0))))
 
-(defafun set-project-persona-permissions (future) (user-id project-id persona-id permission-value)
-  "Gives a persona permissions to view/update a project."
-  (alet ((perms (get-user-project-permissions user-id project-id)))
+(defafun set-board-persona-permissions (future) (user-id board-id persona-id permission-value)
+  "Gives a persona permissions to view/update a board."
+  (alet ((perms (get-user-board-permissions user-id board-id)))
     (if (<= 3 perms)
         (if (zerop permission-value)
-            (alet ((clear-perms (clear-project-persona-permissions project-id persona-id)))
+            (alet ((clear-perms (clear-board-persona-permissions board-id persona-id)))
               (finish future clear-perms))
               (alet* ((sock (db-sock))
                       (query (r:r
                                (:update
-                                 (:get (:table "projects") project-id)
+                                 (:get (:table "boards") board-id)
                                  `(("privs" . ,(:merge
                                                  (:row "privs")
                                                  `((,persona-id ,permission-value))))))))
                       (nil (r:run sock query)))
                 (finish future permission-value)))
         (signal-error future (make-instance 'insufficient-privileges
-                                            :msg "Sorry, you are editing a project you aren't a member of.")))))
+                                            :msg "Sorry, you are editing a board you aren't a member of.")))))
 
-(defafun clear-project-persona-permissions (future) (project-id persona-id)
-  "Clear out a persona's project permissions (revoke access)."
+(defafun clear-board-persona-permissions (future) (board-id persona-id)
+  "Clear out a persona's board permissions (revoke access)."
   (alet* ((sock (db-sock))
           (query (r:r
                    (:update
-                     (:get (:table "projects") project-id)
+                     (:get (:table "boards") board-id)
                      `(("privs" . ,(:without
                                      (:row "privs")
                                      persona-id))))))
           (nil (r:run sock query)))
     (finish future 0)))
-
-(defafun project-add-persona-key (future) (project-id persona-id challenge-response keydata)
-  "Add a persona's key to a project's key data."
-  (validate-key (keydata future)
-    (aif (persona-challenge-response-valid-p persona-id challenge-response)
-         ;; make sure this persona has some for of access to this project
-         (alet ((perms (get-user-project-permissions persona-id project-id)))
-           (if (<= 1 perms)
-               (alet* ((sock (db-sock))
-                       ;; this is a subquery that takes project.keys and updates
-                       ;; it according to its existing data: if keys already
-                       ;; contains an entry(s) for this persona, they are replaced
-                       ;; with the new entry, otherwise the new entry is slapped
-                       ;; onto the end of the keys array
-                       (sub-query (r:r
-                                    ;; if the keys array already contains {a: <persona-id>} ...
-                                    (:branch (:contains
-                                               (:map
-                                                 (:row "keys")
-                                                 (r:fn (key)
-                                                   ;; :default prevents "BAD KEY" errors
-                                                   (:default (:attr key "a") nil)))
-                                               persona-id)
-                                      ;; key already exists in project, update it
-                                      (:append
-                                        ;; filter all keys out where key.a == <persona-id>
-                                        (:filter
-                                          (:row "keys")
-                                          (r:fn (k)
-                                            (:~ (:&& (:has-fields k "a")
-                                                     (:== (:attr k "a") persona-id)))))
-                                        `(("a" . ,persona-id)
-                                          ("k" . ,keydata)))
-                                      ;; this is a new key, add it
-                                      (:append
-                                        (:row "keys")
-                                        `(("a" . ,persona-id)
-                                          ("k" . ,keydata))))))
-                       ;; main update, takes sub-query above and uses it to
-                       ;; update the projects's keys
-                       (query (r:r
-                                (:update
-                                  (:get (:table "projects") project-id)
-                                  `(("keys" . ,sub-query)))))
-                       (nil (r:run sock query)))
-                 (finish future keydata))
-               (signal-error future (make-instance 'insufficient-privileges
-                                                   :msg "Sorry, you are modifying a project you aren't a member of."))))
-         (signal-error future (make-instance 'insufficient-privileges
-                                             :msg "Sorry, the persona you are modifying does not exist or you passed the wrong challenge response.")))))
 

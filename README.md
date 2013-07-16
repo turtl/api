@@ -9,7 +9,7 @@ of the data.
 
 The only public data in the database are the IDs of the records and the links
 between the records, and some metadata (like sort order). Your entire user
-record (including username) and all project/note data is completely encrypted.
+record (including username) and all board/note data is completely encrypted.
 The only way to access any of your information is to use your username/password
 combination on login.
 

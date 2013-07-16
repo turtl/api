@@ -9,11 +9,11 @@
                      (r:fn (note)
                        (:&&
                          (:contains (:map
-                                      (:get-all (:table "projects")
+                                      (:get-all (:table "boards")
                                                 user-id
                                                 :index "user_id")
-                                      (r:fn (project) (:attr project "id")))
-                                    (:attr note "project_id"))
+                                      (r:fn (board) (:attr board "id")))
+                                    (:attr note "board_id"))
                          (:> (:default (:attr note "mod") 0)
                              sync-time))))))
           (cursor (r:run sock query)))
