@@ -16,19 +16,20 @@
    otherwise."
   (alet* ((auth-key (decode-key auth-key))
           (sock (db-sock))
-          (query (r:r (:pluck
-                        (:filter
-                          (:table "users")
-                          `(("a" . ,auth-key)))
-                        "id")))
-          (cursor (r:run sock query)))
-    ;; NOTE: normally it's a faux pas to disconnect the sock if you intend to use
-    ;; it with a cursor, but in this case, the cursor WILL have the first result,
-    ;; so fuck it.
+          (query (r:r (:default
+                        (:nth
+                          (:pluck
+                            (:get-all
+                              (:table "users")
+                              auth-key
+                              :index "a")
+                            "id")
+                          0)
+                        nil)))
+          (res (r:run sock query)))
     (r:disconnect sock)
-    (if (r:has-next cursor)
-        (alet ((rec (r:next sock cursor)))
-          (finish future rec))
+    (if res
+        (finish future res)
         (finish future nil))))
         
 (defafun add-user (future) (user-data)

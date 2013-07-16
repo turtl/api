@@ -25,7 +25,7 @@
         (loop for i = 0
               for board across boards do
           (alet ((board board) ;; bind for inner form or loop will shit all over it
-                 (notes (get-user-notes user-id (gethash "id" board))))
+                 (notes (get-board-notes (gethash "id" board))))
             (setf (gethash "notes" board) notes)
             (incf i)
             (when (<= (length boards) i)

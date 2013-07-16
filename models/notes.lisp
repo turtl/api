@@ -8,18 +8,16 @@
    ("body" :type cl-async-util:bytes-or-string)
    ("mod" :type integer :required t :default 'get-timestamp)))
 
-(defafun get-user-notes (future) (user-id board-id)
-  "Get the notes for a user/board."
+(defafun get-board-notes (future) (board-id)
+  "Get the notes for a board."
   (alet* ((sock (db-sock))
-          (query (r:r (:order-by
-                        (:filter
+          (query (r:r (:filter
+                        ;; get all user notes
+                        (:get-all
                           (:table "notes")
-                          (r:fn (note)
-                            (:&& (:== (:attr note "user_id") user-id)
-                                 (:== (:attr note "board_id") board-id)
-                                 (:== (:default (:attr note "deleted") nil) nil))))
-                        (:asc "sort")
-                        (:asc "id"))))
+                          board-id
+                          :index "board_id")
+                        (r:fn (note) (:== (:default (:attr note "deleted") nil) nil)))))
           (cursor (r:run sock query))
           (results (r:to-array sock cursor)))
     (wait-for (r:stop sock cursor)
