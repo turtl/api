@@ -16,20 +16,21 @@
    otherwise."
   (alet* ((auth-key (decode-key auth-key))
           (sock (db-sock))
-          (query (r:r (:default
-                        (:nth
-                          (:pluck
-                            (:get-all
-                              (:table "users")
-                              auth-key
-                              :index "a")
-                            "id")
-                          0)
-                        nil)))
-          (res (r:run sock query)))
-    (r:disconnect sock)
-    (if res
-        (finish future res)
+          ;; TODO: implement (:pluck ... "id") once >= RDB 1.8
+          (query (r:r 
+                        (:get-all
+                          (:table "users")
+                          auth-key
+                          :index "a")
+                        ))
+          (cursor (r:run sock query))
+          (res (r:to-array sock cursor)))
+    (when (r:cursorp cursor)
+      (wait-for (r:stop sock cursor)
+        (r:disconnect sock)))
+    (if (and res (< 0 (length res)))
+        (let ((user (aref res 0)))
+          (finish future user))
         (finish future nil))))
         
 (defafun add-user (future) (user-data)

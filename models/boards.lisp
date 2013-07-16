@@ -10,10 +10,13 @@
 (defafun get-user-boards (future) (user-id get-notes)
   "Get all boards for a user, ordered by sort order."
   (alet* ((sock (db-sock))
-          (query (r:r (:get-all
+          ;; TODO: implement (:without ... "user_id") once >= RDB 1.8
+          (query (r:r 
+                        (:get-all
                           (:table "boards")
                           user-id
-                          :index "user_id")))
+                          :index "user_id")
+                        ))
           (cursor (r:run sock query))
           (boards (r:to-array sock cursor)))
     (if (r:cursorp cursor)
@@ -87,8 +90,8 @@
                                             :msg "Sorry, you are deleting a board you aren't the owner of.")))))
 
 (defafun get-user-board-permissions (future) (user/persona-id board-id)
-  "Returns an integer used to determine a user's permissions for the given
-   board.
+  "Returns an integer used to determine a user/persona's permissions for the
+   given board.
    
    0 == no permissions
    1 == read permissions
