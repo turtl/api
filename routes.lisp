@@ -16,7 +16,7 @@
                  :body (to-json "Unknown resource.")))
                  
 (defroute (:get "/favicon.ico") (req res)
-  (send-response res :status 301 :headers '(:location "/favicon.png")))
+  (send-response res :status 301 :headers '(:location "/favicon.png") :body ""))
 
 ;; set up a general file-serving route
 (def-directory-route "/" *site-assets*
