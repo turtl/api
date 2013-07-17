@@ -1,14 +1,5 @@
 (in-package :tagit)
 
-(defroute (:get "/api/boards/users/([0-9a-f-]+)") (req res args)
-  (catch-errors (res)
-    (let ((user-id (car args))
-          (get-notes (ignore-errors (< 0 (parse-integer (cl-ppcre:regex-replace-all "[^0-9]" (get-var req "get_notes") ""))))))
-      (unless (string= (user-id req) user-id)
-        (error 'insufficient-privileges :msg "You are trying to access another user's boards. For shame."))
-      (alet* ((boards (get-user-boards user-id get-notes)))
-        (send-json res boards)))))
-
 (defroute (:post "/api/boards/users/([0-9a-f-]+)") (req res args)
   (catch-errors (res)
     (alet* ((user-id (car args))

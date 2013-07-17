@@ -36,8 +36,7 @@
                         10)))
           (cursor (r:run sock query))
           (personas (r:to-array sock cursor)))
-    (wait-for (r:stop sock cursor)
-      (r:disconnect sock))
+    (r:stop/disconnect sock cursor)
     (finish future personas)))
 
 ;; TODO: find a way to limit number of personas per account/user.
@@ -106,14 +105,30 @@
           (cursor (r:run sock query))
           (persona (when (r:has-next cursor)
                      (r:next sock cursor))))
-    (if (r:cursorp cursor)
-        (wait-for (r:stop sock cursor)
-          (r:disconnect sock))
-        (r:disconnect sock))
+    (r:stop/disconnect sock cursor)
     (if (and (hash-table-p persona)
              (not (string= ignore-persona-id (gethash "id" persona))))
         (finish future persona)
         (finish future nil))))
+
+(defafun get-board-personas (future) (board-id)
+  "Given a board ID, find all personas that board is shared with and pull them
+   out."
+  (alet* ((sock (db-sock))
+          (query (r:r (:map
+                        (:keys
+                          (:default
+                            (:attr
+                              (:get (:table "boards") board-id)
+                              "privs")
+                            (make-hash-table)))
+                        (r:fn (pid)
+                          (:get (:table "personas") pid)))))
+          (cursor (r:run sock query))
+          (personas (when (r:cursorp cursor)
+                      (r:to-array sock cursor))))
+    (r:stop/disconnect sock cursor)
+    (finish future personas)))
 
 (defafun persona-screenname-available-p (future) (screenname &optional ignore-id)
   "Test whether or not a screenname is available."

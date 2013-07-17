@@ -7,7 +7,7 @@
    ("body" :type cl-async-util:bytes-or-string)
    ("mod" :type integer :required t :default 'get-timestamp)))
 
-(defafun get-user-boards (future) (user-id get-notes)
+(defafun get-user-boards (future) (user-id &key get-notes get-personas)
   "Get all boards for a user, ordered by sort order."
   (alet* ((sock (db-sock))
           ;; TODO: implement (:without ... "user_id") once >= RDB 1.8
@@ -19,17 +19,19 @@
                         ))
           (cursor (r:run sock query))
           (boards (r:to-array sock cursor)))
-    (if (r:cursorp cursor)
-        (wait-for (r:stop sock cursor)
-          (r:disconnect sock))
-        (r:disconnect sock))
-    (if (and get-notes
-             (< 0 (length boards)))
+    (r:stop/disconnect sock cursor)
+    (if (and (< 0 (length boards))
+             (or get-notes get-personas))
         (loop for i = 0
-              for board across boards do
+              for board across boards
+              for board-id = (gethash "id" board) do
           (alet ((board board) ;; bind for inner form or loop will shit all over it
-                 (notes (get-board-notes (gethash "id" board))))
-            (setf (gethash "notes" board) notes)
+                 (personas (when get-personas (get-board-personas board-id)))
+                 (notes (when get-notes (get-board-notes board-id))))
+            (when (and get-notes notes)
+              (setf (gethash "notes" board) notes))
+            (when (and get-personas personas)
+              (setf (gethash "personas" board) personas))
             (incf i)
             (when (<= (length boards) i)
               (finish future boards))))
@@ -129,7 +131,7 @@
                                  (:get (:table "boards") board-id)
                                  `(("privs" . ,(:merge
                                                  (:row "privs")
-                                                 `((,persona-id ,permission-value))))))))
+                                                 `((,persona-id . ,permission-value))))))))
                       (nil (r:run sock query)))
                 (finish future permission-value)))
         (signal-error future (make-instance 'insufficient-privileges
