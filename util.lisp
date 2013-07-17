@@ -97,6 +97,7 @@
         (let* ((key (car entry))
                (entry (cdr entry))
                (entry-type (getf entry :type))
+               (coerce-to (getf entry :coerce))
                (obj-entry (multiple-value-list (gethash key object)))
                (obj-val (car obj-entry))
                (exists (cadr obj-entry))
@@ -126,6 +127,10 @@
             ;; make sure the types match up
             (when (not (typep obj-val entry-type))
               (val-error (format nil "Field `~a` is not of the expected type ~a" key entry-type))))
+
+          ;; check if we want to convert this object to a definitive type
+          (when coerce-to
+            (setf obj-val (coerce obj-val coerce-to)))
           
           (case entry-type
             (string

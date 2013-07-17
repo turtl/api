@@ -3,7 +3,7 @@
 (defvalidator validate-board
   (("id" :type string :required t :length 24)
    ("user_id" :type string :required t :length 24)
-   ("keys" :type sequence :required t)
+   ("keys" :type sequence :required t :coerce simple-vector)
    ("body" :type cl-async-util:bytes-or-string)
    ("mod" :type integer :required t :default 'get-timestamp)))
 
