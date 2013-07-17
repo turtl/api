@@ -4,7 +4,7 @@
   (("id" :type string :required t :length 24)
    ("from" :type string :required t :length 24)
    ("to" :type string :required t :length 24)
-   ("keys" :type sequence :required t)
+   ("keys" :type sequence :required t :coerce simple-vector)
    ("data" :type cl-async-util:bytes-or-string)))
 
 (defafun get-messages-by-persona (future) (persona-id &key (after "") (index "get_messages_to"))
