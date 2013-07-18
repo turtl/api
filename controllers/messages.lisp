@@ -15,3 +15,11 @@
             (message (send-message message-data challenge)))
       (send-json res message))))
 
+(defroute (:delete "/api/messages/([0-9a-f-]+)") (req res args)
+  (catch-errors (res)
+    (alet* ((message-id (car args))
+            (persona-id (post-var req "persona"))
+            (challenge (post-var req "challenge"))
+            (success (delete-message message-id persona-id challenge)))
+      (send-json res t))))
+

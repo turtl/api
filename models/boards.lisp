@@ -106,9 +106,10 @@
     (if (hash-table-p board)
         (let* ((user-id (gethash "user_id" board))
                (privs (gethash "privs" board))
-               (persona-privs (if (hash-table-p privs)
-                                  (gethash user/persona-id privs)
-                                  nil))
+               (persona-privs (when (hash-table-p privs)
+                                (gethash user/persona-id privs)))
+               (persona-privs (when (hash-table-p persona-privs)
+                                (gethash "p" persona-privs)))
                (user-privs (cond ((string= user-id user/persona-id)
                                   3)
                                  ((and (numberp persona-privs) (< 0 persona-privs))
@@ -120,20 +121,24 @@
 
 (defafun set-board-persona-permissions (future) (user-id board-id persona-id permission-value)
   "Gives a persona permissions to view/update a board."
-  (alet ((perms (get-user-board-permissions user-id board-id)))
+  (alet ((perms (get-user-board-permissions user-id board-id))
+         ;; clamp permission value to 0 <= p <= 2
+         (permission-value (min (max permission-value 0) 2)))
     (if (<= 3 perms)
         (if (zerop permission-value)
             (alet ((clear-perms (clear-board-persona-permissions board-id persona-id)))
               (finish future clear-perms))
-              (alet* ((sock (db-sock))
-                      (query (r:r
-                               (:update
-                                 (:get (:table "boards") board-id)
+            (alet* ((sock (db-sock))
+                    (query (r:r
+                             (:update
+                               (:get (:table "boards") "517ecd09735ca40fac00000c")
+                               (r:fn (board)
                                  `(("privs" . ,(:merge
-                                                 (:row "privs")
-                                                 `((,persona-id . ,permission-value))))))))
-                      (nil (r:run sock query)))
-                (finish future permission-value)))
+                                                 (:default (:attr board "privs") (make-hash-table))
+                                                 `(("51dcaf26735ca406dc000009" . (("p" . 2))))))
+                                   ("mod" . ,(get-timestamp)))))))
+                    (nil (r:run sock query)))
+              (finish future permission-value)))
         (signal-error future (make-instance 'insufficient-privileges
                                             :msg "Sorry, you are editing a board you aren't a member of.")))))
 
@@ -143,9 +148,20 @@
           (query (r:r
                    (:update
                      (:get (:table "boards") board-id)
-                     `(("privs" . ,(:without
-                                     (:row "privs")
-                                     persona-id))))))
+                     (r:fn (board)
+                       `(("privs" . ,(:without
+                                       (:attr board "privs")
+                                       persona-id))
+                         ("mod" . ,(get-timestamp)))))))
           (nil (r:run sock query)))
+    (r:disconnect sock)
     (finish future 0)))
+
+(defafun leave-board-share (future) (board-id persona-id challenge-response)
+  "Allows a user who is not board owner to remove themselves from the board."
+  (aif (persona-challenge-response-valid-p persona-id challenge-response)
+       (alet ((nil (clear-board-persona-permissions board-id persona-id)))
+         (finish future t))
+       (signal-error future (make-instance 'insufficient-privileges
+                                           :msg "Sorry, either the persona you are changing board permissions for doesn't exist or you don't have access to it."))))
 

@@ -29,16 +29,17 @@
     (alet* ((user-id (user-id req))
             (board-id (car args))
             (persona-id (cadr args))
-            (permissions (post-var req "permissions"))
+            (permissions (varint (post-var req "permissions") nil))
             (perms (set-board-persona-permissions user-id board-id persona-id permissions)))
       (send-json res perms))))
 
-(defroute (:put "/api/boards/([0-9a-f-]+)/keys/persona/([0-9a-f-]+)") (req res args)
+(defroute (:delete "/api/boards/([0-9a-f-]+)/permissions/persona/([0-9a-f-]+)") (req res args)
   (catch-errors (res)
-    (alet* ((board-id (car args))
+    (alet* ((user-id (user-id req))
+            (board-id (car args))
             (persona-id (cadr args))
             (challenge (post-var req "challenge"))
-            (keydata (post-var req "keydata"))
-            (success (board-add-persona-key board-id persona-id challenge keydata)))
-      (send-json res success))))
+            (success (leave-board-share board-id persona-id challenge)))
+      (send-json res t))))
+
 

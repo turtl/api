@@ -124,10 +124,8 @@
                             (make-hash-table)))
                         (r:fn (pid)
                           (:get (:table "personas") pid)))))
-          (cursor (r:run sock query))
-          (personas (when (r:cursorp cursor)
-                      (r:to-array sock cursor))))
-    (r:stop/disconnect sock cursor)
+          (personas (r:run sock query)))
+    (r:disconnect sock)
     (finish future personas)))
 
 (defafun persona-screenname-available-p (future) (screenname &optional ignore-id)
