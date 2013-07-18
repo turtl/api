@@ -138,6 +138,7 @@
                                                  `(("51dcaf26735ca406dc000009" . (("p" . 2))))))
                                    ("mod" . ,(get-timestamp)))))))
                     (nil (r:run sock query)))
+              (r:disconnect sock)
               (finish future permission-value)))
         (signal-error future (make-instance 'insufficient-privileges
                                             :msg "Sorry, you are editing a board you aren't a member of.")))))
