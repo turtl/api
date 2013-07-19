@@ -92,7 +92,7 @@
                                       note
                                       (:merge (:pluck note "id" "board_id" "user_id")
                                               `(("deleted" . t)
-                                                ("body" . nil)
+                                                ("body" . "")
                                                 ("mod" . ,(get-timestamp))))))))))
                 (res (r:run sock query)))
           (r:disconnect sock)
@@ -114,9 +114,8 @@
   (alet* ((note (get-note-by-id note-id))
           (board-perms (get-user-board-permissions user-id (gethash "board_id" note)))
           (sock (db-sock))
-          (privs-query (r:r (:== (:attr (:get (:table "notes") note-id) "user_id")
-                                 user-id)))
-          (note-owner-p (r:run sock privs-query)))
+          (query (r:r (:== (:attr (:get (:table "notes") note-id) "user_id") user-id)))
+          (note-owner-p (r:run sock query)))
     (r:disconnect sock)
     (finish future (if note-owner-p
                        3

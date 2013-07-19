@@ -227,6 +227,6 @@
   `(aif (persona-challenge-response-valid-p ,persona-id ,challenge-response)
         (progn ,@body)
         ,(if future
-             `(signal-error ,future (make-instance 'insufficient-privileges "Sorry, persona verification failed."))
+             `(signal-error ,future (make-instance 'insufficient-privileges :msg "Sorry, persona verification failed."))
              `(error 'insufficient-privileges :msg "Sorry, persona verification failed."))))
 
