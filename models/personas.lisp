@@ -111,15 +111,20 @@
   "Given a board ID, find all personas that board is shared with and pull them
    out."
   (alet* ((sock (db-sock))
-          (query (r:r (:map
-                        (:keys
-                          (:default
-                            (:attr
-                              (:get (:table "boards") board-id)
-                              "privs")
-                            (make-hash-table)))
-                        (r:fn (pid)
-                          (:get (:table "personas") pid)))))
+          (query (r:r (:do
+                        (r:fn (board)
+                          (:map
+                            (:filter
+                              (:keys
+                                (:default
+                                  (:attr board "privs")
+                                  (make-hash-table)))
+                              (r:fn (key)
+                                (:&& (:~ (:== (:attr (:attr (:attr board "privs") key) "p") 0))
+                                     (:~ (:default (:attr (:attr (:attr board "privs") key) "d") nil)))))
+                            (r:fn (pid)
+                              (:get (:table "personas") pid))))
+                        (:get (:table "boards") board-id))))
           (personas (r:run sock query)))
     (r:disconnect sock)
     (finish future personas)))

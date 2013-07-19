@@ -84,16 +84,12 @@
                                     (:table "notes")
                                     `(("id" . ,note-id)
                                       ("user_id" . ,user-id))))
-                                (:replace
+                                (:update
                                   (:get (:table "notes") note-id)
-                                  (r:fn (note)
-                                    ;; mitigate double-delete
-                                    (:branch (:has-fields note "deleted")
-                                      note
-                                      (:merge (:pluck note "id" "board_id" "user_id")
-                                              `(("deleted" . t)
-                                                ("body" . "")
-                                                ("mod" . ,(get-timestamp))))))))))
+                                  `(("deleted" . t)
+                                    ("body" . "")
+                                    ("keys" . (make-hash-table))
+                                    ("mod" . ,(get-timestamp)))))))
                 (res (r:run sock query)))
           (r:disconnect sock)
           (if (gethash "first_error" res)

@@ -11,10 +11,13 @@
   "Get all boards for a user."
   (alet* ((sock (db-sock))
           ;; TODO: implement (:without ... "user_id") once >= RDB 1.8
-          (query (r:r (:get-all
-                        (:table "boards")
-                        user-id
-                        :index "user_id")))
+          (query (r:r (:filter
+                        (:get-all
+                          (:table "boards")
+                          user-id
+                          :index "user_id")
+                        (r:fn (board)
+                          (:~ (:default (:attr board "deleted") nil))))))
           (cursor (r:run sock query))
           (boards (r:to-array sock cursor)))
     (r:stop/disconnect sock cursor)
@@ -26,10 +29,16 @@
           (alet ((board board) ;; bind for inner form or loop will shit all over it
                  (personas (when get-personas (get-board-personas board-id)))
                  (notes (when get-notes (get-board-notes board-id))))
-            (when (and get-notes notes)
-              (setf (gethash "notes" board) notes))
-            (when (and get-personas personas)
-              (setf (gethash "personas" board) personas))
+            ;; filter out privs = 0 entries
+            (when (hash-table-p (gethash "privs" board))
+              (loop for persona-id being the hash-keys of (gethash "privs" board)
+                    for entry being the hash-values of (gethash "privs" board) do
+                (when (and (hash-table-p entry)
+                           (or (zerop (gethash "p" entry))
+                               (gethash "d" entry)))
+                  (remhash persona-id (gethash "privs" board)))))
+            (when (and get-notes notes) (setf (gethash "notes" board) notes))
+            (when (and get-personas personas) (setf (gethash "personas" board) personas))
             (incf i)
             (when (<= (length boards) i)
               (finish future boards))))
@@ -43,8 +52,10 @@
                    (:filter
                      (:table "boards")
                      (r:fn (board)
-                       (:&& (:has-fields (:attr board "privs") persona-id)
-                            (:~ (:has-fields (:attr (:attr board "privs") persona-id) "i")))))))
+                       (:&& (:~ (:default (:attr board "deleted") nil))
+                            (:has-fields (:attr board "privs") persona-id)
+                            (:~ (:has-fields (:attr (:attr board "privs") persona-id) "i"))
+                            (:~ (:has-fields (:attr (:attr board "privs") persona-id) "d")))))))
           (cursor (r:run sock query))
           (boards (r:to-array sock cursor)))
     (r:stop/disconnect sock cursor)
@@ -107,24 +118,31 @@
         (signal-error future (make-instance 'insufficient-privileges
                                             :msg "Sorry, you are editing a board you don't own.")))))
 
-(defafun delete-board (future) (user-id board-id)
+(defafun delete-board (future) (user-id board-id &key permanent)
   "Delete a board."
   (alet ((perms (get-user-board-permissions user-id board-id)))
     (if (<= 3 perms)
         (alet* ((sock (db-sock))
-                (query (r:r (:delete
-                              (:filter
-                                (:table "boards")
-                                `(("id" . ,board-id)
-                                  ("user_id" . ,user-id))))))
-                (res (r:run sock query)))
-          (alet* ((query (r:r (:delete
-                                (:filter
-                                  (:table "notes")
-                                  `(("board_id" . ,board-id))))))
-                  (res (r:run sock query)))
-            (r:disconnect sock)
-            (finish future t)))
+                (query (r:r (if permanent
+                                (:delete (:get (:table "boards") board-id))
+                                (:update
+                                  (:get (:table "boards") board-id)
+                                  `(("deleted" . t)
+                                    ("body" . "")
+                                    ("mod" . ,(get-timestamp)))))))
+                (nil (r:run sock query))
+                (query (r:r (if permanent
+                                (:delete
+                                  (:get-all (:table "notes") board-id :index "board_id"))
+                                (:update
+                                  (:get-all (:table "notes") board-id :index "board_id")
+                                  `(("deleted" . t)
+                                    ("body" . "")
+                                    ("keys" . (make-hash-table))
+                                    ("mod" . ,(get-timestamp)))))))
+                (nil (r:run sock query)))
+          (r:disconnect sock)
+          (finish future t))
         (signal-error future (make-instance 'insufficient-privileges
                                             :msg "Sorry, you are deleting a board you don't own.")))))
 
@@ -184,17 +202,25 @@
         (signal-error future (make-instance 'insufficient-privileges
                                             :msg "Sorry, you are editing a board you aren't a member of.")))))
 
-(defafun clear-board-persona-permissions (future) (board-id persona-id)
+(defafun clear-board-persona-permissions (future) (board-id persona-id &key permanent)
   "Clear out a persona's board permissions (revoke access)."
   (alet* ((sock (db-sock))
           (query (r:r
                    (:update
                      (:get (:table "boards") board-id)
                      (r:fn (board)
-                       `(("privs" . ,(:without
-                                       (:attr board "privs")
-                                       persona-id))
-                         ("mod" . ,(get-timestamp)))))))
+                       (if permanent
+                           ;; permanently remove the privilege entry
+                           `(("privs" . ,(:without
+                                           (:attr board "privs")
+                                           persona-id))
+                             ("mod" . ,(get-timestamp)))
+                           ;; mark the priv entry as deleted (with a ts)
+                           `(("privs" . ,(:merge
+                                           (:attr board "privs")
+                                           `((,persona-id . (("p" . 0)
+                                                             ("d" . ,(get-timestamp)))))))
+                             ("mod" . ,(get-timestamp))))))))
           (nil (r:run sock query)))
     (r:disconnect sock)
     (finish future 0)))
