@@ -12,3 +12,13 @@
               (gethash "user" response) user-data)
         (send-json res response)))))
 
+(defroute (:get "/api/profiles/personas/([0-9a-f-]+)") (req res args)
+  (catch-errors (res)
+    (alet ((persona-id (car args))
+           (challenge (get-var req "challenge")))
+      (with-valid-persona (persona-id challenge)
+        (alet* ((boards (get-persona-boards persona-id :get-notes t))
+                (response (make-hash-table :test #'equal)))
+          (setf (gethash "boards" response) boards)
+          (send-json res response))))))
+

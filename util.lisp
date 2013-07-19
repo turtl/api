@@ -15,7 +15,7 @@
 
 (defun db-sock ()
   "Makes connecting to the database a smidgen easier."
-  (r:connect *db-host* *db-port* :db *db-name* :read-timeout 2))
+  (r:connect *db-host* *db-port* :db *db-name* :read-timeout 5))
 
 (defun to-json (object)
   "Convert an object to JSON."
@@ -221,4 +221,12 @@
                             ;; it's a regex (hopefully)
                             (cl-ppcre:scan check-resource path))))))
       (when check (return-from is-public-action t)))))
+
+(defmacro with-valid-persona ((persona-id challenge-response &optional future) &body body)
+  "Wraps persona verification into a nice little package."
+  `(aif (persona-challenge-response-valid-p ,persona-id ,challenge-response)
+        (progn ,@body)
+        ,(if future
+             `(signal-error ,future (make-instance 'insufficient-privileges "Sorry, persona verification failed."))
+             `(error 'insufficient-privileges :msg "Sorry, persona verification failed."))))
 

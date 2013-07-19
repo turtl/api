@@ -24,19 +24,30 @@
             (nil (delete-board user-id board-id)))
       (send-json res t))))
 
-(defroute (:put "/api/boards/([0-9a-f-]+)/permissions/persona/([0-9a-f-]+)") (req res args)
+(defroute (:put "/api/boards/([0-9a-f-]+)/invites/persona/([0-9a-f-]+)") (req res args)
+  "Invite a persona to a board."
   (catch-errors (res)
     (alet* ((user-id (user-id req))
             (board-id (car args))
             (persona-id (cadr args))
             (permissions (varint (post-var req "permissions") nil))
-            (perms (set-board-persona-permissions user-id board-id persona-id permissions)))
+            (perms (set-board-persona-permissions user-id board-id persona-id permissions :invite t)))
       (send-json res perms))))
 
-(defroute (:delete "/api/boards/([0-9a-f-]+)/permissions/persona/([0-9a-f-]+)") (req res args)
+(defroute (:put "/api/boards/([0-9a-f-]+)/persona/([0-9a-f-]+)") (req res args)
+  "Accept a board invite (persona-intiated)."
   (catch-errors (res)
-    (alet* ((user-id (user-id req))
-            (board-id (car args))
+    (alet* ((board-id (car args))
+            (persona-id (cadr args))
+            (challenge (post-var req "challenge"))
+            (success (accept-board-invite board-id persona-id challenge))
+            (board (get-board-by-id board-id :get-notes t)))
+      (send-json res board))))
+
+(defroute (:delete "/api/boards/([0-9a-f-]+)/persona/([0-9a-f-]+)") (req res args)
+  "Leave board share (persona-initiated)."
+  (catch-errors (res)
+    (alet* ((board-id (car args))
             (persona-id (cadr args))
             (challenge (post-var req "challenge"))
             (success (leave-board-share board-id persona-id challenge)))

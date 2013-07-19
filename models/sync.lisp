@@ -1,9 +1,26 @@
 (in-package :tagit)
 
-(defafun sync-notes (future) (user-id sync-time)
+(defafun sync-user-boards (future) (user-id sync-time)
+  "Grab all changed boards for a user."
+  (alet* ((sock (db-sock))
+          (query (r:r
+                   ;; TODO: index me
+                   (:filter
+                     (:table "boards")
+                     (r:fn (board)
+                       (:&& (:== (:attr board "user_id") user-id)
+                            (:> (:default (:attr board "mod") 0)
+                                sync-time))))))
+          (cursor (r:run sock query))
+          (boards (r:to-array sock cursor)))
+    (r:stop/disconnect sock cursor)
+    (finish future boards)))
+
+(defafun sync-user-notes (future) (user-id sync-time)
   "Grab all notes for this user that have changed."
   (alet* ((sock (db-sock))
           (query (r:r
+                   ;; TODO: index/rewrite me
                    (:filter
                      (:table "notes")
                      (r:fn (note)
@@ -16,9 +33,57 @@
                                     (:attr note "board_id"))
                          (:> (:default (:attr note "mod") 0)
                              sync-time))))))
-          (cursor (r:run sock query)))
-    (alet ((arr (r:to-array sock cursor)))
-      (wait-for (r:stop sock cursor)
-        (r:disconnect sock))
-      (finish future arr))))
+          (cursor (r:run sock query))
+          (notes (r:to-array sock cursor)))
+    (r:stop/disconnect sock cursor)
+    (finish future notes)))
+
+(defafun sync-persona-boards (future) (persona-id sync-time)
+  "Grab all a persona's changed boards (shared)."
+  (alet* ((sock (db-sock))
+          (query (r:r
+                   ;; TODO: index
+                   (:filter
+                     (:table "boards")
+                     (r:fn (board)
+                       ;; pull out boards where privs has the persona-id, but
+                       ;; it's NOT an invite
+                       (:&& (:has-fields (:attr board "privs") persona-id)
+                            (:~ (:has-fields (:attr (:attr board "privs") persona-id) "i"))
+                            (:> (:default (:attr board "mod") 0)
+                                sync-time))))))
+          (cursor (r:run sock query))
+          (boards (r:to-array sock cursor)))
+    (r:stop/disconnect sock cursor)
+    (finish future boards)))
+
+(defafun sync-persona-notes (future) (persona-id sync-time)
+  "Grab all a persona's changed notes (shared)."
+  (alet* ((sock (db-sock))
+          (query (r:r
+                   ;; TODO: index
+                   (:do
+                     (r:fn (board-ids)
+                       (:filter
+                         (:table "notes")
+                         (r:fn (note)
+                           (:&&
+                             (:contains board-ids (:attr note "board_id"))
+                             (:> (:default (:attr note "mod") 0)
+                                 sync-time)))))
+                     (:coerce-to
+                       (:map
+                         (:filter
+                           (:table "boards")
+                           (r:fn (board)
+                             ;; pull out boards where privs has the persona-id, but
+                             ;; it's NOT an invite
+                             (:&& (:has-fields (:attr board "privs") persona-id)
+                                  (:~ (:has-fields (:attr (:attr board "privs") persona-id) "i")))))
+                         (r:fn (board) (:attr board "id")))
+                       "array"))))
+          (cursor (r:run sock query))
+          (notes (r:to-array sock cursor)))
+    (r:stop/disconnect sock cursor)
+    (finish future notes)))
 

@@ -8,6 +8,14 @@
    ("body" :type cl-async-util:bytes-or-string)
    ("mod" :type integer :required t :default 'get-timestamp)))
 
+(defafun get-note-by-id (future) (note-id)
+  "Get a note by id."
+  (alet* ((sock (db-sock))
+          (query (r:r (:get (:table "notes") note-id)))
+          (note (r:run sock query)))
+    (r:disconnect sock)
+    (finish future note)))
+
 (defafun get-board-notes (future) (board-id)
   "Get the notes for a board."
   (alet* ((sock (db-sock))
@@ -63,12 +71,12 @@
             (r:disconnect sock)
             (finish future note-data)))
         (signal-error future (make-instance 'insufficient-privileges
-                                            :msg "Sorry, you are editing a note you aren't a member of.")))))
+                                            :msg "Sorry, you are editing a note you don't have access to.")))))
 
 (defafun delete-note (future) (user-id note-id &key permanent)
   "Delete a note."
   (alet ((perms (get-user-note-permissions user-id note-id)))
-    (if (<= 3 perms)
+    (if (<= 2 perms)
         (alet* ((sock (db-sock))
                 (query (r:r (if permanent
                                 (:delete
@@ -84,6 +92,7 @@
                                       note
                                       (:merge (:pluck note "id" "board_id" "user_id")
                                               `(("deleted" . t)
+                                                ("body" . nil)
                                                 ("mod" . ,(get-timestamp))))))))))
                 (res (r:run sock query)))
           (r:disconnect sock)
@@ -92,7 +101,7 @@
                                                   :msg "There was an error deleting your note. Please try again."))
               (finish future t)))
         (signal-error future (make-instance 'insufficient-privileges
-                                            :msg "Sorry, you are deleting a note you aren't the owner of.")))))
+                                            :msg "Sorry, you are deleting a note you don't have access to.")))))
 
 (defafun get-user-note-permissions (future) (user-id note-id)
   "'Returns' an integer used to determine a user's permissions for the given
@@ -102,13 +111,14 @@
    1 == read permissions
    2 == update permissions
    3 == owner"
-  (alet* ((sock (db-sock))
+  (alet* ((note (get-note-by-id note-id))
+          (board-perms (get-user-board-permissions user-id (gethash "board_id" note)))
+          (sock (db-sock))
           (privs-query (r:r (:== (:attr (:get (:table "notes") note-id) "user_id")
                                  user-id)))
-          (is-kewl (r:run sock privs-query)))
+          (note-owner-p (r:run sock privs-query)))
     (r:disconnect sock)
-    ;; right now, you either own it or you don't...
-    (finish future (if is-kewl
+    (finish future (if note-owner-p
                        3
-                       0))))
+                       board-perms))))
 

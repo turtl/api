@@ -59,38 +59,34 @@
 
 (defafun edit-persona (future) (persona-id challenge-response persona-data)
   "Update a persona. Validates the passed challenge-response."
-  (aif (persona-challenge-response-valid-p persona-id challenge-response)
-       (validate-persona (persona-data future :edit t)
-         (alet* ((screenname (gethash "screenname" persona-data))
-                 (availablep (if (or (not screenname)
-                                     (persona-screenname-available-p screenname persona-id))
-                                 t
-                                 nil)))
-           (if availablep
-               (alet* ((sock (db-sock))
-                       (query (r:r (:replace
-                                     (:get (:table "personas") persona-id)
-                                     (r:fn (persona)
-                                       (:merge persona-data
-                                               (:pluck persona "secret"))))))
-                       (nil (r:run sock query)))
-                 (r:disconnect sock)
-                 (finish future persona-data))
-               (signal-error future (make-instance 'persona-screenname-exists
-                                                   :msg "That screenname is taken.")))))
-       (signal-error future (make-instance 'insufficient-privileges
-                                           :msg "Sorry, the persona you are modifying does not exist or you passed the wrong challenge response."))))
+  (with-valid-persona (persona-id challenge-response future)
+    (validate-persona (persona-data future :edit t)
+      (alet* ((screenname (gethash "screenname" persona-data))
+              (availablep (if (or (not screenname)
+                                  (persona-screenname-available-p screenname persona-id))
+                              t
+                              nil)))
+        (if availablep
+            (alet* ((sock (db-sock))
+                    (query (r:r (:replace
+                                  (:get (:table "personas") persona-id)
+                                  (r:fn (persona)
+                                    (:merge persona-data
+                                            (:pluck persona "secret"))))))
+                    (nil (r:run sock query)))
+              (r:disconnect sock)
+              (finish future persona-data))
+            (signal-error future (make-instance 'persona-screenname-exists
+                                                :msg "That screenname is taken.")))))))
 
 (defafun delete-persona (future) (persona-id challenge-response)
   "Delete a persona. Validates the passed challenge-response."
-  (aif (persona-challenge-response-valid-p persona-id challenge-response)
-       (alet* ((sock (db-sock))
-               (query (r:r (:delete (:get (:table "personas") persona-id))))
-               (nil (r:run sock query)))
-         (r:disconnect sock)
-         (finish future t))
-       (signal-error future (make-instance 'insufficient-privileges
-                                           :msg "Sorry, the persona you are modifying does not exist or you passed the wrong challenge response."))))
+  (with-valid-persona (persona-id challenge-response future)
+    (alet* ((sock (db-sock))
+            (query (r:r (:delete (:get (:table "personas") persona-id))))
+            (nil (r:run sock query)))
+      (r:disconnect sock)
+      (finish future t))))
 
 (defafun get-persona-by-screenname (future) (screenname &optional ignore-persona-id)
   "Grab a persona via its screenname. Must be an exact match (for now)."

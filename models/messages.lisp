@@ -40,16 +40,14 @@
 (defafun get-messages-for-persona (future) (persona-id challenge-response &key (after ""))
   "Get messages (both sent and received) for a persona. Optionally allows to
    only grab messages after a specific message ID."
-  (aif (persona-challenge-response-valid-p persona-id challenge-response)
-       (alet ((to-persona (get-messages-by-persona persona-id :after after :index "get_messages_to"))
-              ;(from-persona (get-messages-by-persona persona-id :after after :index "get_messages_from"))
-              (from-persona nil)
-              (hash (make-hash-table :test #'equal)))
-         (setf (gethash "received" hash) to-persona
-               (gethash "sent" hash) from-persona)
-         (finish future hash))
-       (signal-error future (make-instance 'insufficient-privileges
-                                           :msg "Sorry, either the persona you are getting messages for doesn't exist or you don't have access to it."))))
+  (with-valid-persona (persona-id challenge-response future)
+    (alet ((to-persona (get-messages-by-persona persona-id :after after :index "get_messages_to"))
+           ;(from-persona (get-messages-by-persona persona-id :after after :index "get_messages_from"))
+           (from-persona nil)
+           (hash (make-hash-table :test #'equal)))
+      (setf (gethash "received" hash) to-persona
+            (gethash "sent" hash) from-persona)
+      (finish future hash))))
 
 (defafun send-message (future) (message-data challenge)
   "Send a message from one persona to another. The message body is pubkey
@@ -57,34 +55,29 @@
   (let ((from-persona-id (gethash "from" message-data)))
     (add-id message-data)
     (validate-message (message-data future)
-      (aif (persona-challenge-response-valid-p from-persona-id challenge)
-           (progn
-             (alet* ((sock (db-sock))
-                     (query (r:r (:insert
-                                   (:table "messages")
-                                   message-data)))
-                     (nil (r:run sock query)))
-               (r:disconnect sock)
-               (finish future message-data)))
-           (signal-error future (make-instance 'insufficient-privileges
-                                               :msg "Sorry, either the persona you're sending from doesn't exit, or you don't have access to it."))))))
+      (with-valid-persona (from-persona-id challenge future)
+        (alet* ((sock (db-sock))
+                (query (r:r (:insert
+                              (:table "messages")
+                              message-data)))
+                (nil (r:run sock query)))
+          (r:disconnect sock)
+          (finish future message-data))))))
 
 (defafun delete-message (future) (message-id persona-id challenge-response)
   "Delete a message."
-  (aif (persona-challenge-response-valid-p persona-id challenge-response)
-       (alet* ((sock (db-sock))
-               (query (r:r (:do
-                             (r:fn (msg)
-                               (:branch (:|| (:== (:attr msg "to") persona-id)
-                                             (:== (:attr msg "from") persona-id))
-                                 ;; message is from/to validated persona...perform the delete
-                                 (:delete (:get (:table "messages") message-id))
-                                 ;; message is NOT from the validated persona
-                                 (:error "The given persona is not an owner of this message.")))
-                             (:get (:table "messages") message-id))))
-               (nil (r:run sock query)))
-         (r:disconnect sock)
-         (finish future t))
-       (signal-error future (make-instance 'insufficient-privileges
-                                           :msg "Sorry, either the persona you are deleting messages from doesn't exist or you don't have access to it."))))
+  (with-valid-persona (persona-id challenge-response future)
+    (alet* ((sock (db-sock))
+            (query (r:r (:do
+                          (r:fn (msg)
+                            (:branch (:|| (:== (:attr msg "to") persona-id)
+                                          (:== (:attr msg "from") persona-id))
+                              ;; message is from/to validated persona...perform the delete
+                              (:delete (:get (:table "messages") message-id))
+                              ;; message is NOT from the validated persona
+                              (:error "The given persona is not an owner of this message.")))
+                          (:get (:table "messages") message-id))))
+            (nil (r:run sock query)))
+      (r:disconnect sock)
+      (finish future t))))
 

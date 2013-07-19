@@ -8,15 +8,13 @@
    ("mod" :type integer :required t :default 'get-timestamp)))
 
 (defafun get-user-boards (future) (user-id &key get-notes get-personas)
-  "Get all boards for a user, ordered by sort order."
+  "Get all boards for a user."
   (alet* ((sock (db-sock))
           ;; TODO: implement (:without ... "user_id") once >= RDB 1.8
-          (query (r:r 
-                        (:get-all
-                          (:table "boards")
-                          user-id
-                          :index "user_id")
-                        ))
+          (query (r:r (:get-all
+                        (:table "boards")
+                        user-id
+                        :index "user_id")))
           (cursor (r:run sock query))
           (boards (r:to-array sock cursor)))
     (r:stop/disconnect sock cursor)
@@ -36,6 +34,45 @@
             (when (<= (length boards) i)
               (finish future boards))))
         (finish future boards))))
+
+(defafun get-persona-boards (future) (persona-id &key get-notes)
+  "Get all boards for a user."
+  (alet* ((sock (db-sock))
+          ;; TODO: implement (:without ... "user_id") once >= RDB 1.8
+          (query (r:r
+                   (:filter
+                     (:table "boards")
+                     (r:fn (board)
+                       (:&& (:has-fields (:attr board "privs") persona-id)
+                            (:~ (:has-fields (:attr (:attr board "privs") persona-id) "i")))))))
+          (cursor (r:run sock query))
+          (boards (r:to-array sock cursor)))
+    (r:stop/disconnect sock cursor)
+    (if (and (< 0 (length boards)) get-notes)
+        (loop for i = 0
+              for board across boards
+              for board-id = (gethash "id" board) do
+          (alet ((board board) ;; bind for inner form or loop will shit all over it
+                 (notes (when get-notes (get-board-notes board-id))))
+            (when (and get-notes notes)
+              (setf (gethash "notes" board) notes))
+            (incf i)
+            (when (<= (length boards) i)
+              (finish future boards))))
+        (finish future boards))))
+
+(defafun get-board-by-id (future) (board-id &key get-notes)
+  "Grab a board by id."
+  (alet* ((sock (db-sock))
+          ;; TODO: implement (:without ... "user_id") once >= RDB 1.8
+          (query (r:r (:get (:table "boards") board-id)))
+          (board (r:run sock query)))
+    (r:disconnect sock)
+    (if get-notes
+        (alet* ((notes (get-board-notes board-id)))
+          (setf (gethash "notes" board) notes)
+          (finish future board)
+        (finish future board)))))
 
 (defafun add-board (future) (user-id board-data)
   "Save a board with a user."
@@ -68,7 +105,7 @@
             (r:disconnect sock)
             (finish future board-data)))
         (signal-error future (make-instance 'insufficient-privileges
-                                            :msg "Sorry, you are editing a board you aren't a member of.")))))
+                                            :msg "Sorry, you are editing a board you don't own.")))))
 
 (defafun delete-board (future) (user-id board-id)
   "Delete a board."
@@ -89,7 +126,7 @@
             (r:disconnect sock)
             (finish future t)))
         (signal-error future (make-instance 'insufficient-privileges
-                                            :msg "Sorry, you are deleting a board you aren't the owner of.")))))
+                                            :msg "Sorry, you are deleting a board you don't own.")))))
 
 (defafun get-user-board-permissions (future) (user/persona-id board-id)
   "Returns an integer used to determine a user/persona's permissions for the
@@ -119,7 +156,7 @@
           (finish future user-privs))
         (finish future 0))))
 
-(defafun set-board-persona-permissions (future) (user-id board-id persona-id permission-value)
+(defafun set-board-persona-permissions (future) (user-id board-id persona-id permission-value &key invite)
   "Gives a persona permissions to view/update a board."
   (alet ((perms (get-user-board-permissions user-id board-id))
          ;; clamp permission value to 0 <= p <= 2
@@ -129,13 +166,17 @@
             (alet ((clear-perms (clear-board-persona-permissions board-id persona-id)))
               (finish future clear-perms))
             (alet* ((sock (db-sock))
+                    (priv-entry (if invite
+                                    `(("p" . 2)
+                                      ("i" . t))
+                                    `(("p" . 2))))
                     (query (r:r
                              (:update
-                               (:get (:table "boards") "517ecd09735ca40fac00000c")
+                               (:get (:table "boards") board-id)
                                (r:fn (board)
                                  `(("privs" . ,(:merge
                                                  (:default (:attr board "privs") (make-hash-table))
-                                                 `(("51dcaf26735ca406dc000009" . (("p" . 2))))))
+                                                 `((,persona-id . ,priv-entry))))
                                    ("mod" . ,(get-timestamp)))))))
                     (nil (r:run sock query)))
               (r:disconnect sock)
@@ -158,11 +199,29 @@
     (r:disconnect sock)
     (finish future 0)))
 
+(defafun accept-board-invite (future) (board-id persona-id challenge-response)
+  "Mark a board invitation/privilege entry as accepted."
+  (with-valid-persona (persona-id challenge-response future)
+    (alet* ((sock (db-sock))
+            (query (r:r (:update
+                          (:get (:table "boards") board-id)
+                          (r:fn (board)
+                            (:branch (:has-fields (:attr board "privs") persona-id)
+                              ;; persona exists in this board, run the query
+                              `(("privs" . ,(:merge
+                                              (:attr board "privs")
+                                              ;; take out the "i" key
+                                              `((,persona-id . ,(:without (:attr (:attr board "privs") persona-id) "i")))))
+                                ("mod" . ,(get-timestamp)))
+                              ;; Sorry, not invited
+                              (:error "The persona specified is not invited to this board."))))))
+            (nil (r:run sock query)))
+      (r:disconnect sock)
+      (finish future t))))
+
 (defafun leave-board-share (future) (board-id persona-id challenge-response)
   "Allows a user who is not board owner to remove themselves from the board."
-  (aif (persona-challenge-response-valid-p persona-id challenge-response)
-       (alet ((nil (clear-board-persona-permissions board-id persona-id)))
-         (finish future t))
-       (signal-error future (make-instance 'insufficient-privileges
-                                           :msg "Sorry, either the persona you are changing board permissions for doesn't exist or you don't have access to it."))))
+  (with-valid-persona (persona-id challenge-response future)
+    (alet ((nil (clear-board-persona-permissions board-id persona-id)))
+      (finish future t))))
 
