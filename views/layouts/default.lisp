@@ -88,7 +88,8 @@
       (make-css s (get-files *site-assets* ".css"
                              '("template.css" "reset.css" "general.css")))
       (:link :rel "shortcut icon" :href "/favicon.png" :type "image/png")
-      (:script :src "/library/mootools-1.4.1.js")
+      (:script :src "/library/mootools-core-1.4.5.js")
+      (:script :src "/library/mootools-more-1.4.0.1.js")
       (:script :src "/library/composer/composer.js")
       (:script :src "/library/composer/composer.relational.js")
       (:script :src "/library/composer/composer.filtercollection.js")
