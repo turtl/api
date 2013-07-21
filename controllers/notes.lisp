@@ -38,3 +38,15 @@
                     (delete-note user-id note-id))))
       (send-json res t))))
 
+(defroute (:put "/api/notes/batch") (req res)
+  (catch-errors (res)
+    (alet* ((user-id (user-id req))
+            (persona-id (post-var req "persona"))
+            (challenge (post-var req "challenge"))
+            (batch-edit-data (post-var req "data"))
+            (nil (if persona-id
+                     (with-valid-persona (persona-id challenge)
+                       (batch-note-edit persona-id batch-edit-data))
+                     (batch-note-edit user-id batch-edit-data))))
+      (send-json res t))))
+

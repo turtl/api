@@ -99,6 +99,14 @@
         (signal-error future (make-instance 'insufficient-privileges
                                             :msg "Sorry, you are deleting a note you don't have access to.")))))
 
+(defafun batch-note-edit (future) (user-id batch-edit-data)
+  "Takes an array of note edits and invidually calls edit-note on each edit.
+   Stops in its tracks if an error occurs...good thing it's idempotent."
+  (loop for note-edit across batch-edit-data do
+    (let ((note-id (gethash "id" note-edit)))
+      (edit-note user-id note-id note-edit)))
+  (finish future t))
+
 (defafun get-user-note-permissions (future) (user-id note-id)
   "'Returns' an integer used to determine a user's permissions for the given
    note.
