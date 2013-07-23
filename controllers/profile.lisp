@@ -9,7 +9,8 @@
               (user-data (get-user-data user-id))
               (response (make-hash-table :test #'equal)))
         (setf (gethash "boards" response) boards
-              (gethash "user" response) user-data)
+              (gethash "user" response) user-data
+              (gethash "time" response) (get-timestamp))
         (send-json res response)))))
 
 (defroute (:get "/api/profiles/personas/([0-9a-f-]+)") (req res args)
@@ -19,6 +20,7 @@
       (with-valid-persona (persona-id challenge)
         (alet* ((boards (get-persona-boards persona-id :get-notes t))
                 (response (make-hash-table :test #'equal)))
-          (setf (gethash "boards" response) boards)
+          (setf (gethash "boards" response) boards
+                (gethash "time" response) (get-timestamp))
           (send-json res response))))))
 
