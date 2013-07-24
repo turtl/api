@@ -92,6 +92,19 @@
           (r:disconnect sock)))
       (finish future (when found t)))))
 
+(defafun cleanup-challenges (future) ()
+  "Clean up old/expired challenges."
+  (alet* ((sock (db-sock))
+          (query (r:r
+                   (:delete
+                     (:filter
+                       (:table "challenges")
+                       (r:fn (c)
+                         (:< (:attr c "expire") (get-timestamp)))))))
+          (nil (r:run sock query)))
+    (r:disconnect sock)
+    (finish future t)))
+
 ;; TODO: finish building
 ;; TODO: find a way to enumerate failures properly. otherwise, this is more or
 ;; less good to go (after some testing)
