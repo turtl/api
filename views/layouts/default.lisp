@@ -114,7 +114,7 @@
     (:body :class "initial"
       (:div :id "loading-overlay"
         (:div
-          (:span "Downloading your data...")
+          (:span "Initializing...")
           (:span :class "spin" "/")
           ;(:img :src "/images/site/icons/load_128x78.gif" :width "128" :height "78" :alt "Reticulating splines" :title "Reticulating splines")
           ))
