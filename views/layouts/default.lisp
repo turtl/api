@@ -100,7 +100,7 @@
                         "/config/auth.js"
                         "/config/routes.js"))
       (make-scripts s (get-files (format nil "~alibrary" *site-assets*) ".js"
-                                 '("ignore" "plupload" "mootools-" "composer" "uservoice" "bookmarklet")))
+                                 '("ignore" "mootools-" "composer" "bookmarklet")))
       (:script :src "/tagit.js")
       (make-scripts s (get-files (format nil "~atagit" *site-assets*)))
       (make-scripts s (get-files (format nil "~ahandlers" *site-assets*)))
