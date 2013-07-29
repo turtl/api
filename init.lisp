@@ -13,9 +13,6 @@
     (format t "(tagit) UNcaught error: ~a~%" err)))
 
 (defun start (&key bind (port 81))
-  ;; setup the wookie log
-  (setf *log-level* :notice)
-
   (setf *error-handler* 'error-handler)
 
   ;; load/cache all the views
