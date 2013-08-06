@@ -140,7 +140,7 @@
    persona-id."
   (alet* ((sock (db-sock))
           (query (r:r (:pluck
-                        (:get (:table "personas") persona-id)
+                        (:default (:get (:table "personas") persona-id) (make-hash-table))
                         "secret")))
           (persona (r:run sock query))
           (validp (verify-challenge :persona persona-id (gethash "secret" persona) response)))
