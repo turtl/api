@@ -8,10 +8,12 @@
   (catch-errors (res)
     (alet* ((user-id (user-id req))
             (sync-time (varint (post-var req "time") 999999999))
+            (user-sync (sync-user user-id sync-time))
             (board-sync (sync-user-boards user-id sync-time))
             (note-sync (sync-user-notes user-id sync-time))
             (response (make-hash-table :test #'equal)))
       (setf (gethash "time" response) (get-timestamp)
+            (gethash "user" response) user-sync
             (gethash "notes" response) note-sync
             (gethash "boards" response) board-sync)
       (send-json res response))))

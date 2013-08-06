@@ -1,5 +1,15 @@
 (in-package :tagit)
 
+(defafun sync-user (future) (user-id sync-time)
+  "Grab any changed user data."
+  (alet* ((sock (db-sock))
+          (query (r:r (:get (:table "users") user-id)))
+          (user (r:run sock query)))
+    (r:disconnect sock)
+    (if (< sync-time (or (gethash "mod" user) 99999999))
+        (finish future user)
+        (finish future nil))))
+
 (defafun sync-user-boards (future) (user-id sync-time)
   "Grab all changed boards for a user."
   (alet* ((sock (db-sock))

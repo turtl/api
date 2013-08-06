@@ -9,7 +9,8 @@
 (defvalidator validate-user
   (("id" :type string :required t :length 24)
    ("a" :type string :required t)
-   ("body" :type cl-async-util:bytes-or-string)))
+   ("body" :type cl-async-util:bytes-or-string)
+   ("mod" :type integer :required t :default 'get-timestamp)))
 
 (defafun check-auth (future) (auth-key)
   "Check if the given auth key exists. Finishes with the user id if so, nil
@@ -36,6 +37,7 @@
 (defafun add-user (future) (user-data)
   "Add a new user"
   (add-id user-data)
+  (add-mod user-data)
   (alet ((user (check-auth (gethash "a" user-data))))
     (if user
         (signal-error future (make-instance 'user-exists
@@ -54,6 +56,7 @@
    settings."
    (if (string= user-id mod-user-id)
        (validate-user (user-data future :edit t)
+         (add-mod user-data)
          (alet* ((sock (db-sock))
                  (query (r:r (:update
                                (:get (:table "users") user-id)
