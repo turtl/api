@@ -134,10 +134,18 @@
           
           (case entry-type
             (string
-              (let ((slength (getf entry :length)))
-                (when (and (integerp slength)
-                           (not (= slength (length obj-val))))
-                  (val-error (format nil "Field `~a` is not the required length (~a characters)" key slength))))))
+              (let ((length (getf entry :length))
+                    (min-length (getf entry :min-length))
+                    (max-length (getf entry :max-length)))
+                (when (and (integerp length)
+                           (not (= length (length obj-val))))
+                  (val-error (format nil "Field `~a` is not the required length (~a characters)" key length)))
+                (when (and (integerp min-length)
+                           (not (<= min-length (length obj-val))))
+                  (val-error (format nil "Field `~a` must be at least ~a characters long" key min-length)))
+                (when (and (integerp max-length)
+                           (not (<= (length obj-val) max-length)))
+                  (val-error (format nil "Field `~a` must be no more than ~a characters long" key max-length))))))
 
           ;; TODO validate subobject/subsequence
 

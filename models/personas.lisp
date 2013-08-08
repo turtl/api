@@ -7,7 +7,7 @@
   (("id" :type string :required t :length 24)
    ("secret" :type string :required t)
    ("pubkey" :type string :required t)
-   ("screenname" :type string :required t)
+   ("screenname" :type string :required t :max-length 24)
    ("name" :type string)
    ("email" :type string)
    ("body" :type cl-async-util:bytes-or-string :required t)))
