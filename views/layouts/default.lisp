@@ -120,6 +120,7 @@
           ))
       (:div :id "wrap-modal"
         (:div :id "wrap"
+          (:div :class "sidebar-bg")
           (:header :class "clear"
             (:h1 (:a :href "/" "tag<span>.</span>it"))
             (:div :class "loading"
