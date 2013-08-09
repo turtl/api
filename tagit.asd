@@ -13,6 +13,7 @@
                #:yason
                #:cl-mongo-id
                #:cl-base64
+               #:external-program
                #:local-time
                #:ironclad
                #:secure-random)
