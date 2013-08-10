@@ -9,7 +9,7 @@
       (values data (read-sequence data s)))))
 
 
-(defun my-getenv (name &optional default)
+(defun getenv (name &optional default)
   #+CMU
   (let ((x (assoc name ext:*environment-list*
                   :test #'string=)))

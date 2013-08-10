@@ -19,7 +19,6 @@
                #:secure-random)
   :components
   ((:file "package")
-   (:file "config/config" :depends-on ("package"))
    (:module lib
     :depends-on ("package")
     :serial t
@@ -27,6 +26,7 @@
     ((:file "util")
      (:file "validation")
      (:file "crypto")))
+   (:file "config/config" :depends-on (lib))
    (:file "crypto" :depends-on (lib "config/config"))
    (:file "errors" :depends-on (lib "config/config" "crypto"))
    (:file "template" :depends-on (lib "crypto" "errors"))
