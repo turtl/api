@@ -1,15 +1,15 @@
 (in-package :tagit)
 
-(define-condition persona-screenname-exists (tagit-error)
+(define-condition persona-email-exists (tagit-error)
   ((code :initform 403)))
   
 (defvalidator validate-persona
   (("id" :type string :required t :length 24)
    ("secret" :type string :required t)
    ("pubkey" :type string :required t)
-   ("screenname" :type string :required t :max-length 24)
+   ("email" :type string :required t)
+   ;("screenname" :type string :required t :max-length 24)
    ("name" :type string)
-   ("email" :type string)
    ("body" :type cl-async-util:bytes-or-string :required t)))
 
 (defafun get-persona-by-id (future) (persona-id)
@@ -24,15 +24,15 @@
     (r:disconnect sock)
     (finish future persona)))
 
-(defafun search-personas (future) (&key screenname)
+(defafun search-personas (future) (&key email)
   "Search personas by various criteria."
   (alet* ((sock (db-sock))
           (query (r:r (:limit
                         (:filter
                           (:table "personas")
                           (r:fn (p)
-                            (:match (:attr p "screenname")
-                                    (concatenate 'string "^" screenname))))
+                            (:match (:attr p "email")
+                                    (concatenate 'string "^" email))))
                         10)))
           (cursor (r:run sock query))
           (personas (r:to-array sock cursor)))
@@ -46,7 +46,7 @@
   (setf (gethash "secret" persona-data) secret)
   (add-id persona-data)
   (validate-persona (persona-data future)
-    (aif (persona-screenname-available-p (gethash "screenname" persona-data))
+    (aif (persona-email-available-p (gethash "email" persona-data))
          (alet* ((sock (db-sock))
                  (query (r:r (:insert
                                (:table "personas")
@@ -54,16 +54,16 @@
                  (nil (r:run sock query)))
            (r:disconnect sock)
            (finish future persona-data))
-         (signal-error future (make-instance 'persona-screenname-exists
-                                             :msg "That screenname is taken.")))))
+         (signal-error future (make-instance 'persona-email-exists
+                                             :msg "That email is already registered to another persona.")))))
 
 (defafun edit-persona (future) (persona-id challenge-response persona-data)
   "Update a persona. Validates the passed challenge-response."
   (with-valid-persona (persona-id challenge-response future)
     (validate-persona (persona-data future :edit t)
-      (alet* ((screenname (gethash "screenname" persona-data))
-              (availablep (if (or (not screenname)
-                                  (persona-screenname-available-p screenname persona-id))
+      (alet* ((email (gethash "email" persona-data))
+              (availablep (if (or (not email)
+                                  (persona-email-available-p email persona-id))
                               t
                               nil)))
         (if availablep
@@ -76,8 +76,8 @@
                     (nil (r:run sock query)))
               (r:disconnect sock)
               (finish future persona-data))
-            (signal-error future (make-instance 'persona-screenname-exists
-                                                :msg "That screenname is taken.")))))))
+            (signal-error future (make-instance 'persona-email-exists
+                                                :msg "That email is taken by another persona.")))))))
 
 (defafun delete-persona (future) (persona-id challenge-response)
   "Delete a persona. Validates the passed challenge-response."
@@ -88,14 +88,14 @@
       (r:disconnect sock)
       (finish future t))))
 
-(defafun get-persona-by-screenname (future) (screenname &optional ignore-persona-id)
-  "Grab a persona via its screenname. Must be an exact match (for now)."
+(defafun get-persona-by-email (future) (email &optional ignore-persona-id)
+  "Grab a persona via its email. Must be an exact match (for now)."
   (alet* ((sock (db-sock))
           (query (r:r (:limit
                         (:without
                           (:get-all (:table "personas")
-                                    screenname
-                                    :index "screenname")
+                                    email
+                                    :index "email")
                           "secret")
                         1)))
           (cursor (r:run sock query))
@@ -129,9 +129,9 @@
     (r:disconnect sock)
     (finish future personas)))
 
-(defafun persona-screenname-available-p (future) (screenname &optional ignore-id)
-  "Test whether or not a screenname is available."
-  (aif (get-persona-by-screenname screenname ignore-id)
+(defafun persona-email-available-p (future) (email &optional ignore-id)
+  "Test whether or not a email is available."
+  (aif (get-persona-by-email email ignore-id)
        (finish future nil)
        (finish future t)))
 

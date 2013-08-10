@@ -30,17 +30,17 @@
             (nil (delete-persona persona-id challenge-response)))
       (send-json res t))))
 
-(defroute (:get "/api/personas/screenname/([a-zA-Z0-9\/\.]+)\\*") (req res args)
+(defroute (:get "/api/personas/email/([a-zA-Z0-9@\/\.\-]+)\\*") (req res args)
   (catch-errors (res)
-    (alet* ((screenname (car args))
-            (personas (search-personas :screenname screenname)))
+    (alet* ((email (car args))
+            (personas (search-personas :email email)))
       (send-json res personas))))
 
-(defroute (:get "/api/personas/screenname/([a-zA-Z0-9\/\.]+)") (req res args)
+(defroute (:get "/api/personas/email/([a-zA-Z0-9@\/\.\-]+)") (req res args)
   (catch-errors (res)
-    (alet* ((screenname (car args))
+    (alet* ((email (car args))
             (ignore-persona-id (get-var req "ignore_persona_id"))
-            (persona (get-persona-by-screenname screenname ignore-persona-id)))
+            (persona (get-persona-by-email email ignore-persona-id)))
       (if persona
           (send-json res persona)
           (send-json res "Persona not found ='[" :status 404)))))
