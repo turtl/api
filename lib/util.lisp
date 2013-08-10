@@ -8,6 +8,21 @@
            (data (make-string len)))
       (values data (read-sequence data s)))))
 
+
+(defun my-getenv (name &optional default)
+  #+CMU
+  (let ((x (assoc name ext:*environment-list*
+                  :test #'string=)))
+    (if x (cdr x) default))
+  #-CMU
+  (or
+    #+Allegro (sys:getenv name)
+    #+CLISP (ext:getenv name)
+    #+ECL (si:getenv name)
+    #+SBCL (sb-unix::posix-getenv name)
+    #+LISPWORKS (lispworks:environment-variable name)
+    default))
+
 (defun load-folder (path)
   "Load all lisp files in a directory."
   (dolist (file (directory (concatenate 'string path "*.lisp")))
@@ -51,20 +66,6 @@
         (parse-integer string :start (+ i 1) :junk-allowed t)
       (values (float (+ integer (/ fraction (expt 10 (- j i 1))))) j))))
 
-(defun sha256 (sequence/string)
-  "Return a *string* sha256 hash of the given string/byte sequence."
-  (string-downcase
-    (to-hex
-      (ironclad:digest-sequence (ironclad:make-digest 'ironclad:sha256)
-                                (if (stringp sequence/string)
-                                    (babel:string-to-octets sequence/string)
-                                    sequence/string)))))
-
-(defun crypto-random ()
-  "Generate a cryptographically-secure random number between 0 and 1. Works by
-   calling out to OpenSSL."
-  (coerce (/ (secure-random:number most-positive-fixnum) most-positive-fixnum) 'single-float))
-
 (defun to-hex (byte-array)
   "Covert a byte array to a hex string."
   (let ((hex-string (make-string (* (length byte-array) 2))))
@@ -79,93 +80,6 @@
   "Wraps parsing an integer from a form where the return may be a string integer
    or may be nil. Meant to be used to parse numbers from GET/POST data."
   `(or (parse-integer (or ,str-input "") :junk-allowed t) ,default))
-
-(defun do-validate (object validation-form &key edit)
-  "Validation a hash object against a set of rules. Returns nil on *success* and
-   returns the errors on failure."
-  (flet ((val-form (key)
-           (let ((form nil))
-             (dolist (entry validation-form)
-               (when (string= key (car entry))
-                 (setf form entry)
-                 (return)))
-             form))
-         (val-error (str)
-           (return-from do-validate str)))
-    (dolist (entry validation-form)
-      (block do-validate
-        (let* ((key (car entry))
-               (entry (cdr entry))
-               (entry-type (getf entry :type))
-               (coerce-to (getf entry :coerce))
-               (obj-entry (multiple-value-list (gethash key object)))
-               (obj-val (car obj-entry))
-               (exists (cadr obj-entry))
-               (default-val (getf entry :default)))
-          ;; check required fields
-          (when (and (getf entry :required)
-                     (not edit)
-                     (not obj-val))
-            (cond ((and default-val (symbolp default-val))
-                   (setf obj-val (funcall default-val)))
-                  (default-val
-                   (setf obj-val default-val))
-                  (t
-                   (val-error (format nil "Required field `~a` not present." key)))))
-
-          ;; if the field doesn't exist, there's no point in validating it further
-          (unless exists (return-from do-validate))
-
-          ;; do some typing work
-          (when entry-type
-            ;; convert strings to int/float if needed
-            (when (and (typep obj-val 'string)
-                       (subtypep entry-type 'number))
-              (let ((new-val (ignore-errors (parse-float obj-val))))
-                (when new-val
-                  (setf obj-val new-val))))
-            ;; make sure the types match up
-            (when (not (typep obj-val entry-type))
-              (val-error (format nil "Field `~a` is not of the expected type ~a" key entry-type))))
-
-          ;; check if we want to convert this object to a definitive type
-          (when coerce-to
-            (setf obj-val (coerce obj-val coerce-to)))
-          
-          (case entry-type
-            (string
-              (let ((length (getf entry :length))
-                    (min-length (getf entry :min-length))
-                    (max-length (getf entry :max-length)))
-                (when (and (integerp length)
-                           (not (= length (length obj-val))))
-                  (val-error (format nil "Field `~a` is not the required length (~a characters)" key length)))
-                (when (and (integerp min-length)
-                           (not (<= min-length (length obj-val))))
-                  (val-error (format nil "Field `~a` must be at least ~a characters long" key min-length)))
-                (when (and (integerp max-length)
-                           (not (<= (length obj-val) max-length)))
-                  (val-error (format nil "Field `~a` must be no more than ~a characters long" key max-length))))))
-
-          ;; TODO validate subobject/subsequence
-
-          ;; set the value (in its processed form) back into the object
-          (setf (gethash key object) obj-val))))
-    ;; remove junk keys from object data
-    (loop for key being the hash-keys of object do
-      (unless (val-form key)
-        (remhash key object))))
-  nil)
-
-(defmacro defvalidator (name validation-form)
-  "Makes defining a validation function for a data type simpler."
-  `(defmacro ,name ((object future &key edit) &body body)
-     (let ((validation (gensym "validation")))
-       `(let ((,validation (do-validate ,object ,'',validation-form :edit ,edit)))
-          (if ,validation
-              (signal-error ,future (make-instance 'validation-failed
-                                                   :msg (format nil "Validation failed: ~s~%" ,validation)))
-              (progn ,@body))))))
 
 (defmacro defafun (name (future-var &key (forward-errors t)) args &body body)
   "Define an asynchronous function with a returned future that will be finished
@@ -238,35 +152,4 @@
              `(signal-error ,future (make-instance 'insufficient-privileges :msg "Sorry, persona verification failed."))
              `(error 'insufficient-privileges :msg "Sorry, persona verification failed."))))
 
-(defun fork-shell (cmd &optional finish-cb)
-  "Fork a shell command, call the finish-cb on completion, call error-cb on
-   error."
-  (let* ((output (make-string-output-stream))
-         (status-fn (lambda (proc)
-                      (unless (eql (external-program:process-status proc) :running)
-                        (when finish-cb
-                          (funcall finish-cb (nth-value 1 (external-program:process-status proc)) (get-output-stream-string output))))))
-         (process (external-program:start "bash" (list "-c" cmd) :output output :error :output :status-hook status-fn)))
-    process))
-
-(defun send-mail (to subject body &optional finish-cb)
-  "Send an email."
-  (flet ((escape (str &key remove-nl)
-           (let* ((esc str)
-                  (esc (cl-ppcre:regex-replace-all "\"" esc "\\\""))
-                  (esc (if remove-nl
-                           (cl-ppcre:regex-replace-all "\\\\n" esc " ")
-                           esc)))
-             esc)))
-    (let* ((cmd (format nil "~
-echo -e \"~
-To: ~a\\n~
-From: noreply@tagit.beeets.com\\n~
-Subject: ~a\\n~
-~a\\n\\n\" | msmtp ~a" (escape to :remove-nl t)
-                       (escape subject :remove-nl t)
-                       (escape body)
-                       to)))
-      ;(return-from send-mail cmd)
-      (fork-shell cmd finish-cb))))
 

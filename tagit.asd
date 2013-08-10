@@ -13,18 +13,24 @@
                #:yason
                #:cl-mongo-id
                #:cl-base64
-               #:external-program
+               #:drakma-async
                #:local-time
                #:ironclad
                #:secure-random)
   :components
   ((:file "package")
    (:file "config/config" :depends-on ("package"))
-   (:file "util" :depends-on ("config/config"))
-   (:file "crypto" :depends-on ("util" "config/config"))
-   (:file "errors" :depends-on ("util" "config/config" "crypto"))
-   (:file "template" :depends-on ("util" "crypto" "errors"))
-   (:file "cron" :depends-on ("util" "config/config"))
+   (:module lib
+    :depends-on ("package")
+    :serial t
+    :components
+    ((:file "util")
+     (:file "validation")
+     (:file "crypto")))
+   (:file "crypto" :depends-on (lib "config/config"))
+   (:file "errors" :depends-on (lib "config/config" "crypto"))
+   (:file "template" :depends-on (lib "crypto" "errors"))
+   (:file "cron" :depends-on (lib "config/config"))
    (:file "init" :depends-on ("template" "crypto" "errors" "cron"))
    (:file "routes" :depends-on ("init" "crypto" "errors"))))
 
