@@ -93,12 +93,11 @@
   "Grab a persona via its email. Must be an exact match (for now)."
   (alet* ((sock (db-sock))
           (email (string-downcase email))
+          ;; TODO: implement (:without ... "secret") when Rethink is fixed
           (query (r:r (:limit
-                        (:without
-                          (:get-all (:table "personas")
-                                    email
-                                    :index "email")
-                          "secret")
+                        (:get-all (:table "personas")
+                                  email
+                                  :index "email")
                         1)))
           (cursor (r:run sock query))
           (persona (when (r:has-next cursor)
@@ -106,7 +105,9 @@
     (r:stop/disconnect sock cursor)
     (if (and (hash-table-p persona)
              (not (string= ignore-persona-id (gethash "id" persona))))
-        (finish future persona)
+        (progn
+          (remhash "secret" persona)
+          (finish future persona))
         (finish future nil))))
 
 (defafun get-board-personas (future) (board-id)
