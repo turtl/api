@@ -18,6 +18,7 @@
                (entry (cdr entry))
                (entry-type (getf entry :type))
                (coerce-to (getf entry :coerce))
+               (transform (getf entry :transform))
                (obj-entry (multiple-value-list (gethash key object)))
                (obj-val (car obj-entry))
                (exists (cadr obj-entry))
@@ -66,6 +67,9 @@
                 (when (and (integerp max-length)
                            (not (<= (length obj-val) max-length)))
                   (val-error (format nil "Field `~a` must be no more than ~a characters long" key max-length))))))
+
+          (when transform
+            (setf obj-val (funcall transform obj-val)))
 
           ;; TODO validate subobject/subsequence
 

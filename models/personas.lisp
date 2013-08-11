@@ -7,7 +7,7 @@
   (("id" :type string :required t :length 24)
    ("secret" :type string :required t)
    ("pubkey" :type string :required t)
-   ("email" :type string :required t)
+   ("email" :type string :required t :transform string-downcase)
    ;("screenname" :type string :required t :max-length 24)
    ("name" :type string)
    ("body" :type cl-async-util:bytes-or-string :required t)))
@@ -27,6 +27,7 @@
 (defafun search-personas (future) (&key email)
   "Search personas by various criteria."
   (alet* ((sock (db-sock))
+          (email (string-downcase email))
           (query (r:r (:limit
                         (:filter
                           (:table "personas")
@@ -91,6 +92,7 @@
 (defafun get-persona-by-email (future) (email &optional ignore-persona-id)
   "Grab a persona via its email. Must be an exact match (for now)."
   (alet* ((sock (db-sock))
+          (email (string-downcase email))
           (query (r:r (:limit
                         (:without
                           (:get-all (:table "personas")
