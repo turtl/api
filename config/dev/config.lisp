@@ -28,6 +28,14 @@
   "The email used for admin communications. This is reported to users on a
    server error, and possibly other instances.")
 
+(defvar *email-from* "noreply@tagit.beeets.com"
+  "The email address all tagit emails come from.")
+
+(defvar *email-user* ""
+  "The username used for sending email. Needs to be set on load.")
+(defvar *email-pass* ""
+  "The password used for sending email. Needs to be set on load.")
+
 (defvar *display-errors* t
   "Whether or not to show errors in HTTP responses. Useful for debugging, bad
    for production.")
@@ -36,4 +44,7 @@
   `((:post . "/api/users")
     (:get . ,(cl-ppcre:create-scanner "/api/personas/screenname/([a-zA-Z0-9\/\.]+)")))
   "A list of public resources/actions that do not require authentication.")
+
+;; setup the wookie log
+(setf *log-level* :notice)
 
