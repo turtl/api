@@ -10,18 +10,19 @@
             (key (post-var req "key"))
             (board-key (post-var req "board_key"))
             (used-secret-p (post-var req "used_secret"))
-            (invite (send-invite user-id
-                                 board-id
-                                 persona-id
-                                 challenge
-                                 to
-                                 key
-                                 board-key
-                                 used-secret-p)))
+            (invite (create-board-invite user-id
+                                         board-id
+                                         persona-id
+                                         challenge
+                                         to
+                                         key
+                                         board-key
+                                         used-secret-p)))
       (send-json res invite))))
 
 (defroute (:get "/invites/codes/([0-9a-f-]+)") (req res args)
   (catch-errors (res)
     (alet* ((invite-code (car args))
-            (invite (get-invite-by-code invite-code
+            (invite (get-invite-by-code invite-code)))
+      (send-json res invite))))
 
