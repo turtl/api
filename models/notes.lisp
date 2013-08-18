@@ -35,15 +35,15 @@
       (r:disconnect sock))
     (finish future results)))
 
-(defafun add-note (future) (user-id board-id note-data)
+(defafun add-note (future) (user-id board-id note-data &key persona-id)
   "Add a new note."
   (setf (gethash "user_id" note-data) user-id
         (gethash "board_id" note-data) board-id
         (gethash "sort" note-data) 99999)
   (add-id note-data)
   (add-mod note-data)
-  ;; first, check that the user is a member of this board
-  (alet ((perms (get-user-board-permissions user-id board-id)))
+  ;; first, check that the user/persona is a member of this board
+  (alet ((perms (get-user-board-permissions (if persona-id persona-id userid) board-id)))
     (if (<= 2 perms)
         (validate-note (note-data future)
           (alet* ((sock (db-sock))

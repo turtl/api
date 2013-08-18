@@ -9,7 +9,7 @@
             (note-data (post-var req "data"))
             (note (if persona-id
                       (with-valid-persona (persona-id challenge)
-                        (add-note persona-id board-id note-data))
+                        (add-note user-id board-id note-data :persona-id persona-id))
                       (add-note user-id board-id note-data))))
       (send-json res note))))
 
