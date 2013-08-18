@@ -42,7 +42,8 @@
 
 (defparameter *public-actions*
   `((:post . "/api/users")
-    (:get . ,(cl-ppcre:create-scanner "/api/personas/screenname/([a-zA-Z0-9\/\.]+)")))
+    (:get . ,(cl-ppcre:create-scanner "/api/personas/screenname/([a-zA-Z0-9\/\.]+)"))
+    (:get . ,(cl-ppcre:create-scanner "/api/invites/codes/([0-9a-f-]+)")))
   "A list of public resources/actions that do not require authentication.")
 
 ;; setup the wookie log

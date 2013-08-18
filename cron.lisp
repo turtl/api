@@ -11,5 +11,6 @@
   "Run various cleanup/maintenance tasks. Specify :poll (in seconds) to do
    cleanup every N seconds."
   (do-cleanup-action cleanup-challenges)
+  (do-cleanup-action cleanup-invites)
   (as:delay 'cleanup :time poll))
 

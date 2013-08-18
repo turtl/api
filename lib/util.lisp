@@ -8,21 +8,6 @@
            (data (make-string len)))
       (values data (read-sequence data s)))))
 
-
-(defun getenv (name &optional default)
-  #+CMU
-  (let ((x (assoc name ext:*environment-list*
-                  :test #'string=)))
-    (if x (cdr x) default))
-  #-CMU
-  (or
-    #+Allegro (sys:getenv name)
-    #+CLISP (ext:getenv name)
-    #+ECL (si:getenv name)
-    #+SBCL (sb-unix::posix-getenv name)
-    #+LISPWORKS (lispworks:environment-variable name)
-    default))
-
 (defun load-folder (path)
   "Load all lisp files in a directory."
   (dolist (file (directory (concatenate 'string path "*.lisp")))
@@ -43,6 +28,16 @@
                  :status status
                  :headers '(:content-type "application/json")
                  :body (to-json object)))
+
+(defun convert-alist-hash (alist &key (test #'equal))
+  "Convert an alist into a hash table. Only works on flat alists (nesting
+   doesn't work)."
+  (let ((hash (make-hash-table :test test)))
+    (dolist (entry alist)
+      (let ((key (car entry))
+            (val (cdr entry)))
+        (setf (gethash key hash) val)))
+    hash))
 
 (defun add-id (hash-object &key (id-key "id"))
   "Add a mongo id to a hash table object."

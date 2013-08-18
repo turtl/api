@@ -16,7 +16,8 @@
                #:drakma-async
                #:local-time
                #:ironclad
-               #:secure-random)
+               #:secure-random
+               #:bordeaux-threads)
   :components
   ((:file "package")
    (:module lib
@@ -32,5 +33,6 @@
    (:file "template" :depends-on (lib "crypto" "errors"))
    (:file "cron" :depends-on (lib "config/config"))
    (:file "init" :depends-on ("template" "crypto" "errors" "cron"))
-   (:file "routes" :depends-on ("init" "crypto" "errors"))))
+   (:file "routes" :depends-on ("init" "crypto" "errors"))
+   (:file "init-thread" :depends-on ("init" "routes"))))
 

@@ -130,7 +130,7 @@
                         (:get (:table "boards") board-id))))
           (personas (r:run sock query)))
     (r:disconnect sock)
-    (finish future personas)))
+    (finish future (remove nil personas))))
 
 (defafun persona-email-available-p (future) (email &optional ignore-id)
   "Test whether or not a email is available."

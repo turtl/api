@@ -174,7 +174,7 @@
           (finish future user-privs))
         (finish future 0))))
 
-(defafun set-board-persona-permissions (future) (user-id board-id persona-id permission-value &key invite)
+(defafun set-board-persona-permissions (future) (user-id board-id persona-id permission-value &key invite invite-remote)
   "Gives a persona permissions to view/update a board."
   (alet ((perms (get-user-board-permissions user-id board-id))
          ;; clamp permission value to 0 <= p <= 2
@@ -184,10 +184,14 @@
             (alet ((clear-perms (clear-board-persona-permissions board-id persona-id)))
               (finish future clear-perms))
             (alet* ((sock (db-sock))
-                    (priv-entry (if invite
-                                    `(("p" . 2)
-                                      ("i" . t))
-                                    `(("p" . 2))))
+                    (priv-entry (cond (invite
+                                        `(("p" . ,permission-value)
+                                          ("i" . t)))
+                                      (invite-remote
+                                        `(("p" . ,permission-value)
+                                          ("e" . ,invite-remote)))
+                                      (t
+                                        `(("p" . ,permission-value)))))
                     (query (r:r
                              (:update
                                (:get (:table "boards") board-id)
@@ -198,7 +202,7 @@
                                    ("mod" . ,(get-timestamp)))))))
                     (nil (r:run sock query)))
               (r:disconnect sock)
-              (finish future permission-value)))
+              (finish future permission-value priv-entry)))
         (signal-error future (make-instance 'insufficient-privileges
                                             :msg "Sorry, you are editing a board you aren't a member of.")))))
 
@@ -224,6 +228,15 @@
           (nil (r:run sock query)))
     (r:disconnect sock)
     (finish future 0)))
+
+(defafun add-board-remote-invite (future) (user-id board-id invite-id permission-value to-email)
+  "Creates a remote (ie email) invite permission record on a board so the 
+   recipient of an invite can join the board without knowing what their account
+   will be in advance."
+  (alet* ((email (obscure-email to-email)))
+    (multiple-future-bind (perm priv-entry)
+        (set-board-persona-permissions user-id board-id invite-id permission-value :invite-remote email)
+      (finish future perm priv-entry))))
 
 (defafun accept-board-invite (future) (board-id persona-id challenge-response)
   "Mark a board invitation/privilege entry as accepted."

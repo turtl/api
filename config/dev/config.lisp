@@ -12,7 +12,7 @@
 (defvar *db-port* 28015
   "The database port number.")
 
-(defvar *site-url* "http://tagit.dev:81"
+(defvar *site-url* "http://tagit.beeets.com"
   "The main URL the site will load from.")
 
 (defvar *site-assets* (namestring (truename (format nil "~a../js" *root*)))
@@ -42,7 +42,8 @@
 
 (defparameter *public-actions*
   `((:post . "/api/users")
-    (:get . ,(cl-ppcre:create-scanner "/api/personas/screenname/([a-zA-Z0-9\/\.]+)")))
+    (:get . ,(cl-ppcre:create-scanner "/api/personas/screenname/([a-zA-Z0-9\/\.]+)"))
+    (:get . ,(cl-ppcre:create-scanner "/api/invites/codes/([0-9a-f-]+)")))
   "A list of public resources/actions that do not require authentication.")
 
 ;; setup the wookie log
