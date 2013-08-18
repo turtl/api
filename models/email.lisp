@@ -1,6 +1,6 @@
-(in-package :tagit)
+(in-package :turtl)
 
-(define-condition email-send-failed (tagit-error)
+(define-condition email-send-failed (turtl-error)
   ((code :initform 500)))
 
 ;; -----------------------------------------------------------------------------
@@ -9,8 +9,8 @@
 (defparameter *emails-board-invite* (format nil "~
 Hello.
 
-{{from}} has shared a board with you on Tagit. ~
-Tagit is an easy way to track, share, and collaborate on ideas and projects ~
+{{from}} has shared a board with you on Turtl. ~
+Turtl is an easy way to track, share, and collaborate on ideas and projects ~
 with friends or coworkers.
  
 To accept this invite, go here: {{site-url}}/invite/{{code}}?secret={{used-secret}}
@@ -20,7 +20,7 @@ themselves out.
   
 Thanks!
 Andrew, Jeff, and Drew
-(the Tagit team)
+(The Turtl Team)
 "))
 ;; -----------------------------------------------------------------------------
 ;; / email templates
@@ -87,7 +87,7 @@ Andrew, Jeff, and Drew
                      :used-secret ,(if (gethash "used_secret" (gethash "data" invite))
                                        1
                                        0)))
-         (subject (format nil "~a shared a board with you on Tagit" (if name name email)))
+         (subject (format nil "~a shared a board with you on Turtl" (if name name email)))
          (body (email-template msg tpl-vars))
          (to (gethash "to" invite)))
     (alet* ((sentp (send-email to subject body :reply-to email :from-name (if name name email))))

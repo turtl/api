@@ -1,4 +1,4 @@
-(in-package :tagit)
+(in-package :turtl)
 
 (defvalidator validate-board
   (("id" :type string :required t :length 24)

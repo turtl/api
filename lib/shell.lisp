@@ -1,6 +1,6 @@
 ;;; NOTE: don't forget to include #:external-program if this file is loaded.
 
-(in-package :tagit)
+(in-package :turtl)
 
 (defun fork-shell (cmd &optional finish-cb)
   "Fork a shell command, call the finish-cb on completion, call error-cb on
@@ -25,7 +25,7 @@
     (let* ((cmd (format nil "~
 echo -e \"~
 To: ~a\\n~
-From: noreply@tagit.beeets.com\\n~
+From: noreply@turtl.it\\n~
 Subject: ~a\\n~
 ~a\\n\\n\" | msmtp ~a" (escape to :remove-nl t)
                        (escape subject :remove-nl t)

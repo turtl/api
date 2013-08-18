@@ -1,9 +1,9 @@
-(in-package :tagit)
+(in-package :turtl)
 
-(defparameter *root* (asdf:system-relative-pathname :tagit #P"")
-  "Defines the root directory tagit is loading from (basically the ASDF path).")
+(defparameter *root* (asdf:system-relative-pathname :turtl #P"")
+  "Defines the root directory turtl is loading from (basically the ASDF path).")
 
-(defvar *db-name* "tagit"
+(defvar *db-name* "turtl"
   "The name of the database we'll be using LOL")
 
 (defvar *db-host* "127.0.0.1"
@@ -12,7 +12,7 @@
 (defvar *db-port* 28015
   "The database port number.")
 
-(defvar *site-url* "http://tagit.beeets.com"
+(defvar *site-url* "http://turtl.it"
   "The main URL the site will load from.")
 
 (defvar *site-assets* (namestring (truename (format nil "~a../js" *root*)))
@@ -28,8 +28,8 @@
   "The email used for admin communications. This is reported to users on a
    server error, and possibly other instances.")
 
-(defvar *email-from* "noreply@tagit.beeets.com"
-  "The email address all tagit emails come from.")
+(defvar *email-from* "noreply@turtl.it"
+  "The email address all turtl emails come from.")
 
 (defvar *email-user* ""
   "The username used for sending email. Needs to be set on load.")

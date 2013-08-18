@@ -1,4 +1,4 @@
-(in-package :tagit)
+(in-package :turtl)
 
 ;; clear out all routes (start anew)
 (clear-routes)
@@ -24,7 +24,7 @@
 
 ;; set up a catch-all route which loads the app, no matter the URL
 (defroute (:get ".+") (req res)
-  (let ((body (layout :default '(:content "" :title "tag.it"))))
+  (let ((body (layout :default '(:content "" :title "Turtl"))))
     (send-response res :headers '(:content-type "text/html") :body body)))
 
 (defroute (:* ".+") (req res)

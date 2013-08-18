@@ -1,4 +1,4 @@
-(in-package :tagit)
+(in-package :turtl)
 
 (defun get-files (dir &optional (ext ".js") exclude)
   "Recursively grap all files in the given directory, with the given extension,
@@ -81,7 +81,7 @@
     (:head
       (:meta :http-equiv "Content-Type" :content "test/html; charset=utf-8")
       (:meta :http-equiv "Content-Language" :content "en")
-      (:title "tag.it")
+      (:title "Turtl")
       (:link :rel "stylesheet" :href "/css/reset.css")
       (:link :rel "stylesheet" :href "/css/template.css")
       (:link :rel "stylesheet" :href "/css/general.css")
@@ -101,8 +101,8 @@
                         "/config/routes.js"))
       (make-scripts s (get-files (format nil "~alibrary" *site-assets*) ".js"
                                  '("ignore" "mootools-" "composer" "bookmarklet")))
-      (:script :src "/tagit.js")
-      (make-scripts s (get-files (format nil "~atagit" *site-assets*)))
+      (:script :src "/turtl.js")
+      (make-scripts s (get-files (format nil "~aturtl" *site-assets*)))
       (make-scripts s (get-files (format nil "~ahandlers" *site-assets*)))
       (make-scripts s (get-files (format nil "~acontrollers" *site-assets*)))
       (make-scripts s (get-files (format nil "~amodels" *site-assets*)))

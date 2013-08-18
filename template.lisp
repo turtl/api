@@ -1,4 +1,4 @@
-(in-package :tagit)
+(in-package :turtl)
 
 (define-condition view-not-found (error)
   ((view :initarg :view :reader view-name :initform nil))
@@ -11,7 +11,7 @@
 (defmacro deflayout (name (data-var &key (stream-var 's) top-level) &body body)
   "Define a layout function. Can be used in conjunction with a 'layout: ...'
    header in a markdown file."
-  (let ((view-name (intern (string-upcase (format nil "layout-~a" name)) :tagit)))
+  (let ((view-name (intern (string-upcase (format nil "layout-~a" name)) :turtl)))
     `(progn
        (defun ,view-name (,data-var)
          (declare (ignorable ,data-var))
@@ -60,7 +60,7 @@
 
 (defun layout (name data)
   "Sends data to a layout and returns the content for that layout."
-  (let ((layout-fn (intern (string-upcase (format nil "layout-~a" name)) :tagit)))
+  (let ((layout-fn (intern (string-upcase (format nil "layout-~a" name)) :turtl)))
     (funcall layout-fn data)))
 
 (defun load-view (name &key data headers)

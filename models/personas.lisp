@@ -1,6 +1,6 @@
-(in-package :tagit)
+(in-package :turtl)
 
-(define-condition persona-email-exists (tagit-error)
+(define-condition persona-email-exists (turtl-error)
   ((code :initform 403)))
   
 (defvalidator validate-persona

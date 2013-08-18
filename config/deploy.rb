@@ -4,16 +4,16 @@ set :app,		"www1.beeets.com"
 set :gitbranch,	"master"
 set :conf,		"dev"
 
-set :application,	"tag.it/api"
+set :application,	"turtl/api"
 
-set :deploy_to,		"/srv/www/tag.it/api"
+set :deploy_to,		"/srv/www/turtl/api"
 set :deploy_via,	:remote_cache
 set :user, 			"deploy"
 set :use_sudo,		false
 set :keep_releases,	5
 
 set :scm, 			:git
-set :repository,	"git@github.com:lyonbros/tagit-api"
+set :repository,	"git@github.com:turtl/api"
 set :branch,		gitbranch
 set :scm_verbose,	1
 

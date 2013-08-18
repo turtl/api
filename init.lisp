@@ -1,4 +1,4 @@
-(in-package :tagit)
+(in-package :turtl)
 
 (setf cl-who:*attribute-quote-char* #\"
       (cl-who:html-mode) :html5
@@ -10,7 +10,7 @@
 
 (defun error-handler (err)
   (unless (typep err 'as:tcp-info)
-    (format t "(tagit) UNcaught error: ~a~%" err)))
+    (format t "(turtl) UNcaught error: ~a~%" err)))
 
 (defun start (&key bind (port 81))
   (setf *error-handler* 'error-handler)

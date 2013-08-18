@@ -1,4 +1,4 @@
-(in-package :tagit)
+(in-package :turtl)
 
 (defvar *challenge-expire* 5
   "How many seconds until a challenge exires.")

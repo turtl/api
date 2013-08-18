@@ -1,4 +1,4 @@
-(in-package :tagit)
+(in-package :turtl)
 
 (defun file-contents (path)
   "Sucks up an entire file from PATH into a freshly-allocated string,
@@ -103,16 +103,16 @@
   `(future-handler-case
      (progn ,@body)
      ;; catch errors that can be easily transformed to HTTP
-     (tagit-error (e)
+     (turtl-error (e)
       (send-response ,response
                      :status (error-code e)
                      :headers '(:content-type "application/json")
                      :body (error-json e)))
      ;; catch anything else and send a response out for it
      (t (e)
-      (format t "(tagit) Caught error: ~a~%" e)
+      (format t "(turtl) Caught error: ~a~%" e)
       (if (wookie:response-finished-p ,response)
-          (wookie-util:wlog :error "(tagit) ...double error: ~a~%" e)
+          (wookie-util:wlog :error "(turtl) ...double error: ~a~%" e)
           (unless (as:socket-closed-p (get-socket ,response))
             (send-response ,response
                            :status 500

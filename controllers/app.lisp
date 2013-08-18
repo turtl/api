@@ -1,4 +1,4 @@
-(in-package :tagit)
+(in-package :turtl)
 
 (defun user-id (request)
   "Grab a user id from a request."
@@ -42,5 +42,5 @@
                           (funcall auth-fail-fn)))))
                 (funcall auth-fail-fn))))
       future))
-  :tagit-auth)
+  :turtl-auth)
 

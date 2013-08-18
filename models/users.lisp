@@ -1,9 +1,9 @@
-(in-package :tagit)
+(in-package :turtl)
 
-(define-condition user-exists (tagit-error)
+(define-condition user-exists (turtl-error)
   ((code :initform 403)))
 
-(define-condition user-mismatch (tagit-error)
+(define-condition user-mismatch (turtl-error)
   ((code :initform 403)))
 
 (defvalidator validate-user
