@@ -122,7 +122,7 @@
         (:div :id "wrap"
           (:div :class "sidebar-bg")
           (:header :class "clear"
-            (:h1 (:a :href "/" "tag<span>.</span>it"))
+            (:h1 (:a :href "/" "Turtl<span>.</span>"))
             (:div :class "loading"
               (:img :src "/images/site/icons/load_42x11.gif")))
           (:div :id "main" :class "maincontent")))
