@@ -23,9 +23,11 @@
 (defroute (:get "/api/invites/codes/([0-9a-f-]+)") (req res args)
   (catch-errors (res)
     (alet* ((invite-code (car args))
-            (invite-id (get-var req "invite_id"))
-            (invite (get-invite-by-code invite-id invite-code)))
-      (send-json res invite))))
+            (invite-id (or (get-var req "invite_id") ""))
+            (invite (get-invite-by-id-code invite-id invite-code)))
+      (if invite
+          (send-json res invite)
+          (send-response res :status 404 :body "\"Invite not found.\"")))))
 
 (defroute (:delete "/api/invites/([0-9a-f-]+)") (req res args)
   (catch-errors (res)

@@ -13,7 +13,7 @@ Hello.
 Turtl is an easy way to track, share, and collaborate on ideas and projects ~
 with friends or coworkers.
  
-To accept this invite, go here: {{site-url}}/invite/{{code}}?secret={{used-secret}}
+To accept this invite, go here: {{site-url}}/invites/{{code}}/{{id}}/{{key}}
   
 Otherwise, you can ignore this email entirely and things will just work ~
 themselves out.
@@ -71,7 +71,7 @@ Andrew, Jeff, and Drew
                  (msg (concatenate 'string "Failed to send email: " msg)))
             (signal-error future (error 'email-send-failed :msg msg)))))))
 
-(defafun email-board-invite (future) (from-persona invite)
+(defafun email-board-invite (future) (from-persona invite key)
   "Send a board invite email."
   (let* ((msg *emails-board-invite*)
          (name (gethash "name" from-persona))
@@ -83,7 +83,9 @@ Andrew, Jeff, and Drew
                    email))
          (tpl-vars `(:from ,from
                      :site-url ,*site-url*
+                     :id ,(gethash "id" invite)
                      :code ,(gethash "code" invite)
+                     :key ,key
                      :used-secret ,(if (gethash "used_secret" (gethash "data" invite))
                                        1
                                        0)))
