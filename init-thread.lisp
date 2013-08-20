@@ -18,7 +18,8 @@
   (setf *proc* (bt:make-thread
                  (lambda ()
                    (turtl:start :bind bind :port port)
-                   (format t "Turtl background thread finished.~%"))
+                   (format t "Turtl background thread finished.~%")
+                   (setf *proc* nil))
                  :name "turtl"))
   *proc*)
 
