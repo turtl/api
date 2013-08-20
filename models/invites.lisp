@@ -80,7 +80,9 @@
       (if (and exists-invite
                (not (gethash "deleted" exists-invite)))
           ;; this email/board-id invite already exists. just resend it
-          (wait-for (email-board-invite persona exists-invite)
+          (alet ((privs (get-board-privs-entry board-id (gethash "id" exists-invite)))
+                 (nil (email-board-invite persona exists-invite key)))
+            (setf (gethash "priv" exists-invite) privs)
             (finish future exists-invite))
           ;; new invite, create/insert/send it
           (alet* ((expire (* 3 86400))

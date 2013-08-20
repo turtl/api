@@ -229,6 +229,14 @@
     (r:disconnect sock)
     (finish future 0)))
 
+(defafun get-board-privs-entry (future) (board-id privs-entry-id)
+  "Returns a privileges entry for the given privs entry id (usually a persona or
+   invite id)."
+  (alet* ((board (get-board-by-id board-id))
+          (privs (gethash "privs" board))
+          (entry (when privs (gethash privs-entry-id privs))))
+    (finish future entry)))
+
 (defafun add-board-remote-invite (future) (user-id board-id invite-id permission-value to-email)
   "Creates a remote (ie email) invite permission record on a board so the 
    recipient of an invite can join the board without knowing what their account
