@@ -129,7 +129,7 @@
                      (:filter
                        (:table "invites")
                        (r:fn (c)
-                         (:< (:attr c "expire") (get-timestamp)))))))
+                         (:< (:attr c "expire") (- (get-timestamp) 60)))))))
           (nil (r:run sock query)))
     (r:disconnect sock)
     (finish future t)))
