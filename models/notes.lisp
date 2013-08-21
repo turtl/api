@@ -43,7 +43,7 @@
   (add-id note-data)
   (add-mod note-data)
   ;; first, check that the user/persona is a member of this board
-  (alet ((perms (get-user-board-permissions (if persona-id persona-id userid) board-id)))
+  (alet ((perms (get-user-board-permissions (if persona-id persona-id user-id) board-id)))
     (if (<= 2 perms)
         (validate-note (note-data future)
           (alet* ((sock (db-sock))
