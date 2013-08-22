@@ -10,7 +10,7 @@
         (finish future user)
         (finish future nil))))
 
-(defafun sync-user-boards (future) (user-id sync-time)
+(defafun sync-user-boards (future) (user-id sync-time &key get-personas)
   "Grab all changed boards for a user."
   (alet* ((sock (db-sock))
           (query (r:r
@@ -24,7 +24,18 @@
           (cursor (r:run sock query))
           (boards (r:to-array sock cursor)))
     (r:stop/disconnect sock cursor)
-    (finish future boards)))
+    (if (and (< 0 (length boards))
+             get-personas)
+        (loop for i = 0
+              for board across boards
+              for board-id = (gethash "id" board) do
+          (alet ((board board)
+                 (personas (get-board-personas board-id)))
+            (setf (gethash "personas" board) personas)
+            (incf i)
+            (when (<= (length boards) i)
+              (finish future boards))))
+        (finish future boards))))
 
 (defafun sync-user-notes (future) (user-id sync-time)
   "Grab all notes for this user that have changed."

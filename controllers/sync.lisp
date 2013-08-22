@@ -9,7 +9,7 @@
     (alet* ((user-id (user-id req))
             (sync-time (varint (post-var req "time") 999999999))
             (user-sync (sync-user user-id sync-time))
-            (board-sync (sync-user-boards user-id sync-time))
+            (board-sync (sync-user-boards user-id sync-time :get-personas t))
             (note-sync (sync-user-notes user-id sync-time))
             (response (make-hash-table :test #'equal)))
       (setf (gethash "time" response) (get-timestamp)
