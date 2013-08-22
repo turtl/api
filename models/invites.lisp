@@ -4,13 +4,16 @@
   "Create a deterministic id based off the item-id and email."
   (sha256 (concatenate 'string item-id ":" to-email)))
 
-(defafun get-invite-by-id (future) (invite-id)
+(defafun get-invite-by-id (future) (invite-id &key allow-deleted)
   "gibiLOLOL"
   (alet* ((sock (db-sock))
           (query (r:r (:get (:table "invites") invite-id)))
           (invite (r:run sock query)))
     (r:disconnect sock)
-    (finish future invite)))
+    (if (and invite
+             (or allow-deleted (not (gethash "deleted" invite))))
+        (finish future invite)
+        (finish future nil))))
 
 (defafun get-invite-by-id-code (future) (invite-id invite-code)
   "Get an invite by ID, and make sure its code matches the code given. This is
@@ -99,20 +102,29 @@
                 (setf (gethash "priv" invite) (convert-alist-hash priv-entry))
                 (finish future invite))))))))
 
-(defafun delete-invite (future) (user-id invite-id)
-  "Delete an invite."
-  (alet* ((invite (get-invite-by-id invite-id))
-          (invite-type (gethash "type" invite))
-          (invite-type-keyword (intern (string-upcase invite-type) :keyword))
-          (res (case invite-type-keyword
-                 (:b (delete-board-invite user-id invite))))
-          (sock (db-sock))
-          (query (r:r (:update
-                        (:get (:table "invites") invite-id)
-                        `(("deleted" . ,(get-timestamp))))))
+(defafun delete-invite-record (future) (invite-id &key permanent)
+  "Delete an invite's record."
+  (alet* ((sock (db-sock))
+          (query (if permanent
+                     (r:r (:delete (:get (:table "invites") invite-id)))
+                     (r:r (:update
+                            (:get (:table "invites") invite-id)
+                            `(("deleted" . ,(get-timestamp)))))))
           (nil (r:run sock query)))
     (r:disconnect sock)
-    (finish future res)))
+    (finish future t)))
+
+(defafun delete-invite (future) (user-id invite-id)
+  "Delete an invite."
+  (alet* ((invite (get-invite-by-id invite-id :allow-deleted t)))
+    (if invite
+        (alet* ((invite-type (gethash "type" invite))
+                (invite-type-keyword (intern (string-upcase invite-type) :keyword))
+                (res (case invite-type-keyword
+                       (:b (delete-board-invite user-id invite))))
+                (nil (delete-invite-record invite-id)))
+          (finish future res))
+        (signal-error future (make-instance 'not-found :msg "That invite wasn't found.")))))
 
 (defafun delete-board-invite (future) (user-id invite)
   "Delete a board invite."
@@ -120,6 +132,38 @@
           (board-id (gethash "item_id" invite))
           (perm (set-board-persona-permissions user-id board-id invite-id 0)))
     (finish future perm)))
+
+(defafun accept-invite (future) (invite-id invite-code persona-id challenge)
+  "Accept an invite. Removes the invite record, and updates the object
+   (board/note/etc) according to the given persona."
+  (alet* ((invite (get-invite-by-id-code invite-id invite-code)))
+    (if invite
+        (alet* ((invite-id (gethash "id" invite))
+                (invite-type (gethash "type" invite))
+                (item-id (gethash "item_id" invite))
+                (invite-type-keyword (intern (string-upcase invite-type) :keyword))
+                (res (let ((subfuture (make-future)))
+                       (case invite-type-keyword
+                         (:b (alet* ((nil (accept-board-invite item-id persona-id challenge :invite-id invite-id))
+                                     (board (get-board-by-id item-id :get-notes t)))
+                               (finish subfuture board))))))
+                (nil (delete-invite-record invite-id :permanent t)))
+          (finish future res))
+        (signal-error future (make-instance 'not-found :msg "That invite wasn't found.")))))
+
+(defafun deny-invite (future) (invite-id invite-code persona-id challenge)
+  "Deny an invite. Removes the invite record and also marks the invite entry on
+   the object attached to the invite as deleted."
+  (alet* ((invite (get-invite-by-id-code invite-id invite-code)))
+    (if invite
+        (alet* ((invite-type (gethash "type" invite))
+                (item-id (gethash "item_id" invite))
+                (invite-type-keyword (intern (string-upcase invite-type) :keyword))
+                (res (case invite-type-keyword
+                       (:b (leave-board-share item-id persona-id challenge :invite-id invite-id))))
+                (nil (delete-invite-record invite-id :permanent t)))
+          (finish future res))
+        (signal-error future (make-instance 'not-found :msg "That invite wasn't found.")))))
 
 (defafun cleanup-invites (future) ()
   "Delete expired invites."

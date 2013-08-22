@@ -246,19 +246,25 @@
         (set-board-persona-permissions user-id board-id invite-id permission-value :invite-remote email)
       (finish future perm priv-entry))))
 
-(defafun accept-board-invite (future) (board-id persona-id challenge-response)
-  "Mark a board invitation/privilege entry as accepted."
+(defafun accept-board-invite (future) (board-id persona-id challenge-response &key invite-id)
+  "Mark a board invitation/privilege entry as accepted. Accepts a persona, but
+   also an invite-id in the event the invite was sent over email, in which case
+   its record id is updated with he given persona-id."
   (with-valid-persona (persona-id challenge-response future)
-    (alet* ((sock (db-sock))
+    (alet* ((entry-id (or invite-id persona-id))
+            (sock (db-sock))
             (query (r:r (:update
                           (:get (:table "boards") board-id)
                           (r:fn (board)
-                            (:branch (:has-fields (:attr board "privs") persona-id)
+                            (:branch (:has-fields (:attr board "privs") entry-id)
                               ;; persona exists in this board, run the query
                               `(("privs" . ,(:merge
-                                              (:attr board "privs")
+                                              (:without (:attr board "privs") entry-id)
                                               ;; take out the "i" key
-                                              `((,persona-id . ,(:without (:attr (:attr board "privs") persona-id) "i")))))
+                                              `((,persona-id . ,(:without
+                                                                  (:attr (:attr board "privs") entry-id)
+                                                                  "i"
+                                                                  "e")))))
                                 ("mod" . ,(get-timestamp)))
                               ;; Sorry, not invited
                               (:error "The persona specified is not invited to this board."))))))
@@ -266,9 +272,11 @@
       (r:disconnect sock)
       (finish future t))))
 
-(defafun leave-board-share (future) (board-id persona-id challenge-response)
-  "Allows a user who is not board owner to remove themselves from the board."
+(defafun leave-board-share (future) (board-id persona-id challenge-response &key invite-id)
+  "Allows a user who is not board owner to remove themselves from the board. If
+   an invite-id is specified, it will replace the persona-id (after persona
+   verification, of course) when referencing which privs entry to lear out."
   (with-valid-persona (persona-id challenge-response future)
-    (alet ((nil (clear-board-persona-permissions board-id persona-id)))
+    (alet ((nil (clear-board-persona-permissions board-id (or invite-id persona-id))))
       (finish future t))))
 

@@ -29,6 +29,26 @@
           (send-json res invite)
           (send-response res :status 404 :body "\"Invite not found.\"")))))
 
+(defroute (:post "/api/invites/accepted/([0-9a-f-]+)") (req res args)
+  "Accept an invite"
+  (catch-errors (res)
+    (alet* ((invite-id (car args))
+            (invite-code (post-var req "code"))
+            (persona-id (post-var req "persona"))
+            (challenge (post-var req "challenge"))
+            (success (accept-invite invite-id invite-code persona-id challenge)))
+      (send-json res success))))
+
+(defroute (:post "/api.invites/denied/([0-9a-f-]+)") (req res args)
+  "Deny an invite."
+  (catch-errors (res)
+    (alet* ((invite-id (car args))
+            (invite-code (post-var req "code"))
+            (persona-id (post-var req "persona"))
+            (challenge (post-var req "challenge"))
+            (success (deny-invite invite-id invite-code persona-id challenge)))
+      (send-json res success))))
+
 (defroute (:delete "/api/invites/([0-9a-f-]+)") (req res args)
   (catch-errors (res)
     (alet* ((invite-id (car args))
