@@ -7,7 +7,32 @@
    ("body" :type cl-async-util:bytes-or-string)
    ("mod" :type integer :required t :default 'get-timestamp)))
 
-(defafun get-user-boards (future) (user-id &key get-notes get-personas)
+(defafun populate-boards-data (future) (boards &key get-notes get-personas)
+  "Populate certain information given a list of boards."
+  (if (and (< 0 (length boards))
+           (or get-notes get-personas))
+      (loop for i = 0
+            for board across boards
+            for board-id = (gethash "id" board) do
+        (alet ((board board) ;; bind for inner form or loop will shit all over it
+               (personas (when get-personas (get-board-personas board-id)))
+               (notes (when get-notes (get-board-notes board-id))))
+          ;; filter out privs = 0 entries
+          (when (hash-table-p (gethash "privs" board))
+            (loop for persona-id being the hash-keys of (gethash "privs" board)
+                  for entry being the hash-values of (gethash "privs" board) do
+              (when (and (hash-table-p entry)
+                         (or (zerop (gethash "p" entry))
+                             (gethash "d" entry)))
+                (remhash persona-id (gethash "privs" board)))))
+          (when (and get-notes notes) (setf (gethash "notes" board) notes))
+          (when (and get-personas personas) (setf (gethash "personas" board) personas))
+          (incf i)
+          (when (<= (length boards) i)
+            (finish future boards))))
+      (finish future boards)))
+
+(defafun get-user-boards (future) (user-id &key get-persona-boards get-notes get-personas)
   "Get all boards for a user."
   (alet* ((sock (db-sock))
           ;; TODO: implement (:without ... "user_id") once >= RDB 1.8
@@ -21,33 +46,19 @@
           (cursor (r:run sock query))
           (boards (r:to-array sock cursor)))
     (r:stop/disconnect sock cursor)
-    (if (and (< 0 (length boards))
-             (or get-notes get-personas))
-        (loop for i = 0
-              for board across boards
-              for board-id = (gethash "id" board) do
-          (alet ((board board) ;; bind for inner form or loop will shit all over it
-                 (personas (when get-personas (get-board-personas board-id)))
-                 (notes (when get-notes (get-board-notes board-id))))
-            ;; filter out privs = 0 entries
-            (when (hash-table-p (gethash "privs" board))
-              (loop for persona-id being the hash-keys of (gethash "privs" board)
-                    for entry being the hash-values of (gethash "privs" board) do
-                (when (and (hash-table-p entry)
-                           (or (zerop (gethash "p" entry))
-                               (gethash "d" entry)))
-                  (remhash persona-id (gethash "privs" board)))))
-            (when (and get-notes notes) (setf (gethash "notes" board) notes))
-            (when (and get-personas personas) (setf (gethash "personas" board) personas))
-            (incf i)
-            (when (<= (length boards) i)
-              (finish future boards))))
-        (finish future boards))))
+    ;; grab persona boards and populate all boards with note/personas/etc
+    (alet* ((persona-boards (if get-persona-boards
+                                (user-personas-map user-id 'get-persona-boards :flatten t)
+                                #()))
+            (all-boards (cl-async-util:append-array boards persona-boards))
+            (boards-populated (populate-boards-data all-boards
+                                                    :get-notes get-notes
+                                                    :get-personas get-personas)))
+      (finish future boards-populated))))
 
 (defafun get-persona-boards (future) (persona-id &key get-notes)
   "Get all boards for a user."
   (alet* ((sock (db-sock))
-          ;; TODO: implement (:without ... "user_id") once >= RDB 1.8
           (query (r:r
                    (:filter
                      (:table "boards")
@@ -59,18 +70,8 @@
           (cursor (r:run sock query))
           (boards (r:to-array sock cursor)))
     (r:stop/disconnect sock cursor)
-    (if (and (< 0 (length boards)) get-notes)
-        (loop for i = 0
-              for board across boards
-              for board-id = (gethash "id" board) do
-          (alet ((board board) ;; bind for inner form or loop will shit all over it
-                 (notes (when get-notes (get-board-notes board-id))))
-            (when (and get-notes notes)
-              (setf (gethash "notes" board) notes))
-            (incf i)
-            (when (<= (length boards) i)
-              (finish future boards))))
-        (finish future boards))))
+    (alet ((boards-populated (populate-boards-data boards :get-notes get-notes)))
+      (finish future boards-populated))))
 
 (defafun get-board-by-id (future) (board-id &key get-notes)
   "Grab a board by id."
@@ -246,11 +247,11 @@
         (set-board-persona-permissions user-id board-id invite-id permission-value :invite-remote email)
       (finish future perm priv-entry))))
 
-(defafun accept-board-invite (future) (board-id persona-id challenge-response &key invite-id)
+(defafun accept-board-invite (future) (user-id board-id persona-id &key invite-id)
   "Mark a board invitation/privilege entry as accepted. Accepts a persona, but
    also an invite-id in the event the invite was sent over email, in which case
    its record id is updated with he given persona-id."
-  (with-valid-persona (persona-id challenge-response future)
+  (with-valid-persona (persona-id user-id future)
     (alet* ((entry-id (or invite-id persona-id))
             (sock (db-sock))
             (query (r:r (:update
@@ -272,11 +273,11 @@
       (r:disconnect sock)
       (finish future t))))
 
-(defafun leave-board-share (future) (board-id persona-id challenge-response &key invite-id)
+(defafun leave-board-share (future) (user-id board-id persona-id &key invite-id)
   "Allows a user who is not board owner to remove themselves from the board. If
    an invite-id is specified, it will replace the persona-id (after persona
    verification, of course) when referencing which privs entry to lear out."
-  (with-valid-persona (persona-id challenge-response future)
+  (with-valid-persona (persona-id user-id future)
     (alet ((nil (clear-board-persona-permissions board-id (or invite-id persona-id))))
       (finish future t))))
 

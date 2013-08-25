@@ -5,7 +5,6 @@
     (alet* ((user-id (user-id req))
             (board-id (car args))
             (persona-id (post-var req "persona"))
-            (challenge (post-var req "challenge"))
             (to (post-var req "to"))
             (key (post-var req "key"))
             (board-key (post-var req "board_key"))
@@ -13,7 +12,6 @@
             (invite (create-board-invite user-id
                                          board-id
                                          persona-id
-                                         challenge
                                          to
                                          key
                                          board-key
@@ -32,21 +30,21 @@
 (defroute (:post "/api/invites/accepted/([0-9a-f-]+)") (req res args)
   "Accept an invite"
   (catch-errors (res)
-    (alet* ((invite-id (car args))
+    (alet* ((user-id (user-id req))
+            (invite-id (car args))
             (invite-code (post-var req "code"))
             (persona-id (post-var req "persona"))
-            (challenge (post-var req "challenge"))
-            (success (accept-invite invite-id invite-code persona-id challenge)))
+            (success (accept-invite user-id invite-id invite-code persona-id)))
       (send-json res success))))
 
 (defroute (:post "/api.invites/denied/([0-9a-f-]+)") (req res args)
   "Deny an invite."
   (catch-errors (res)
-    (alet* ((invite-id (car args))
+    (alet* ((user-id (user-id req))
+            (invite-id (car args))
             (invite-code (post-var req "code"))
             (persona-id (post-var req "persona"))
-            (challenge (post-var req "challenge"))
-            (success (deny-invite invite-id invite-code persona-id challenge)))
+            (success (deny-invite user-id invite-id invite-code persona-id)))
       (send-json res success))))
 
 (defroute (:delete "/api/invites/([0-9a-f-]+)") (req res args)

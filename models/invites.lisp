@@ -72,11 +72,11 @@
     (r:disconnect sock)
     (finish future t)))
 
-(defafun create-board-invite (future) (user-id board-id persona-id challenge to-email key board-key used-secret-p)
+(defafun create-board-invite (future) (user-id board-id persona-id to-email key board-key used-secret-p)
   "Create (and send) a board invite. Also creates a stubbed persona for the
    invitee which is tied to them when they accept the invite."
   ;; make sure the persona/board auth check out
-  (with-valid-persona (persona-id challenge future)
+  (with-valid-persona (persona-id user-id future)
     (alet* ((exists-invite-id (make-invite-id board-id to-email))
             (exists-invite (get-invite-by-id exists-invite-id))
             (persona (get-persona-by-id persona-id)))
@@ -133,7 +133,7 @@
           (perm (set-board-persona-permissions user-id board-id invite-id 0)))
     (finish future perm)))
 
-(defafun accept-invite (future) (invite-id invite-code persona-id challenge)
+(defafun accept-invite (future) (user-id invite-id invite-code persona-id)
   "Accept an invite. Removes the invite record, and updates the object
    (board/note/etc) according to the given persona."
   (alet* ((invite (get-invite-by-id-code invite-id invite-code)))
@@ -144,14 +144,14 @@
                 (invite-type-keyword (intern (string-upcase invite-type) :keyword))
                 (res (let ((subfuture (make-future)))
                        (case invite-type-keyword
-                         (:b (alet* ((nil (accept-board-invite item-id persona-id challenge :invite-id invite-id))
+                         (:b (alet* ((nil (accept-board-invite user-id item-id persona-id :invite-id invite-id))
                                      (board (get-board-by-id item-id :get-notes t)))
                                (finish subfuture board))))))
                 (nil (delete-invite-record invite-id :permanent t)))
           (finish future res))
         (signal-error future (make-instance 'not-found :msg "That invite wasn't found.")))))
 
-(defafun deny-invite (future) (invite-id invite-code persona-id challenge)
+(defafun deny-invite (future) (user-id invite-id invite-code persona-id)
   "Deny an invite. Removes the invite record and also marks the invite entry on
    the object attached to the invite as deleted."
   (alet* ((invite (get-invite-by-id-code invite-id invite-code)))
@@ -160,7 +160,7 @@
                 (item-id (gethash "item_id" invite))
                 (invite-type-keyword (intern (string-upcase invite-type) :keyword))
                 (res (case invite-type-keyword
-                       (:b (leave-board-share item-id persona-id challenge :invite-id invite-id))))
+                       (:b (leave-board-share user-id item-id persona-id :invite-id invite-id))))
                 (nil (delete-invite-record invite-id :permanent t)))
           (finish future res))
         (signal-error future (make-instance 'not-found :msg "That invite wasn't found.")))))

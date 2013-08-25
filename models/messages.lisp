@@ -31,16 +31,13 @@
                             "right")))))
           (cursor (r:run sock query))
           (res (r:to-array sock cursor)))
-    (if (r:cursorp cursor)
-        (wait-for (r:stop sock cursor)
-          (r:disconnect sock))
-        (r:disconnect sock))
+    (r:stop/disconnect sock cursor)
     (finish future res)))
 
-(defafun get-messages-for-persona (future) (persona-id challenge-response &key (after ""))
+(defafun get-messages-for-persona (future) (user-id persona-id &key (after ""))
   "Get messages (both sent and received) for a persona. Optionally allows to
    only grab messages after a specific message ID."
-  (with-valid-persona (persona-id challenge-response future)
+  (with-valid-persona (persona-id user-id future)
     (alet ((to-persona (get-messages-by-persona persona-id :after after :index "get_messages_to"))
            ;(from-persona (get-messages-by-persona persona-id :after after :index "get_messages_from"))
            (from-persona nil)
@@ -49,13 +46,13 @@
             (gethash "sent" hash) from-persona)
       (finish future hash))))
 
-(defafun send-message (future) (message-data challenge)
+(defafun send-message (future) (user-id message-data)
   "Send a message from one persona to another. The message body is pubkey
    encrypted."
   (let ((from-persona-id (gethash "from" message-data)))
     (add-id message-data)
     (validate-message (message-data future)
-      (with-valid-persona (from-persona-id challenge future)
+      (with-valid-persona (from-persona-id user-id future)
         (alet* ((sock (db-sock))
                 (query (r:r (:insert
                               (:table "messages")
@@ -64,9 +61,9 @@
           (r:disconnect sock)
           (finish future message-data))))))
 
-(defafun delete-message (future) (message-id persona-id challenge-response)
+(defafun delete-message (future) (user-id message-id persona-id)
   "Delete a message."
-  (with-valid-persona (persona-id challenge-response future)
+  (with-valid-persona (persona-id user-id future)
     (alet* ((sock (db-sock))
             (query (r:r (:do
                           (r:fn (msg)

@@ -5,47 +5,62 @@
   
 (defvalidator validate-persona
   (("id" :type string :required t :length 24)
-   ("secret" :type string :required t)
+   ("user_id" :type string :required t :length 24)
    ("pubkey" :type string :required t)
    ("email" :type string :required t :transform string-downcase)
    ;("screenname" :type string :required t :max-length 24)
    ("name" :type string)
-   ("body" :type cl-async-util:bytes-or-string :required t)))
+   ("body" :type cl-async-util:bytes-or-string :required t)
+   ("mod" :type integer :required t :default 'get-timestamp)))
 
 (defafun get-persona-by-id (future) (persona-id)
   "Get a persona by id."
   (alet* ((sock (db-sock))
-          (query (r:r (:without
-                        (:default
-                          (:get (:table "personas") persona-id)
-                          #())
-                        "secret")))
+          (query (r:r (:get (:table "personas") persona-id)))
           (persona (r:run sock query)))
     (r:disconnect sock)
     (finish future persona)))
 
-(defafun search-personas (future) (&key email)
-  "Search personas by various criteria."
+(defafun get-user-personas (future) (user-id)
+  "Get personas by user id."
   (alet* ((sock (db-sock))
-          (email (string-downcase email))
-          (query (r:r (:limit
-                        (:filter
-                          (:table "personas")
-                          (r:fn (p)
-                            (:match (:attr p "email")
-                                    (concatenate 'string "^" email))))
-                        10)))
+          (query (r:r (:get-all
+                        (:table "personas")
+                        user-id
+                        :index "user_id")))
           (cursor (r:run sock query))
           (personas (r:to-array sock cursor)))
     (r:stop/disconnect sock cursor)
     (finish future personas)))
 
+(defafun user-personas-map (future) (user-id map-fn &key flatten)
+  "Run a function on all of a user's persona's and collect the results as an
+   array. The callback takes one argument, the persona id."
+  (alet* ((personas (get-user-personas user-id))
+          (items nil))
+    (if (< 0 (length personas))
+        (loop for i = 0
+              for persona across personas
+              for persona-id = (gethash "id" persona) do
+          (alet ((item (funcall map-fn persona-id)))
+            (if (and flatten
+                     (or (typep item 'list)
+                         (typep item 'array)))
+                (cl-rethinkdb-util:do-list/vector (subitem item)
+                  (push subitem items))
+                (push item items))
+            (incf i)
+            (when (<= i (length personas))
+              (finish future (coerce (nreverse items) 'simple-vector)))))
+        (finish future #()))))
+  
 ;; TODO: find a way to limit number of personas per account/user.
 ;; might not be possible with current method of obscuring the links.
-(defafun add-persona (future) (secret persona-data)
+(defafun add-persona (future) (user-id persona-data)
   "Add a persona to the system."
-  (setf (gethash "secret" persona-data) secret)
   (add-id persona-data)
+  (add-mod persona-data)
+  (setf (gethash "user_id" persona-data) user-id)
   (validate-persona (persona-data future)
     (aif (persona-email-available-p (gethash "email" persona-data))
          (alet* ((sock (db-sock))
@@ -58,10 +73,11 @@
          (signal-error future (make-instance 'persona-email-exists
                                              :msg "That email is already registered to another persona.")))))
 
-(defafun edit-persona (future) (persona-id challenge-response persona-data)
-  "Update a persona. Validates the passed challenge-response."
-  (with-valid-persona (persona-id challenge-response future)
+(defafun edit-persona (future) (user-id persona-id persona-data)
+  "Update a persona."
+  (with-valid-persona (persona-id user-id future)
     (validate-persona (persona-data future :edit t)
+      (add-mod persona-data)
       (alet* ((email (gethash "email" persona-data))
               (availablep (if (or (not email)
                                   (persona-email-available-p email persona-id))
@@ -80,9 +96,9 @@
             (signal-error future (make-instance 'persona-email-exists
                                                 :msg "That email is taken by another persona.")))))))
 
-(defafun delete-persona (future) (persona-id challenge-response)
-  "Delete a persona. Validates the passed challenge-response."
-  (with-valid-persona (persona-id challenge-response future)
+(defafun delete-persona (future) (user-id persona-id)
+  "Delete a persona."
+  (with-valid-persona (persona-id user-id future)
     (alet* ((sock (db-sock))
             (query (r:r (:delete (:get (:table "personas") persona-id))))
             (nil (r:run sock query)))
@@ -138,6 +154,19 @@
        (finish future nil)
        (finish future t)))
 
+(defafun persona-owned-by-user-p (future) (persona-id user-id)
+  "Determines if a user is the owner of a persona."
+  (alet* ((sock (db-sock))
+          (query (r:r (:pluck
+                        (:default (:get (:table "personas") persona-id) (make-hash-table))
+                        "user_id")))
+          (persona (r:run sock query))
+          (validp (string= user-id (gethash "user_id" persona))))
+    (r:disconnect sock)
+    (finish future validp)))
+
+;; NOTE: this function is not used and won't be until personas offer account
+;; obscuration again.
 (defafun persona-challenge-response-valid-p (future) (persona-id response)
   "Determine if the given response if valid for the persona specified by
    persona-id."

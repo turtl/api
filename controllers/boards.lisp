@@ -37,20 +37,20 @@
 (defroute (:put "/api/boards/([0-9a-f-]+)/persona/([0-9a-f-]+)") (req res args)
   "Accept a board invite (persona-intiated)."
   (catch-errors (res)
-    (alet* ((board-id (car args))
+    (alet* ((user-id (user-id req))
+            (board-id (car args))
             (persona-id (cadr args))
-            (challenge (post-var req "challenge"))
-            (success (accept-board-invite board-id persona-id challenge))
+            (nil (accept-board-invite user-id board-id persona-id))
             (board (get-board-by-id board-id :get-notes t)))
       (send-json res board))))
 
 (defroute (:delete "/api/boards/([0-9a-f-]+)/persona/([0-9a-f-]+)") (req res args)
   "Leave board share (persona-initiated)."
   (catch-errors (res)
-    (alet* ((board-id (car args))
+    (alet* ((user-id (user-id req))
+            (board-id (car args))
             (persona-id (cadr args))
-            (challenge (post-var req "challenge"))
-            (success (leave-board-share board-id persona-id challenge)))
+            (nil (leave-board-share user-id board-id persona-id)))
       (send-json res t))))
 
 

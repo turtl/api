@@ -139,12 +139,11 @@
                             (cl-ppcre:scan check-resource path))))))
       (when check (return-from is-public-action t)))))
 
-(defmacro with-valid-persona ((persona-id challenge-response &optional future) &body body)
+(defmacro with-valid-persona ((persona-id user-id &optional future) &body body)
   "Wraps persona verification into a nice little package."
-  `(aif (persona-challenge-response-valid-p ,persona-id ,challenge-response)
+  `(aif (persona-owned-by-user-p ,persona-id ,user-id)
         (progn ,@body)
         ,(if future
              `(signal-error ,future (make-instance 'insufficient-privileges :msg "Sorry, persona verification failed."))
              `(error 'insufficient-privileges :msg "Sorry, persona verification failed."))))
-
 

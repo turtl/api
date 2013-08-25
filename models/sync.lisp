@@ -10,13 +10,32 @@
         (finish future user)
         (finish future nil))))
 
-(defafun sync-user-boards (future) (user-id sync-time &key get-personas)
+(defafun sync-user-personas (future) (user-id sync-time)
+  "Grab any changed personas."
+  (alet* ((sock (db-sock))
+          (query (r:r 
+                   (:filter
+                     (:get-all
+                       (:table "personas")
+                       user-id
+                       :index "user_id")
+                     (r:fn (persona)
+                       (:&& (:> (:default (:attr persona "mod") 0)
+                                sync-time))))))
+          (cursor (r:run sock query))
+          (personas (r:to-array sock cursor)))
+    (r:stop/disconnect sock cursor)
+    (finish future personas)))
+
+(defafun sync-user-boards (future) (user-id sync-time &key get-persona-boards get-personas)
   "Grab all changed boards for a user."
   (alet* ((sock (db-sock))
           (query (r:r
-                   ;; TODO: index me
                    (:filter
-                     (:table "boards")
+                     (:get-all
+                       (:table "boards")
+                       user-id
+                       :index "user_id")
                      (r:fn (board)
                        (:&& (:== (:attr board "user_id") user-id)
                             (:> (:default (:attr board "mod") 0)
@@ -24,40 +43,16 @@
           (cursor (r:run sock query))
           (boards (r:to-array sock cursor)))
     (r:stop/disconnect sock cursor)
-    (if (and (< 0 (length boards))
-             get-personas)
-        (loop for i = 0
-              for board across boards
-              for board-id = (gethash "id" board) do
-          (alet ((board board)
-                 (personas (get-board-personas board-id)))
-            (setf (gethash "personas" board) personas)
-            (incf i)
-            (when (<= (length boards) i)
-              (finish future boards))))
-        (finish future boards))))
-
-(defafun sync-user-notes (future) (user-id sync-time)
-  "Grab all notes for this user that have changed."
-  (alet* ((sock (db-sock))
-          (query (r:r
-                   ;; TODO: index/rewrite me
-                   (:filter
-                     (:table "notes")
-                     (r:fn (note)
-                       (:&&
-                         (:contains (:map
-                                      (:get-all (:table "boards")
-                                                user-id
-                                                :index "user_id")
-                                      (r:fn (board) (:attr board "id")))
-                                    (:attr note "board_id"))
-                         (:> (:default (:attr note "mod") 0)
-                             sync-time))))))
-          (cursor (r:run sock query))
-          (notes (r:to-array sock cursor)))
-    (r:stop/disconnect sock cursor)
-    (finish future notes)))
+    (alet* ((persona-boards (if get-persona-boards
+                                (user-personas-map
+                                  user-id
+                                  (lambda (pid) (sync-persona-boards pid sync-time))
+                                  :flatten t)
+                                #()))
+            (all-boards (cl-async-util:append-array boards persona-boards))
+            (boards-populated (populate-boards-data all-boards
+                                                    :get-personas get-personas)))
+      (finish future boards-populated))))
 
 (defafun sync-persona-boards (future) (persona-id sync-time)
   "Grab all a persona's changed boards (shared)."
@@ -77,6 +72,30 @@
           (boards (r:to-array sock cursor)))
     (r:stop/disconnect sock cursor)
     (finish future boards)))
+
+(defafun sync-user-notes (future) (user-id sync-time &key get-persona-notes)
+  "Grab all notes for this user that have changed."
+  (alet* ((sock (db-sock))
+          (query (r:r
+                   (:filter
+                     (:get-all
+                       (:table "notes")
+                       user-id
+                       :index "user_id")
+                     (r:fn (note)
+                       (:> (:default (:attr note "mod") 0)
+                           sync-time)))))
+          (cursor (r:run sock query))
+          (notes (r:to-array sock cursor)))
+    (r:stop/disconnect sock cursor)
+    (alet* ((persona-notes (if get-persona-notes
+                               (user-personas-map
+                                 user-id
+                                 (lambda (pid) (sync-persona-notes pid sync-time))
+                                 :flatten t)
+                               #()))
+            (all-notes (cl-async-util:append-array notes persona-notes)))
+      (finish future all-notes))))
 
 (defafun sync-persona-notes (future) (persona-id sync-time)
   "Grab all a persona's changed notes (shared)."
