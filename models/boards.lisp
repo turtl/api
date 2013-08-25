@@ -7,10 +7,10 @@
    ("body" :type cl-async-util:bytes-or-string)
    ("mod" :type integer :required t :default 'get-timestamp)))
 
-(defafun populate-boards-data (future) (boards &key get-notes get-personas)
+(defafun populate-boards-data (future) (boards &key get-notes get-personas set-shared)
   "Populate certain information given a list of boards."
   (if (and (< 0 (length boards))
-           (or get-notes get-personas))
+           (or get-notes get-personas set-shared))
       (loop for i = 0
             for board across boards
             for board-id = (gethash "id" board) do
@@ -25,6 +25,7 @@
                          (or (zerop (gethash "p" entry))
                              (gethash "d" entry)))
                 (remhash persona-id (gethash "privs" board)))))
+          (when set-shared (setf (gethash "shared" board) t))
           (when (and get-notes notes) (setf (gethash "notes" board) notes))
           (when (and get-personas personas) (setf (gethash "personas" board) personas))
           (incf i)
@@ -70,7 +71,7 @@
           (cursor (r:run sock query))
           (boards (r:to-array sock cursor)))
     (r:stop/disconnect sock cursor)
-    (alet ((boards-populated (populate-boards-data boards :get-notes get-notes)))
+    (alet ((boards-populated (populate-boards-data boards :get-notes get-notes :set-shared t)))
       (finish future boards-populated))))
 
 (defafun get-board-by-id (future) (board-id &key get-notes)
