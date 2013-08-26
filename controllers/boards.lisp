@@ -30,9 +30,10 @@
     (alet* ((user-id (user-id req))
             (board-id (car args))
             (persona-id (cadr args))
-            (permissions (varint (post-var req "permissions") nil))
-            (perms (set-board-persona-permissions user-id board-id persona-id permissions :invite t)))
-      (send-json res perms))))
+            (permissions (varint (post-var req "permissions") nil)))
+      (multiple-future-bind (nil priv-entry)
+          (set-board-persona-permissions user-id board-id persona-id permissions :invite t)
+        (send-json res (convert-alist-hash priv-entry))))))
 
 (defroute (:put "/api/boards/([0-9a-f-]+)/persona/([0-9a-f-]+)") (req res args)
   "Accept a board invite (persona-intiated)."
