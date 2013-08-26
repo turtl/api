@@ -58,7 +58,7 @@
       (finish future boards-populated))))
 
 (defafun get-persona-boards (future) (persona-id &key get-notes)
-  "Get all boards for a user."
+  "Get all boards for a persona."
   (alet* ((sock (db-sock))
           (query (r:r
                    (:filter
