@@ -94,7 +94,6 @@
       (:script :src "/library/composer/composer.relational.js")
       (:script :src "/library/composer/composer.filtercollection.js")
       (:script :src "/library/composer/composer.keyboard.js")
-      (:script "Composer.suppress_warnings = true;")
 
       (make-scripts s '("/config/config.js"
                         "/config/auth.js"
