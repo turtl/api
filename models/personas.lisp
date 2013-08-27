@@ -24,10 +24,13 @@
 (defafun get-user-personas (future) (user-id)
   "Get personas by user id."
   (alet* ((sock (db-sock))
-          (query (r:r (:get-all
-                        (:table "personas")
-                        user-id
-                        :index "user_id")))
+          (query (r:r (:filter
+                        (:get-all
+                          (:table "personas")
+                          user-id
+                          :index "user_id")
+                        (r:fn (persona)
+                          (:~ (:default (:attr persona "deleted") nil))))))
           (cursor (r:run sock query))
           (personas (r:to-array sock cursor)))
     (r:stop/disconnect sock cursor)
@@ -78,6 +81,7 @@
   (with-valid-persona (persona-id user-id future)
     (validate-persona (persona-data future :edit t)
       (add-mod persona-data)
+      (setf (gethash "user_id" persona-data) user-id)
       (alet* ((email (gethash "email" persona-data))
               (availablep (if (or (not email)
                                   (persona-email-available-p email persona-id))
@@ -96,11 +100,17 @@
             (signal-error future (make-instance 'persona-email-exists
                                                 :msg "That email is taken by another persona.")))))))
 
-(defafun delete-persona (future) (user-id persona-id)
+(defafun delete-persona (future) (user-id persona-id &key permanent)
   "Delete a persona."
   (with-valid-persona (persona-id user-id future)
     (alet* ((sock (db-sock))
-            (query (r:r (:delete (:get (:table "personas") persona-id))))
+            (query (r:r (if permanent
+                            (:delete (:get (:table "personas") persona-id))
+                            (:update
+                              (:get (:table "personas") persona-id)
+                              `(("deleted" . t)
+                                ("email" . "")
+                                ("mod" . ,(get-timestamp)))))))
             (nil (r:run sock query)))
       (r:disconnect sock)
       (finish future t))))
