@@ -49,3 +49,7 @@
 ;; setup the wookie log
 (setf *log-level* :notice)
 
+(defvar *mixpanel* '(:enabled t
+                     :token "")
+  "Holds mixpanel config.")
+
