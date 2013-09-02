@@ -15,7 +15,7 @@
         (finish future invite)
         (finish future nil))))
 
-(defafun get-invite-by-id-code (future) (invite-id invite-code)
+(defafun get-invite-by-id-code (future) (invite-id invite-code &key get-from-persona)
   "Get an invite by ID, and make sure its code matches the code given. This is
    the public way to pull invite info, so that a malicious party would have to
    know both the ID and the code to get any of the invite info, there's no way
@@ -23,7 +23,11 @@
   (alet* ((invite (get-invite-by-id invite-id)))
     (if (and invite
              (string= invite-code (gethash "code" invite)))
-        (finish future invite)
+        (if get-from-persona
+            (alet* ((persona (get-persona-by-id (gethash "from" invite))))
+              (setf (gethash "from" invite) persona)
+              (finish future invite))
+            (finish future invite))
         (finish future nil))))
 
 (defafun make-invite-code (future) (to-email &optional (salt (crypto-random)))
@@ -46,7 +50,7 @@
         ;; code is not being used
         (finish future code))))
 
-(defafun create-invite (future) (type item-id to-email invite-data expire)
+(defafun create-invite (future) (type item-id from-persona-id to-email invite-data expire)
   "Create an invite record which has the ability to attach a set of data to a
    new user's account on join."
   (alet ((invite (make-hash-table :test #'equal))
@@ -55,6 +59,7 @@
     (setf (gethash "id" invite) invite-id
           (gethash "code" invite) code
           (gethash "type" invite) type
+          (gethash "from" invite) from-persona-id
           (gethash "to" invite) to-email
           (gethash "item_id" invite) item-id
           (gethash "expire" invite) (+ (get-timestamp) expire)
@@ -93,7 +98,7 @@
                                  (setf (gethash "board_key" hash) board-key
                                        (gethash "used_secret" hash) used-secret-p)
                                  hash))
-                  (invite (create-invite "b" board-id to-email invite-data expire))
+                  (invite (create-invite "b" board-id persona-id to-email invite-data expire))
                   (invite-id (gethash "id" invite)))
             (multiple-future-bind (nil priv-entry)
                 (add-board-remote-invite user-id board-id invite-id 2 to-email)

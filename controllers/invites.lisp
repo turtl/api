@@ -22,7 +22,7 @@
   (catch-errors (res)
     (alet* ((invite-code (car args))
             (invite-id (or (get-var req "invite_id") ""))
-            (invite (get-invite-by-id-code invite-id invite-code)))
+            (invite (get-invite-by-id-code invite-id invite-code :get-from-persona t)))
       (if invite
           (send-json res invite)
           (send-response res :status 404 :body "\"Invite not found.\"")))))
