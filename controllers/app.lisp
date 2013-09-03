@@ -15,6 +15,8 @@
              (method (request-method req))
              (auth-fail-fn (lambda ()
                              (let ((err (make-instance 'auth-failed :msg "Authentication failed.")))
+                               ;; TODO: implement random delay between 1-250 ms
+                               ;; here to help prevent timing attacks
                                (send-response res
                                               :status (error-code err)
                                               :headers '(:content-type "application/json")
