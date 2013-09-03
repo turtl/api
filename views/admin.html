@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="test/html; charset=utf-8">
+		<meta http-equiv="Content-Language" content="en">
+		<title>Turtl admin dashboard</title>
+		<style type="text/css">
+			body {font-size: 14px; font-family: arial; color: #222; background: #fff;}
+			header h1 {font-size: 64px; font-weight: normal; color: #999; text-transform: lowercase;}
+			header h1 small {font-size: 14px;}
+			div.admin {width: 960px; margin: 0 auto;}
+			ul.stats {margin: 0; padding: 0; list-style: none;}
+			ul.stats li {float: left; display: block; width: 132px; height: 132px; margin: 0 16px 16px 0; padding: 16px; font-size: 17px; color: #666; text-align: center; background: #f4f4f4;}
+			ul.stats li span {display: block; margin: 32px 0 0 0; font-size: 32px; color: #79a;}
+		</style>
+	</head>
+	<body>
+		<div class="admin">
+			<header>
+				<h1>Turtl. <small>admin</small></h1>
+			</header>
+			<ul class="stats">
+				<li>Users <span>{{stat:num-users}}</span></li>
+				<li>Personas <span>{{stat:num-personas}}</span></li>
+				<li>Personas no RSA <span>{{stat:num-personas-wo-rsa}}</span></li>
+				<li>Boards <span>{{stat:num-boards}}</span></li>
+				<li>Notes <span>{{stat:num-notes}}</span></li>
+			</ul>
+		</div>
+	</body>
+</html>
