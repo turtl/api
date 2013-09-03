@@ -4,6 +4,7 @@
   (catch-errors (res)
     (alet* ((user-data (post-var req "data"))
             (user (add-user user-data)))
+      (track "user-join")
       (send-json res user))))
 
 (defroute (:post "/api/auth") (req res)
