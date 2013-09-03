@@ -13,6 +13,7 @@
     (alet* ((user-id (user-id req))
             (message-data (post-var req "data"))
             (message (send-message user-id message-data)))
+      (track "message-send")
       (send-json res message))))
 
 (defroute (:delete "/api/messages/([0-9a-f-]+)") (req res args)
@@ -21,5 +22,6 @@
             (message-id (car args))
             (persona-id (post-var req "persona"))
             (nil (delete-message user-id message-id persona-id)))
+      (track "message-delete")
       (send-json res t))))
 

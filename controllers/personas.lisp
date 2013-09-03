@@ -13,6 +13,7 @@
     (alet* ((user-id (user-id req))
             (persona-data (post-var req "data"))
             (persona (add-persona user-id persona-data)))
+      (track "persona-add")
       (send-json res persona))))
 
 (defroute (:put "/api/personas/([0-9a-f-]+)") (req res args)
@@ -21,6 +22,7 @@
             (persona-id (car args))
             (persona-data (post-var req "data"))
             (persona (edit-persona user-id persona-id persona-data)))
+      (track "persona-edit")
       (send-json res persona))))
 
 (defroute (:delete "/api/personas/([0-9a-f-]+)") (req res args)
@@ -28,6 +30,7 @@
     (alet* ((user-id (user-id req))
             (persona-id (car args))
             (nil (delete-persona user-id persona-id)))
+      (track "persona-delete")
       (send-json res t))))
 
 (defroute (:get "/api/personas/email/([a-zA-Z0-9@\/\.\-]+)") (req res args)

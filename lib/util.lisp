@@ -39,6 +39,14 @@
         (setf (gethash key hash) val)))
     hash))
 
+(defun convert-plist-hash (plist &key (test #'equal))
+  "Convert an plist into a hash table. Only works on flat plists (nesting
+   doesn't work)."
+  (let ((hash (make-hash-table :test test)))
+    (loop for (key val) on plist by #'cddr do
+      (setf (gethash (string-downcase (string key)) hash) val))
+    hash))
+
 (defun add-id (hash-object &key (id-key "id"))
   "Add a mongo id to a hash table object."
   (setf (gethash id-key hash-object) (string-downcase (mongoid:oid-str (mongoid:oid))))

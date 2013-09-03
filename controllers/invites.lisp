@@ -1,6 +1,7 @@
 (in-package :turtl)
 
 (defroute (:post "/api/invites/boards/([0-9a-f-]+)") (req res args)
+  "Invite email to board."
   (catch-errors (res)
     (alet* ((user-id (user-id req))
             (board-id (car args))
@@ -16,6 +17,7 @@
                                          key
                                          board-key
                                          used-secret-p)))
+      (track "invite" `(:persona nil :used-secret ,used-secret-p))
       (send-json res invite))))
 
 (defroute (:get "/api/invites/codes/([0-9a-f-]+)") (req res args)
@@ -35,6 +37,7 @@
             (invite-code (post-var req "code"))
             (persona-id (post-var req "persona"))
             (success (accept-invite user-id invite-id invite-code persona-id)))
+      (track "invite-accept" `(:persona nil))
       (send-json res success))))
 
 (defroute (:post "/api.invites/denied/([0-9a-f-]+)") (req res args)
@@ -45,6 +48,7 @@
             (invite-code (post-var req "code"))
             (persona-id (post-var req "persona"))
             (success (deny-invite user-id invite-id invite-code persona-id)))
+      (track "invite-deny" `(:persona nil))
       (send-json res success))))
 
 (defroute (:delete "/api/invites/([0-9a-f-]+)") (req res args)
@@ -52,5 +56,6 @@
     (alet* ((invite-id (car args))
             (user-id (user-id req))
             (nil (delete-invite user-id invite-id)))
+      (track "invite-delete" `(:persona nil))
       (send-json res t))))
 
