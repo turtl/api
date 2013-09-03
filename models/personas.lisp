@@ -65,6 +65,8 @@
   (add-mod persona-data)
   (setf (gethash "user_id" persona-data) user-id)
   (validate-persona (persona-data future)
+    (when (string= (gethash "pubkey" persona-data) "false")
+      (setf (gethash "pubkey" persona-data) nil))
     (aif (persona-email-available-p (gethash "email" persona-data))
          (alet* ((sock (db-sock))
                  (query (r:r (:insert
@@ -81,6 +83,8 @@
   (with-valid-persona (persona-id user-id future)
     (validate-persona (persona-data future :edit t)
       (add-mod persona-data)
+      (when (string= (gethash "pubkey" persona-data) "false")
+        (setf (gethash "pubkey" persona-data) nil))
       (setf (gethash "user_id" persona-data) user-id)
       (alet* ((email (gethash "email" persona-data))
               (availablep (if (or (not email)
