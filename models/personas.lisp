@@ -11,12 +11,18 @@
    ;("screenname" :type string :required t :max-length 24)
    ("name" :type string)
    ("body" :type cl-async-util:bytes-or-string :required t)
+   ("settings" :type hash-table)
    ("mod" :type integer :required t :default 'get-timestamp)))
 
-(defafun get-persona-by-id (future) (persona-id)
+(defafun get-persona-by-id (future) (persona-id &key without-keys)
   "Get a persona by id."
   (alet* ((sock (db-sock))
-          (query (r:r (:get (:table "personas") persona-id)))
+          (query (r:r (if without-keys
+                          (:without
+                            (:get (:table "personas") persona-id)
+                            "body"
+                            "pubkey")
+                          (:get (:table "personas") persona-id))))
           (persona (r:run sock query)))
     (r:disconnect sock)
     (finish future persona)))
@@ -86,6 +92,16 @@
       (when (string= (gethash "pubkey" persona-data) "false")
         (setf (gethash "pubkey" persona-data) nil))
       (setf (gethash "user_id" persona-data) user-id)
+      ;; make sure settings use numeric value
+      (let ((settings (gethash "settings" persona-data))
+            (new-settings (make-hash-table :test #'equal)))
+        (when (hash-table-p settings)
+          (loop for k being the hash-keys of settings
+                for v being the hash-values of settings do
+            (let ((new-val (ignore-errors (parse-float v))))
+              (when new-val
+                (setf (gethash k new-settings) new-val))))
+          (setf (gethash "settings" persona-data) new-settings)))
       (alet* ((email (gethash "email" persona-data))
               (availablep (if (or (not email)
                                   (persona-email-available-p email persona-id))
@@ -119,7 +135,7 @@
       (r:disconnect sock)
       (finish future t))))
 
-(defafun get-persona-by-email (future) (email &optional ignore-persona-id)
+(defafun get-persona-by-email (future) (email &key ignore-persona require-key)
   "Grab a persona via its email. Must be an exact match (for now)."
   (alet* ((sock (db-sock))
           (email (string-downcase email))
@@ -134,11 +150,30 @@
                      (r:next sock cursor))))
     (r:stop/disconnect sock cursor)
     (if (and (hash-table-p persona)
-             (not (string= ignore-persona-id (gethash "id" persona))))
+             (not (string= ignore-persona (gethash "id" persona)))
+             (or (not require-key)
+                 (gethash "pubkey" persona)))
         (progn
           (remhash "secret" persona)
           (finish future persona))
         (finish future nil))))
+
+(defafun get-persona-setting (future) (persona-id setting-name &key persona default)
+  "Get a setting for a persona."
+  ;; don't bother pulling out a persona if one was provided
+  (alet* ((persona (if persona
+                       persona
+                       (get-persona-by-id persona-id :without-keys t))))
+    (if persona
+        (let* ((settings (gethash "settings" persona)))
+          (if (hash-table-p settings)
+              (multiple-value-bind (val existsp)
+                  (gethash setting-name settings)
+                (if existsp
+                    (finish future val)
+                    (finish future default)))
+              (finish future default)))
+        (finish future default))))
 
 (defafun get-board-personas (future) (board-id)
   "Given a board ID, find all personas that board is shared with and pull them
@@ -164,7 +199,7 @@
 
 (defafun persona-email-available-p (future) (email &optional ignore-id)
   "Test whether or not a email is available."
-  (aif (get-persona-by-email email ignore-id)
+  (aif (get-persona-by-email email :ignore-persona ignore-id)
        (finish future nil)
        (finish future t)))
 

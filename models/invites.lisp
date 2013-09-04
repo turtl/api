@@ -107,6 +107,24 @@
                 (setf (gethash "priv" invite) (convert-alist-hash priv-entry))
                 (finish future invite))))))))
 
+(defafun invite-persona-to-board (future) (user-id board-id from-persona-id to-persona-id permissions)
+  "Invites a persona to join a board, setting all applicable permissions."
+  (multiple-future-bind (nil priv-entry)
+      (set-board-persona-permissions user-id board-id to-persona-id permissions :invite t)
+    (alet* ((from-persona (get-persona-by-id from-persona-id :without-keys t))
+            (to-persona (get-persona-by-id to-persona-id :without-keys t))
+            (setting-invite (get-persona-setting nil "notify_invite" :persona to-persona :default 1))
+            (setting-disable (get-persona-setting nil "disable_all" :persona to-persona :default 0))
+            (email-notify (ignore-errors (= setting-invite 1)))
+            (disable-all (ignore-errors (= setting-disable 1))))
+      ;; don't really need to wait for email to go through here
+      (when (and (< 0 permissions)
+                 email-notify
+                 (not disable-all))
+        (alet ((sent (email-board-persona-invite from-persona to-persona)))
+          nil)))
+    (finish future priv-entry)))
+
 (defafun delete-invite-record (future) (invite-id &key permanent)
   "Delete an invite's record."
   (alet* ((sock (db-sock))

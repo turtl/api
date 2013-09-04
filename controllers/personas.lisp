@@ -37,7 +37,8 @@
   (catch-errors (res)
     (alet* ((email (car args))
             (ignore-persona-id (get-var req "ignore_persona_id"))
-            (persona (get-persona-by-email email ignore-persona-id)))
+            (require-key-p (= (varint (get-var req "require_key") 0) 1))
+            (persona (get-persona-by-email email :ignore-persona ignore-persona-id :require-key require-key-p)))
       (if persona
           (send-json res persona)
           (send-json res "Persona not found ='[" :status 404)))))
