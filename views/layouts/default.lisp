@@ -141,9 +141,6 @@
           (:div :class "gutter"
             (str (conc "Copyright &copy; "
                        (write-to-string (nth-value 5 (decode-universal-time (get-universal-time))))
-                       " "))
-            (:a :href "http://www.lyonbros.com" :target "_blank"
-              "Lyon Bros. Enterprises, LLC.")
-            "&amp; Drew")))
+                       " ")))))
       (generate-templates s (format nil "~aviews" (namestring *site-assets*))))))
 
