@@ -46,7 +46,8 @@
     (alet* ((persona-boards (if get-persona-boards
                                 (user-personas-map
                                   user-id
-                                  (lambda (pid) (sync-persona-boards pid sync-time))
+                                  (lambda (pid)
+                                    (sync-persona-boards pid sync-time))
                                   :flatten t)
                                 #()))
             (all-boards (cl-async-util:append-array boards persona-boards))
@@ -58,19 +59,20 @@
   "Grab all a persona's changed boards (shared)."
   (alet* ((sock (db-sock))
           (query (r:r
-                   ;; TODO: index
-                   (:filter
-                     (:table "boards")
-                     (r:fn (board)
-                       ;; pull out boards where privs has the persona-id, but
-                       ;; it's NOT an invite
-                       (:&& (:has-fields (:attr board "privs") persona-id)
-                            (:~ (:has-fields (:attr (:attr board "privs") persona-id) "i"))
-                            (:> (:default (:attr board "mod") 0)
-                                sync-time))))))
-          (cursor (r:run sock query))
-          (boards (r:to-array sock cursor)))
-    (r:stop/disconnect sock cursor)
+                   (:map
+                     (:filter
+                       (:get-all
+                         (:table "boards_personas_link")
+                         persona-id
+                         :index "to")
+                       (r:fn (link)
+                         (:&& (:<= sync-time (:default (:attr link "mod") 0))
+                              (:~ (:has-fields link "invite")))))
+                     (r:fn (link)
+                       (:get (:table "boards") (:attr link "board_id"))))))
+          (boards (r:run sock query))
+          (boards (populate-boards-data (coerce boards 'simple-vector) :set-shared t)))
+    (r:disconnect sock)
     (finish future boards)))
 
 (defafun sync-user-notes (future) (user-id sync-time &key get-persona-notes)
@@ -106,7 +108,6 @@
   "Grab all a persona's changed notes (shared)."
   (alet* ((sock (db-sock))
           (query (r:r
-                   ;; TODO: index
                    (:do
                      (r:fn (board-ids)
                        (:filter
@@ -114,19 +115,13 @@
                          (r:fn (note)
                            (:&&
                              (:contains board-ids (:attr note "board_id"))
-                             (:> (:default (:attr note "mod") 0)
-                                 sync-time)))))
-                     (:coerce-to
-                       (:map
-                         (:filter
-                           (:table "boards")
-                           (r:fn (board)
-                             ;; pull out boards where privs has the persona-id, but
-                             ;; it's NOT an invite
-                             (:&& (:has-fields (:attr board "privs") persona-id)
-                                  (:~ (:has-fields (:attr (:attr board "privs") persona-id) "i")))))
-                         (r:fn (board) (:attr board "id")))
-                       "array"))))
+                             (:<= sync-time (:default (:attr note "mod") 0))))))
+                     (:attr
+                       (:get-all
+                         (:table "boards_personas_link")
+                         persona-id
+                         :index "to")
+                       "board_id"))))
           (cursor (r:run sock query))
           (notes (r:to-array sock cursor)))
     (r:stop/disconnect sock cursor)

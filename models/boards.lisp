@@ -7,23 +7,25 @@
    ("body" :type cl-async-util:bytes-or-string)
    ("mod" :type integer :required t :default 'get-timestamp)))
 
-(defafun populate-boards-data (future) (boards &key get-notes get-personas set-shared)
+(defafun populate-boards-data (future) (boards &key (get-privs t) get-notes get-personas set-shared)
   "Populate certain information given a list of boards."
   (if (and (< 0 (length boards))
-           (or get-notes get-personas set-shared))
+           (or get-privs get-notes get-personas set-shared))
       (loop for i = 0
             for board across boards
             for board-id = (gethash "id" board) do
         (alet ((board board) ;; bind for inner form or loop will shit all over it
+               (privs (when get-privs (get-board-privs board-id)))
                (personas (when get-personas (get-board-personas board-id)))
                (notes (when get-notes (get-board-notes board-id))))
+          (when privs (setf (gethash "privs" board) privs))
           ;; filter out privs = 0 entries
           (when (hash-table-p (gethash "privs" board))
             (loop for persona-id being the hash-keys of (gethash "privs" board)
                   for entry being the hash-values of (gethash "privs" board) do
               (when (and (hash-table-p entry)
-                         (or (zerop (gethash "p" entry))
-                             (gethash "d" entry)))
+                         (or (zerop (gethash "perms" entry))
+                             (gethash "deleted" entry)))
                 (remhash persona-id (gethash "privs" board)))))
           (when set-shared (setf (gethash "shared" board) t))
           (when (and get-notes notes) (setf (gethash "notes" board) notes))
@@ -60,32 +62,60 @@
 (defafun get-persona-boards (future) (persona-id &key get-notes)
   "Get all boards for a persona."
   (alet* ((sock (db-sock))
+          ;; TODO: index
           (query (r:r
-                   (:filter
-                     (:table "boards")
-                     (r:fn (board)
-                       (:&& (:~ (:default (:attr board "deleted") nil))
-                            (:has-fields (:attr board "privs") persona-id)
-                            (:~ (:has-fields (:attr (:attr board "privs") persona-id) "i"))
-                            (:~ (:has-fields (:attr (:attr board "privs") persona-id) "d")))))))
+                   (:attr
+                     (:inner-join
+                       (:table "boards")
+                       (:table "boards_personas_link")
+                       (r:fn (b bl)
+                         (:&& (:== (:attr b "id")
+                                   (:attr bl "board_id"))
+                              (:== (:attr bl "to")
+                                   persona-id)
+                              (:~ (:has-fields bl "invite"))
+                              (:~ (:has-fields bl "deleted")))))
+                     "left")))
           (cursor (r:run sock query))
           (boards (r:to-array sock cursor)))
     (r:stop/disconnect sock cursor)
     (alet ((boards-populated (populate-boards-data boards :get-notes get-notes :set-shared t)))
       (finish future boards-populated))))
 
-(defafun get-board-by-id (future) (board-id &key get-notes)
+(defafun get-board-privs (future) (board-id &key (indexed t))
+  "Get privilege entries for a board (board <--> persona links)."
+  (alet* ((sock (db-sock))
+          ;; TODO: do (:without ... "board_id") when ReQL permits
+          (query (r:r (:get-all
+                        (:table "boards_personas_link")
+                        (list board-id)
+                        :index "board_id")))
+          (cursor (r:run sock query))
+          (privs (r:to-array sock cursor)))
+    (r:stop/disconnect sock cursor)
+    (if indexed
+        ;; we want an object: {persona: {..entry...}, persona: {..entry..}}
+        (let ((index-hash (make-hash-table :test #'equal)))
+          (loop for priv across privs do
+            (setf (gethash (gethash "to" priv) index-hash) priv))
+          (finish future index-hash))
+        ;; return array of privs
+        (finish future privs))))
+
+(defafun get-board-by-id (future) (board-id &key get-notes (get-privs t))
   "Grab a board by id."
   (alet* ((sock (db-sock))
           ;; TODO: implement (:without ... "user_id") once >= RDB 1.8
           (query (r:r (:get (:table "boards") board-id)))
           (board (r:run sock query)))
     (r:disconnect sock)
-    (if get-notes
-        (alet* ((notes (get-board-notes board-id)))
-          (setf (gethash "notes" board) notes)
-          (finish future board)
-        (finish future board)))))
+    (if board
+        (alet ((notes (when get-notes (get-board-notes board-id)))
+               (privs (when get-privs (get-board-privs board-id))))
+          (when notes (setf (gethash "notes" board) notes))
+          (when privs (setf (gethash "privs" board) privs))
+          (finish future board))
+        (finish future nil))))
 
 (defafun add-board (future) (user-id board-data)
   "Save a board with a user."
@@ -148,6 +178,25 @@
         (signal-error future (make-instance 'insufficient-privileges
                                             :msg "Sorry, you are deleting a board you don't own.")))))
 
+(defafun get-board-persona-link (future) (board-id to-persona-id)
+  "Given a board id and a persona being shared with, pull out the ID of the
+   persona that owns the share."
+  (alet* ((sock (db-sock))
+          ;; TODO: index
+          (query (r:r (:limit
+                        (:filter
+                          (:table "boards_personas_link")
+                          (r:fn (board)
+                            (:&& (:== (:attr board "board_id") board-id)
+                                 (:== (:attr board "to") to-persona-id))))
+                        1)))
+          (cursor (r:run sock query))
+          (links (r:to-array sock cursor)))
+    (r:stop/disconnect sock cursor)
+    (if (zerop (length links))
+        (finish future nil)
+        (finish future (aref links 0)))))
+
 (defafun get-user-board-permissions (future) (user/persona-id board-id)
   "Returns an integer used to determine a user/persona's permissions for the
    given board.
@@ -156,17 +205,14 @@
    1 == read permissions
    2 == update permissions
    3 == owner"
-  (alet* ((sock (db-sock))
-          (query (r:r (:get (:table "boards") board-id)))
-          (board (r:run sock query)))
-    (r:disconnect sock)
+  (alet* ((board (get-board-by-id board-id :get-privs t)))
     (if (hash-table-p board)
         (let* ((user-id (gethash "user_id" board))
                (privs (gethash "privs" board))
                (persona-privs (when (hash-table-p privs)
                                 (gethash user/persona-id privs)))
                (persona-privs (when (hash-table-p persona-privs)
-                                (gethash "p" persona-privs)))
+                                (gethash "perms" persona-privs)))
                (user-privs (cond ((string= user-id user/persona-id)
                                   3)
                                  ((and (numberp persona-privs) (< 0 persona-privs))
@@ -176,109 +222,143 @@
           (finish future user-privs))
         (finish future 0))))
 
-(defafun set-board-persona-permissions (future) (user-id board-id persona-id permission-value &key invite invite-remote)
+(defafun update-board-mod (future) (board-id)
+  "Set the `mod` field on a board to the current TS."
+  (alet* ((sock (db-sock))
+          (query (r:r
+                   (:update
+                     (:get (:table "boards") board-id)
+                     `(("mod" . ,(get-timestamp))))))
+          (nil (r:run sock query)))
+    (r:disconnect sock)
+    (finish future t)))
+
+(defafun set-board-persona-permissions (future) (user-id board-id from-persona-id to-persona-id permission-value &key invite invite-remote)
   "Gives a persona permissions to view/update a board."
   (alet ((perms (get-user-board-permissions user-id board-id))
          ;; clamp permission value to 0 <= p <= 2
          (permission-value (min (max permission-value 0) 2)))
     (if (<= 3 perms)
         (if (zerop permission-value)
-            (alet ((clear-perms (clear-board-persona-permissions board-id persona-id)))
+            (alet ((clear-perms (clear-board-persona-permissions board-id from-persona-id to-persona-id)))
               (finish future clear-perms))
             (alet* ((sock (db-sock))
+                    ;; create a link record for this share. note the
+                    ;; deterministic `id`
+                    (priv-entry `(("id" . ,(sha256 (concatenate 'string
+                                                                board-id ":"
+                                                                from-persona-id ":"
+                                                                to-persona-id ":")))
+                                  ("board_id" . ,board-id)
+                                  ("from" . ,from-persona-id)
+                                  ("to" . ,to-persona-id)
+                                  ("perms" . ,permission-value)
+                                  ("mod" . ,(get-timestamp))))
                     (priv-entry (cond (invite
-                                        `(("p" . ,permission-value)
-                                          ("i" . t)))
+                                        (append
+                                          priv-entry
+                                          `(("invite" . t))))
                                       (invite-remote
-                                        `(("p" . ,permission-value)
-                                          ("e" . ,invite-remote)))
+                                        (append
+                                          priv-entry
+                                          `(("email" . ,invite-remote))))
                                       (t
-                                        `(("p" . ,permission-value)))))
+                                        priv-entry)))
+                    (priv-record (convert-alist-hash priv-entry))
                     (query (r:r
-                             (:update
-                               (:get (:table "boards") board-id)
-                               (r:fn (board)
-                                 `(("privs" . ,(:merge
-                                                 (:default (:attr board "privs") (make-hash-table))
-                                                 `((,persona-id . ,priv-entry))))
-                                   ("mod" . ,(get-timestamp)))))))
-                    (nil (r:run sock query)))
+                             (:insert
+                               (:table "boards_personas_link")
+                               priv-record
+                               :upsert t)))
+                    (nil (r:run sock query))
+                    (nil (update-board-mod board-id)))
               (r:disconnect sock)
               (finish future permission-value priv-entry)))
         (signal-error future (make-instance 'insufficient-privileges
                                             :msg "Sorry, you are editing a board you aren't a member of.")))))
 
-(defafun clear-board-persona-permissions (future) (board-id persona-id &key permanent)
+(defafun get-link-from-persona-id (future) (board-id to-persona-id &key from-persona-id link)
+  "Do our best to get a from persona ID."
+  (if (stringp from-persona-id)
+      (finish future from-persona-id)
+      (alet* ((link (if link
+                        link
+                        (get-board-persona-link board-id to-persona-id))))
+        (if link
+            (finish future (gethash "from" link))
+            (finish future nil)))))
+
+(defafun clear-board-persona-permissions (future) (board-id from-persona-id to-persona-id &key permanent)
   "Clear out a persona's board permissions (revoke access)."
-  (alet* ((sock (db-sock))
+  (alet* ((from-persona-id (get-link-from-persona-id board-id to-persona-id :from-persona-id from-persona-id))
+          (id (sha256 (concatenate 'string
+                                   board-id ":"
+                                   from-persona-id ":"
+                                   to-persona-id ":")))
+          (sock (db-sock))
           (query (r:r
-                   (:update
-                     (:get (:table "boards") board-id)
-                     (r:fn (board)
-                       (if permanent
-                           ;; permanently remove the privilege entry
-                           `(("privs" . ,(:without
-                                           (:attr board "privs")
-                                           persona-id))
-                             ("mod" . ,(get-timestamp)))
-                           ;; mark the priv entry as deleted (with a ts)
-                           `(("privs" . ,(:merge
-                                           (:attr board "privs")
-                                           `((,persona-id . (("p" . 0)
-                                                             ("d" . ,(get-timestamp)))))))
-                             ("mod" . ,(get-timestamp))))))))
-          (nil (r:run sock query)))
+                   (if permanent
+                       (:delete (:get (:table "boards_personas_link") id))
+                       (:update
+                         (:get (:table "boards_personas_link") id)
+                         `(("deleted" . t)
+                           ("perms" . 0)
+                           ("mod" . ,(get-timestamp)))))))
+          (nil (r:run sock query))
+          (nil (update-board-mod board-id)))
     (r:disconnect sock)
     (finish future 0)))
 
 (defafun get-board-privs-entry (future) (board-id privs-entry-id)
   "Returns a privileges entry for the given privs entry id (usually a persona or
    invite id)."
-  (alet* ((board (get-board-by-id board-id))
-          (privs (gethash "privs" board))
-          (entry (when privs (gethash privs-entry-id privs))))
+  (alet* ((entry (get-board-persona-link board-id privs-entry-id)))
     (finish future entry)))
 
-(defafun add-board-remote-invite (future) (user-id board-id invite-id permission-value to-email)
+(defafun add-board-remote-invite (future) (user-id board-id from-persona-id invite-id permission-value to-email)
   "Creates a remote (ie email) invite permission record on a board so the 
    recipient of an invite can join the board without knowing what their account
    will be in advance."
   (alet* ((email (obscure-email to-email)))
     (multiple-future-bind (perm priv-entry)
-        (set-board-persona-permissions user-id board-id invite-id permission-value :invite-remote email)
+        (set-board-persona-permissions user-id board-id from-persona-id invite-id permission-value :invite-remote email)
       (finish future perm priv-entry))))
 
-(defafun accept-board-invite (future) (user-id board-id persona-id &key invite-id)
+(defafun accept-board-invite (future) (user-id board-id to-persona-id &key invite-id)
   "Mark a board invitation/privilege entry as accepted. Accepts a persona, but
    also an invite-id in the event the invite was sent over email, in which case
-   its record id is updated with he given persona-id."
-  (with-valid-persona (persona-id user-id future)
-    (alet* ((entry-id (or invite-id persona-id))
+   its record id is updated with the given persona-id."
+  (with-valid-persona (to-persona-id user-id future)
+    (alet* ((entry-id (or invite-id to-persona-id))
             (sock (db-sock))
-            (query (r:r (:update
-                          (:get (:table "boards") board-id)
-                          (r:fn (board)
-                            (:branch (:has-fields (:attr board "privs") entry-id)
-                              ;; persona exists in this board, run the query
-                              `(("privs" . ,(:merge
-                                              (:without (:attr board "privs") entry-id)
-                                              ;; take out the "i" key
-                                              `((,persona-id . ,(:without
-                                                                  (:attr (:attr board "privs") entry-id)
-                                                                  "i"
-                                                                  "e")))))
-                                ("mod" . ,(get-timestamp)))
-                              ;; Sorry, not invited
-                              (:error "The persona specified is not invited to this board."))))))
-            (nil (r:run sock query)))
-      (r:disconnect sock)
-      (finish future t))))
+            (link (get-board-persona-link board-id entry-id)))
+      (if link
+          (alet* ((from-persona-id (get-link-from-persona-id board-id to-persona-id :link link))
+                  (id (sha256 (concatenate 'string
+                                           board-id ":"
+                                           from-persona-id ":"
+                                           to-persona-id ":")))
+                  (nil (r:run sock (r:r (:delete (:get (:table "boards_personas_link") (gethash "id" link))))))
+                  (nil (progn
+                         (setf (gethash "id" link) id
+                               (gethash "to" link) to-persona-id)
+                         (remhash "invite" link)
+                         (remhash "email" link)))
+                  (query (r:r (:insert
+                                (:table "boards_personas_link")
+                                link)))
+                  (nil (r:run sock query))
+                  (nil (update-board-mod board-id)))
+            (r:disconnect sock)
+            (finish future t))
+          (signal-error future (make-instance 'insufficient-privileges
+                                              :msg "You are not invited to this board."))))))
 
 (defafun leave-board-share (future) (user-id board-id persona-id &key invite-id)
   "Allows a user who is not board owner to remove themselves from the board. If
    an invite-id is specified, it will replace the persona-id (after persona
    verification, of course) when referencing which privs entry to lear out."
   (with-valid-persona (persona-id user-id future)
-    (alet ((nil (clear-board-persona-permissions board-id (or invite-id persona-id))))
+    (alet ((nil (clear-board-persona-permissions board-id nil (or invite-id persona-id))))
       (finish future t))))
 

@@ -101,7 +101,7 @@
                   (invite (create-invite "b" board-id persona-id to-email invite-data expire))
                   (invite-id (gethash "id" invite)))
             (multiple-future-bind (nil priv-entry)
-                (add-board-remote-invite user-id board-id invite-id 2 to-email)
+                (add-board-remote-invite user-id board-id persona-id invite-id 2 to-email)
               (alet* ((nil (insert-invite-record invite))
                       (nil (email-board-invite persona invite key)))
                 (setf (gethash "priv" invite) (convert-alist-hash priv-entry))
@@ -110,7 +110,7 @@
 (defafun invite-persona-to-board (future) (user-id board-id from-persona-id to-persona-id permissions)
   "Invites a persona to join a board, setting all applicable permissions."
   (multiple-future-bind (nil priv-entry)
-      (set-board-persona-permissions user-id board-id to-persona-id permissions :invite t)
+      (set-board-persona-permissions user-id board-id from-persona-id to-persona-id permissions :invite t)
     (alet* ((from-persona (get-persona-by-id from-persona-id :without-keys t))
             (to-persona (get-persona-by-id to-persona-id :without-keys t))
             (setting-invite (get-persona-setting nil "notify_invite" :persona to-persona :default 1))
@@ -153,7 +153,7 @@
   "Delete a board invite."
   (alet* ((invite-id (gethash "id" invite))
           (board-id (gethash "item_id" invite))
-          (perm (set-board-persona-permissions user-id board-id invite-id 0)))
+          (perm (set-board-persona-permissions user-id board-id nil invite-id 0)))
     (finish future perm)))
 
 (defafun accept-invite (future) (user-id invite-id invite-code persona-id)
