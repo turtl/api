@@ -131,9 +131,41 @@
                               `(("deleted" . t)
                                 ("email" . "")
                                 ("mod" . ,(get-timestamp)))))))
-            (nil (r:run sock query)))
+            (nil (r:run sock query))
+            (nil (delete-persona-links persona-id :permanent permanent)))
       (r:disconnect sock)
       (finish future t))))
+
+(defafun delete-persona-links (future) (persona-id &key permanent)
+  "Delete all persona-related information. This generally means board-persona
+   links."
+  (alet* ((sock (db-sock))
+          (query-to (r:r (if permanent
+                             (:delete (:get-all (:table "boards_personas_link") persona-id :index "to"))
+                             (:update
+                               (:get-all (:table "boards_personas_link") persona-id :index "to")
+                               `(("deleted" . ,t)
+                                 ("mod" . ,(get-timestamp)))))))
+          (query-from (r:r (if permanent
+                               (:delete (:get-all (:table "boards_personas_link") persona-id :index "from"))
+                               (:update
+                                 (:get-all (:table "boards_personas_link") persona-id :index "from")
+                                 `(("deleted" . ,t)
+                                   ("mod" . ,(get-timestamp)))))))
+          (query-mod (r:r
+                       (:foreach
+                         (:set-union
+                           (:attr (:get-all (:table "boards_personas_link") persona-id :index "to") "board_id")
+                           (:attr (:get-all (:table "boards_personas_link") persona-id :index "from") "board_id"))
+                         (r:fn (board-id)
+                           (:update
+                             (:get (:table "boards") board-id)
+                             `(("mod" . ,(get-timestamp))))))))
+          (nil (r:run sock query-to))
+          (nil (r:run sock query-from))
+          (nil (r:run sock query-mod)))
+    (r:disconnect sock)
+    (finish future t)))
 
 (defafun get-persona-by-email (future) (email &key ignore-persona require-key)
   "Grab a persona via its email. Must be an exact match (for now)."
