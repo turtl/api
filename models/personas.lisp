@@ -91,7 +91,7 @@
       (add-mod persona-data)
       (when (string= (gethash "pubkey" persona-data) "false")
         (setf (gethash "pubkey" persona-data) nil))
-      (setf (gethash "user_id" persona-data) user-id)
+      (remhash "user_id" persona-data)
       ;; make sure settings use numeric value
       (let ((settings (gethash "settings" persona-data))
             (new-settings (make-hash-table :test #'equal)))

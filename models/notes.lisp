@@ -62,6 +62,7 @@
     (if (<= 2 perms)
         (validate-note (note-data future :edit t)
           (add-mod note-data)
+          (remhash "user_id" note-data)
           (alet* ((sock (db-sock))
                   (query (r:r (:update
                                 (:get (:table "notes") note-id)

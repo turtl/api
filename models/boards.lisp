@@ -140,6 +140,7 @@
     (if (<= 3 perms)
         (validate-board (board-data future :edit t)
           (add-mod board-data)
+          (remhash "user_id" board-data)
           (alet* ((sock (db-sock))
                   (query (r:r (:update
                                 (:get (:table "boards") board-id)
