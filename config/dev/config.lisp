@@ -12,7 +12,7 @@
 (defvar *db-port* 28015
   "The database port number.")
 
-(defvar *site-url* "http://turtl.it"
+(defvar *site-url* "https://turtl.it"
   "The main URL the site will load from.")
 
 (defvar *site-assets* (namestring (truename (format nil "~a../js" *root*)))
