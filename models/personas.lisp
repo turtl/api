@@ -91,7 +91,7 @@
       (add-mod persona-data)
       (when (string= (gethash "pubkey" persona-data) "false")
         (setf (gethash "pubkey" persona-data) nil))
-      (remhash "user_id" persona-data)
+      (setf (gethash "user_id" persona-data) user-id)
       ;; make sure settings use numeric value
       (let ((settings (gethash "settings" persona-data))
             (new-settings (make-hash-table :test #'equal)))
@@ -130,6 +130,8 @@
                               (:get (:table "personas") persona-id)
                               `(("deleted" . t)
                                 ("email" . "")
+                                ("pubkey" . "")
+                                ("body" . "")
                                 ("mod" . ,(get-timestamp)))))))
             (nil (r:run sock query))
             (nil (delete-persona-links persona-id :permanent permanent)))
