@@ -3,6 +3,9 @@
 (defparameter *root* (asdf:system-relative-pathname :turtl #P"")
   "Defines the root directory turtl is loading from (basically the ASDF path).")
 
+(defparameter *pid-file* nil
+  "File to write the current proc's PID to.")
+
 (defvar *db-name* "turtl"
   "The name of the database we'll be using LOL")
 
