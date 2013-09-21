@@ -79,19 +79,20 @@
   "Grab all notes for this user that have changed."
   (alet* ((sock (db-sock))
           (query (r:r
-                   ;; TODO: index
+                   ;; TODO: index (better)
                    (:filter
-                     (:table "notes")
+                     (:attr
+                       (:inner-join
+                         (:table "notes")
+                         (:get-all
+                           (:table "boards")
+                           user-id
+                           :index "user_id")
+                         (r:fn (note board)
+                           (:== (:attr note "board_id") (:attr board "id"))))
+                       "left")
                      (r:fn (note)
-                       (:&&
-                         (:contains (:map
-                                      (:get-all (:table "boards")
-                                                user-id
-                                                :index "user_id")
-                                      (r:fn (board) (:attr board "id")))
-                                    (:attr note "board_id"))
-                         (:> (:default (:attr note "mod") 0)
-                             sync-time))))))
+                       (:> (:default (:attr note "mod") 0) sync-time)))))
           (cursor (r:run sock query))
           (notes (r:to-array sock cursor)))
     (r:stop/disconnect sock cursor)
