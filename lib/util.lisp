@@ -15,7 +15,7 @@
 
 (defun db-sock ()
   "Makes connecting to the database a smidgen easier."
-  (r:connect *db-host* *db-port* :db *db-name* :read-timeout 5))
+  (r:connect *db-host* *db-port* :db *db-name* :read-timeout 15))
 
 (defun to-json (object)
   "Convert an object to JSON."
