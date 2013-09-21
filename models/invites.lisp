@@ -122,6 +122,7 @@
                  email-notify
                  (not disable-all))
         (alet ((sent (email-board-persona-invite from-persona to-persona)))
+          (declare (ignore sent))
           nil)))
     (finish future priv-entry)))
 

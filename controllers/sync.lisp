@@ -7,18 +7,34 @@
 (defroute (:post "/api/sync") (req res)
   (catch-errors (res)
     (alet* ((user-id (user-id req))
-            (sync-time (varint (post-var req "time") 999999999))
-            (user-sync (sync-user user-id sync-time))
-            (persona-sync (sync-user-personas user-id sync-time))
-            (board-sync (sync-user-boards user-id sync-time :get-persona-boards t :get-personas t))
-            (note-sync (sync-user-notes user-id sync-time :get-persona-notes t))
-            (response (make-hash-table :test #'equal)))
-      (setf (gethash "time" response) (get-timestamp)
-            (gethash "user" response) user-sync
-            (gethash "personas" response) persona-sync
-            (gethash "notes" response) note-sync
-            (gethash "boards" response) board-sync)
-      (send-json res response))))
+            (sync-time (varint (post-var req "time") 999999999)))
+      (alet ((user-sync (sync-user user-id sync-time))
+             (persona-sync (sync-user-personas user-id sync-time))
+             (board-sync (sync-user-boards user-id sync-time :get-persona-boards t :get-personas t))
+             (note-sync (sync-user-notes user-id sync-time :get-persona-notes t)))
+        (let ((response (make-hash-table :test #'equal)))
+          (setf (gethash "time" response) (get-timestamp)
+                (gethash "user" response) user-sync
+                (gethash "personas" response) persona-sync
+                (gethash "notes" response) note-sync
+                (gethash "boards" response) board-sync)
+          (send-json res response))))))
+
+;(defroute (:post "/api/sync") (req res)
+;  (catch-errors (res)
+;    (alet* ((user-id (user-id req))
+;            (sync-time (varint (post-var req "time") 999999999))
+;            (user-sync (sync-user user-id sync-time))
+;            (persona-sync (sync-user-personas user-id sync-time))
+;            (board-sync (sync-user-boards user-id sync-time :get-persona-boards t :get-personas t))
+;            (note-sync (sync-user-notes user-id sync-time :get-persona-notes t))
+;            (response (make-hash-table :test #'equal)))
+;      (setf (gethash "time" response) (get-timestamp)
+;            (gethash "user" response) user-sync
+;            (gethash "personas" response) persona-sync
+;            (gethash "notes" response) note-sync
+;            (gethash "boards" response) board-sync)
+;      (send-json res response))))
 
 ;; NOTE: this route is unused and will remain so until personas have obscurity
 ;; again
