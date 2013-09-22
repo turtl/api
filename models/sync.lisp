@@ -80,19 +80,22 @@
   (alet* ((sock (db-sock))
           (query (r:r
                    ;; TODO: index (better)
-                   (:filter
-                     (:attr
-                       (:inner-join
+                   (:do
+                     (r:fn (board-ids)
+                       (:filter
                          (:table "notes")
-                         (:get-all
-                           (:table "boards")
-                           user-id
-                           :index "user_id")
-                         (r:fn (note board)
-                           (:== (:attr note "board_id") (:attr board "id"))))
-                       "left")
-                     (r:fn (note)
-                       (:> (:default (:attr note "mod") 0) sync-time)))))
+                         (r:fn (note)
+                           (:&&
+                             (:contains
+                               board-ids
+                               (:attr note "board_id"))
+                             (:> (:default (:attr note "mod") 0) sync-time)))))
+                     (:attr
+                       (:get-all
+                         (:table "boards")
+                         user-id
+                         :index "user_id")
+                       "id"))))
           (cursor (r:run sock query))
           (notes (r:to-array sock cursor)))
     (r:stop/disconnect sock cursor)
