@@ -108,22 +108,21 @@
   "Grab all a persona's changed notes (shared)."
   (alet* ((sock (db-sock))
           (query (r:r
-                   (:do
-                     (r:fn (board-ids)
-                       (:filter
-                         (:table "notes")
-                         (r:fn (note)
-                           (:&&
-                             (:contains board-ids (:attr note "board_id"))
-                             (:<= sync-time (:default (:attr note "mod") 0))))))
+                   (:filter
                      (:attr
-                       (:get-all
-                         (:table "boards_personas_link")
-                         persona-id
-                         :index "to")
-                       "board_id"))))
-          (cursor (r:run sock query))
-          (notes (r:to-array sock cursor)))
-    (r:stop/disconnect sock cursor)
+                       (:eq-join
+                         (:get-all
+                           (:table "boards_personas_link")
+                           persona-id
+                           :index "to")
+                         "board_id"
+                         (:table "notes")
+                         :index "board_id")
+                       "right")
+                     (r:fn (note)
+                       (:<= sync-time (:default (:attr note "mod") 0))))))
+          (notes (r:run sock query))
+          (notes (coerce notes 'simple-array)))
+    (r:disconnect sock)
     (finish future notes)))
 
