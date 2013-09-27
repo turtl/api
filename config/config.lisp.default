@@ -52,3 +52,11 @@
 ;; setup the wookie log
 (setf *log-level* :notice)
 
+(defvar *mixpanel* '(:enabled nil
+                     :token "")
+  "Holds mixpanel config.")
+
+(defvar *amazon-s3* '(:token ""
+                      :secret "")
+  "Holds Amazon S3 config.")
+
