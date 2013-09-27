@@ -57,6 +57,7 @@
   "Holds mixpanel config.")
 
 (defvar *amazon-s3* '(:token ""
-                      :secret "")
+                      :secret ""
+                      :bucket "")
   "Holds Amazon S3 config.")
 
