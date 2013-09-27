@@ -99,7 +99,7 @@
                         "/config/auth.js"
                         "/config/routes.js"))
       (make-scripts s (get-files (format nil "~alibrary" *site-assets*) ".js"
-                                 '("ignore" "mootools-" "composer" "bookmarklet" "cowcrypt")))
+                                 '("ignore" "mootools-" "composer" "bookmarklet" "cowcrypt" "tcrypt.thread")))
       (:script :src "/library/cowcrypt/convert.js")
       (:script :src "/library/cowcrypt/crypto_math.js")
       (:script :src "/library/cowcrypt/biginteger.js")
