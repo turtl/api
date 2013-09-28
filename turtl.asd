@@ -26,7 +26,8 @@
     :components
     ((:file "util")
      (:file "validation")
-     (:file "crypto")))
+     (:file "crypto")
+	 (:file "s3")))
    (:file "config/config" :depends-on (lib))
    (:file "crypto" :depends-on (lib "config/config"))
    (:file "errors" :depends-on (lib "config/config" "crypto"))
