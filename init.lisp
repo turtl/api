@@ -8,9 +8,13 @@
 ;; load all enabled wookie plugins
 (load-plugins :use-quicklisp t)
 
-(defun error-handler (err)
-  (unless (typep err 'as:tcp-info)
-    (format t "(turtl) UNcaught error: ~a~%" err)))
+(defun error-handler (err socket)
+  (let* ((socket-data (as:socket-data socket))
+         (response (getf socket-data :response)))
+    (unless (typep err 'as:tcp-info)
+      (when (and response (not (response-finished-p response)))
+        (send-response response :status 500 :body "There was an error processing your request."))
+      (format t "(turtl) UNcaught error: ~a~%" err))))
 
 (defun start (&key bind (port 81))
   (setf *error-handler* 'error-handler)
