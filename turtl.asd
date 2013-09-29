@@ -17,7 +17,8 @@
                #:local-time
                #:ironclad
                #:secure-random
-               #:bordeaux-threads)
+               #:bordeaux-threads
+               #:xmls)
   :components
   ((:file "package")
    (:module lib
@@ -27,7 +28,7 @@
     ((:file "util")
      (:file "validation")
      (:file "crypto")
-	 (:file "s3")))
+     (:file "s3")))
    (:file "config/config" :depends-on (lib))
    (:file "crypto" :depends-on (lib "config/config"))
    (:file "errors" :depends-on (lib "config/config" "crypto"))
