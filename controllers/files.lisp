@@ -1,11 +1,21 @@
 (in-package :turtl)
 
-(defroute (:post "/api/filez" :chunk t) (req res)
+(defroute (:post "/api/filez" :chunk t :suppress-100 t) (req res)
   (catch-errors (res)
-    (with-chunking req (data lastp)
-      (format t "chunk: ~a~%" (length data))
-      (when lastp
-        (send-response res :body "thxLOL")))))
+    (let ((socket (request-socket req))
+          (waiting t)
+          (num-bytes 0))
+      (with-chunking req (data lastp)
+        (format t "x")
+        (incf num-bytes (length data))
+        (when lastp
+          (format t "~%finished: ~a bytes~%" num-bytes)
+          (send-response res :body "thxLOL")))
+      (as:delay (lambda ()
+                  (setf waiting nil)
+                  (send-100-continue res))
+                :time 4)
+      )))
 
 (defroute (:post "/api/files") (req res)
   (catch-errors (res)

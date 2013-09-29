@@ -168,12 +168,77 @@
          (chunk-buffer (make-array buffer-size :element-type '(unsigned-byte 8)))
          (buffer-pos 0))
     (lambda (chunk lastp)
-      (let* ((chunk-size (length chunk))
-             (new-buffer-pos (+ chunk-size buffer-pos)))
+      (let* ((future (make-future))
+             (chunk-size (length chunk))
+             (new-buffer-pos (+ chunk-size buffer-pos))
+             (part-num 1)
+             (finished-parts nil))
         (if (< buffer-size new-buffer-pos)
             (let ((chunk-save-end (- buffer-size buffer-pos)))
-              (replace chunk-buffer chunk :start1 buffer-pos :end2 (- buffer-size buffer-pod))
-              (setf chunk (subseq 
+              (replace chunk-buffer chunk :start1 buffer-pos :end2 chunk-save-end)
+              (setf chunk (subseq chunk chunk-save-end)
+                    buffer-pos (+ buffer-pos chunk-save-end)))
+            (progn
+              (replace chunk-buffer chunk :start1 buffer-pos)
+              (setf chunk nil)
+              (incf buffer-pos new-buffer-pos)))
+        (when (or (< min-part-size buffer-pos)
+                  lastp)
+          (let* ((local-part-num part-num)
+                 (part-data part-body)
+                 (body (cond ((and lastp chunk)
+                              (cl-async-util:append-array
+                                (subseq chunk-buffer 0 buffer-pos)
+                                chunk))
+                             (t (subseq chunk-buffer 0 buffer-pos))))
+                 (resource-part
+                   (concatenate 'string
+                                resource
+                                "?partNumber=" (format nil "~a" local-part-num)
+                                "&uploadId=" upload-id)))
+            (incf part-num)
+            (setf part-body (make-array 0 :element-type '(unsigned-byte 8)))
+            ;; send the actual request, using our handy s3-op 
+            ;; unction
+            (format t "s3: sending part ~a to S3: ~a~%" local-part-num (length part-data))
+            (multiple-future-bind (res status headers)
+                (s3-op :put resource-part
+                       :content body
+                       :content-md5 (md5 part-body :base64 t))
+              ;; OH NO!! now we have to parse XML to pull out an
+              ;; error string!! where did my life go so wrong?
+              (format t "s3: part ~a ret: ~a~%" local-part-num status)
+              (unless (<= 200 status 299)
+                (error 's3-upload-error :msg (get-s3-error res)))
+              ;; make sure we save our etags! god forbid we don't
+              ;; keep meticulous track of the data we're already
+              ;; uploading using S3's proprietary chunking API
+              (let ((etag (cdr (assoc :etag headers))))
+                (format t "s3: saving part ~a etag: ~a~%" local-part-num etag)
+                (push (cons local-part-num etag) finished-parts))
+              (if continuep
+                  ;; looks like we're done. finish the upload
+                  (let* ((body (build-upload-completion finished-parts))
+                         (resource-final
+                           (concatenate 'string
+                                        resource
+                                        "?uploadId=" upload-id)))
+                    (format t "s3: upload chunking done, finalize upload~%")
+                    (multiple-future-bind (res)
+                        (s3-op :post resource-final
+                               :content body)
+                      ;; need to test for errors manually since S3
+                      ;; breaks HTTP yet again by passing 200 OK
+                      ;; even if there's a problem
+                      (let ((err-str (get-s3-error res)))
+                        (format t "s3: finalize response err (nil is good): ~a~%" err-str)
+                        (if err-str
+                            (signal-error future (make-instance 's3-upload-error :msg err-str))
+                            (finish future t)))))
+                  (finish future t)))
+            (setf buffer-pos 0
+                  chunk nil)
+            future))))))
             
       
 
