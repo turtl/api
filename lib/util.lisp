@@ -84,6 +84,13 @@
    or may be nil. Meant to be used to parse numbers from GET/POST data."
   `(or (parse-integer (or ,str-input "") :junk-allowed t) ,default))
 
+(defun stream-length (stream)
+  "HACK: flexi-streams reports incorrect length on stream data body, so we do a
+   bit of vigilantism here to fix it."
+  (with-accessors ((flexi-streams::vector flexi-streams::vector-stream-vector))
+      stream
+    (length vector)))
+
 (defmacro defafun (name (future-var &key (forward-errors t)) args &body body)
   "Define an asynchronous function with a returned future that will be finished
    when the funciton completes. Also has the option to forward all async errors

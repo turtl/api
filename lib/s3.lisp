@@ -130,118 +130,6 @@
   (format t "XML res:~%~a~%" (babel:octets-to-string xml))
   nil)
 
-(defun s3-upload-init (resource &key (content-type "application/octet-stream") amz-headers)
-  "Makes an uploader that allows sending data to S3 in chunks. Returns a future
-   that finishes with an upload ID. This upload ID can be used later on to
-   stream/chunk the file to Amazon."
-  ;; make a future that will be finished with our continuation function (or an
-  ;; error if things go awry)
-  (let ((future (make-future)))
-    (format t "s3: creating upload~%")
-    (future-handler-case
-      ;; make our initial request, humbly groveling at S3's feet for the
-      ;; privilege of using their proprietary multi-part upload system when HTTP
-      ;; already has a great chunking protocol built-in that everybody has used
-      ;; for years.
-      (multiple-future-bind (res status)
-          (s3-op :post
-                 (concatenate 'string resource "?uploads")
-                 :content-type content-type
-                 :content ""
-                 :amz-headers amz-headers)
-        ;; see if S3 was kind enough to issue us an upload id
-        (if (<= 200 status 299)
-            (let* ((res (if (stringp res)
-                            res
-                            (babel:octets-to-string res)))
-                   (upload-id (get-upload-id res)))
-              ;; return the upload id
-              (finish future upload-id))
-            (signal-error future
-                          (make-instance 's3-upload-error
-                                         :msg (get-s3-error res)))))
-      (t (e) (signal-error future e)))))
-
-(defun s3-upload-chunk (upload-id)
-  (let* ((min-part-size (* 5 1024 1024))  ; 5MB
-         (buffer-size (* 2 min-part-size))
-         (chunk-buffer (make-array buffer-size :element-type '(unsigned-byte 8)))
-         (buffer-pos 0))
-    (lambda (chunk lastp)
-      (let* ((future (make-future))
-             (chunk-size (length chunk))
-             (new-buffer-pos (+ chunk-size buffer-pos))
-             (part-num 1)
-             (finished-parts nil))
-        (if (< buffer-size new-buffer-pos)
-            (let ((chunk-save-end (- buffer-size buffer-pos)))
-              (replace chunk-buffer chunk :start1 buffer-pos :end2 chunk-save-end)
-              (setf chunk (subseq chunk chunk-save-end)
-                    buffer-pos (+ buffer-pos chunk-save-end)))
-            (progn
-              (replace chunk-buffer chunk :start1 buffer-pos)
-              (setf chunk nil)
-              (incf buffer-pos new-buffer-pos)))
-        (when (or (< min-part-size buffer-pos)
-                  lastp)
-          (let* ((local-part-num part-num)
-                 (part-data part-body)
-                 (body (cond ((and lastp chunk)
-                              (cl-async-util:append-array
-                                (subseq chunk-buffer 0 buffer-pos)
-                                chunk))
-                             (t (subseq chunk-buffer 0 buffer-pos))))
-                 (resource-part
-                   (concatenate 'string
-                                resource
-                                "?partNumber=" (format nil "~a" local-part-num)
-                                "&uploadId=" upload-id)))
-            (incf part-num)
-            (setf part-body (make-array 0 :element-type '(unsigned-byte 8)))
-            ;; send the actual request, using our handy s3-op 
-            ;; unction
-            (format t "s3: sending part ~a to S3: ~a~%" local-part-num (length part-data))
-            (multiple-future-bind (res status headers)
-                (s3-op :put resource-part
-                       :content body
-                       :content-md5 (md5 part-body :base64 t))
-              ;; OH NO!! now we have to parse XML to pull out an
-              ;; error string!! where did my life go so wrong?
-              (format t "s3: part ~a ret: ~a~%" local-part-num status)
-              (unless (<= 200 status 299)
-                (error 's3-upload-error :msg (get-s3-error res)))
-              ;; make sure we save our etags! god forbid we don't
-              ;; keep meticulous track of the data we're already
-              ;; uploading using S3's proprietary chunking API
-              (let ((etag (cdr (assoc :etag headers))))
-                (format t "s3: saving part ~a etag: ~a~%" local-part-num etag)
-                (push (cons local-part-num etag) finished-parts))
-              (if continuep
-                  ;; looks like we're done. finish the upload
-                  (let* ((body (build-upload-completion finished-parts))
-                         (resource-final
-                           (concatenate 'string
-                                        resource
-                                        "?uploadId=" upload-id)))
-                    (format t "s3: upload chunking done, finalize upload~%")
-                    (multiple-future-bind (res)
-                        (s3-op :post resource-final
-                               :content body)
-                      ;; need to test for errors manually since S3
-                      ;; breaks HTTP yet again by passing 200 OK
-                      ;; even if there's a problem
-                      (let ((err-str (get-s3-error res)))
-                        (format t "s3: finalize response err (nil is good): ~a~%" err-str)
-                        (if err-str
-                            (signal-error future (make-instance 's3-upload-error :msg err-str))
-                            (finish future t)))))
-                  (finish future t)))
-            (setf buffer-pos 0
-                  chunk nil)
-            future))))))
-            
-      
-
 (defun s3-upload (resource &key (content-type "application/octet-stream") amz-headers)
   "Makes an uploader that allows sending data to S3 in chunks. Returns a future
    that finishes with a function. The function is the same API as drakma's
@@ -253,7 +141,7 @@
   ;; make a future that will be finished with our continuation function (or an
   ;; error if things go awry)
   (let ((future (make-future)))
-    (format t "s3: creating upload~%")
+    (format t "- s3: creating upload~%")
     (future-handler-case
       ;; make our initial request, humbly groveling at S3's feet for the
       ;; privilege of using their proprietary multi-part upload system when HTTP
@@ -271,66 +159,66 @@
                         (babel:octets-to-string res)))
                (upload-id (get-upload-id res))
                (min-part-size (* 5 1024 1024)))   ; 5MB LOL
-          (format t "s3: upload started: ~a~%" upload-id)
+          (format t "- s3: upload started: ~a~%" upload-id)
           (if (and res (<= 200 status 299) upload-id)
               ;; wow, THANK YOU S3, your wisdom is exceeded only by your
               ;; kindness. let's finish our future with a function that when
               ;; called will upload our parts for us
               (let ((part-num 1)
-                    (part-body (make-array 0 :element-type '(unsigned-byte 8)))
-                    (part-buffer (make-array (* 2 min-part-size) :element-type '(unsigned-byte 8)))
+                    (part (flexi-streams:make-in-memory-output-stream :element-type '(unsigned-byte 8)))
                     (finished-parts nil))
-                (format t "s3: returning continuation lambda~%")
+                (format t "- s3: returning continuation lambda~%")
                 (finish future
                   (lambda (data &optional continuep)
                     ;; append the data we got onto our current part. we keep
                     ;; doing this until either we have the last chunk or the
                     ;; part length is greater than the min part size (5MB in our
                     ;; case)
-                    (format t "s3: appending data to part: ~a~%" (length data))
-                    (setf part-body (cl-async-util:append-array part-body data))
+                    (format t "- s3: appending data to part: ~a~%" (stream-length part))
+                    (write-sequence data part)
                     (when (or (not continuep)
-                              (<= (length part-body) min-part-size))
-                      (format t "s3: chunk overflow size hit (or last chunk): ~a~%")
+                              (<= min-part-size (stream-length part)))
+                      (format t "- s3: chunk overflow size hit (or last chunk): ~a~%" (stream-length part))
                       ;; ok, we're either done uploading or at the 5MB mark. run
                       ;; the upload of this part
                       (let* ((future (make-future))
                              (local-part-num part-num)
-                             (part-data part-body)
+                             (part-data (flexi-streams:get-output-stream-sequence part))
                              (resource-part
                                (concatenate 'string
                                             resource
                                             "?partNumber=" (format nil "~a" local-part-num)
                                             "&uploadId=" upload-id)))
                         (incf part-num)
-                        (setf part-body (make-array 0 :element-type '(unsigned-byte 8)))
                         ;; send the actual request, using our handy s3-op 
                         ;; unction
-                        (format t "s3: sending part ~a to S3: ~a~%" local-part-num (length part-data))
+                        (format t "- s3: sending part ~a to S3: ~a~%" local-part-num (length part-data))
                         (multiple-future-bind (res status headers)
                             (s3-op :put resource-part
                                    :content part-data
-                                   :content-md5 (md5 part-body :base64 t))
+                                   :content-md5 (md5 part-data :base64 t))
                           (setf part-data nil)
                           ;; OH NO!! now we have to parse XML to pull out an
                           ;; error string!! where did my life go so wrong?
-                          (format t "s3: part ~a ret: ~a~%" local-part-num status)
+                          (format t "- s3: part ~a ret: ~a~%" local-part-num status)
                           (unless (<= 200 status 299)
                             (error 's3-upload-error :msg (get-s3-error res)))
                           ;; make sure we save our etags! god forbid we don't
                           ;; keep meticulous track of the data we're already
                           ;; uploading using S3's proprietary chunking API
                           (let ((etag (cdr (assoc :etag headers))))
-                            (format t "s3: saving part ~a etag: ~a~%" local-part-num etag)
+                            (format t "- s3: saving part ~a etag: ~a~%" local-part-num etag)
                             (push (cons local-part-num etag) finished-parts))
                           (if continuep
+                              ;; finish true
+                              (finish future t)
                               ;; looks like we're done. finish the upload
                               (let* ((body (build-upload-completion finished-parts))
                                      (resource-final
                                        (concatenate 'string
                                                     resource
                                                     "?uploadId=" upload-id)))
-                                (format t "s3: upload chunking done, finalize upload~%")
+                                (format t "- s3: upload chunking done, finalize upload~%")
                                 (multiple-future-bind (res)
                                     (s3-op :post resource-final
                                            :content body)
@@ -338,12 +226,12 @@
                                   ;; breaks HTTP yet again by passing 200 OK
                                   ;; even if there's a problem
                                   (let ((err-str (get-s3-error res)))
-                                    (format t "s3: finalize response err (nil is good): ~a~%" err-str)
+                                    (format t "- s3: finalize response err (nil is good): ~a~%" err-str)
                                     (if err-str
                                         (signal-error future (make-instance 's3-upload-error :msg err-str))
-                                        (finish future t)))))
-                              (finish future t)))
-                        future)))))
+                                        (finish future t)))))))
+                        future)))
+                  upload-id))
               (signal-error future (make-instance 's3-upload-error :msg "Error starting upload.")))))
       (t (e) (signal-error future e)))
     future))

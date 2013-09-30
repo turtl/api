@@ -8,6 +8,7 @@
                #:wookie
                #:cl-rethinkdb
                #:cl-ppcre
+               #:flexi-streams
                #:cl-who
                #:cl-fad
                #:yason

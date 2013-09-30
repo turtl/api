@@ -11,10 +11,13 @@
 
 (defun md5 (sequence/string &key base64 raw)
   "Return a *string* sha256 hash of the given string/byte sequence."
-  (let ((hash (ironclad:digest-sequence (ironclad:make-digest 'ironclad:md5)
-                                        (if (stringp sequence/string)
-                                            (babel:string-to-octets sequence/string)
-                                            sequence/string))))
+  (let ((hash (ironclad:digest-sequence
+                (ironclad:make-digest 'ironclad:md5)
+                (coerce 
+                  (if (stringp sequence/string)
+                      (babel:string-to-octets sequence/string)
+                      sequence/string)
+                  '(simple-array (unsigned-byte 8))))))
     (if base64
         (base64:usb8-array-to-base64-string hash)
         (if raw
