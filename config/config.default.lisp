@@ -15,7 +15,7 @@
 (defvar *db-port* 28015
   "The database port number.")
 
-(defvar *site-url* "http://turtl.dev:81"
+(defvar *site-url* "http://turtl.dev:8181"
   "The main URL the site will load from.")
 
 (defvar *site-assets* (namestring (truename (format nil "~a../js" *root*)))
@@ -50,7 +50,7 @@
   "A list of public resources/actions that do not require authentication.")
 
 ;; setup the wookie log
-(setf *log-level* :notice)
+(setf wookie:*log-level* :notice)
 
 (defvar *mixpanel* '(:enabled nil
                      :token "")
@@ -58,7 +58,7 @@
 
 (defvar *amazon-s3* '(:token ""
                       :secret ""
-                      :bucket "")
+                      :bucket ""
                       :endpoint "https://s3.amazonaws.com")
   "Holds Amazon S3 config.")
 
