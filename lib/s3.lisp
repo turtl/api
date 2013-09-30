@@ -57,7 +57,7 @@
           (cl-base64:usb8-array-to-base64-string hash)
           hash))))
 
-(defun s3-op (method resource &key content (content-md5 "") (content-type "") headers (config *amazon-s3*) (read-timeout 30))
+(defun s3-op (method resource &key content (content-md5 "") (content-type "") headers (config *amazon-s3*) (read-timeout 30) (write-timeout 30))
   (let* ((date (local-time:format-timestring
                  nil
                  (local-time:now)
@@ -96,6 +96,7 @@
       :content-type (unless (string= content-type "") content-type)
       :content-length (when (vectorp content) (length content))
       :read-timeout read-timeout
+      :write-timeout write-timeout
       :additional-headers headers)))
 
 (defun get-upload-id (xml)
@@ -164,7 +165,8 @@
                         res
                         (babel:octets-to-string res)))
                (upload-id (get-upload-id res))
-               (min-part-size (* 5 1024 1024)))   ; 5MB LOL
+               (min-part-size (* 5 1024 1024))   ; 5MB LOL
+               (last-chunk-sent nil))
           (format t "- s3: upload started: ~a~%" upload-id)
           (if (and res (<= 200 status 299) upload-id)
               ;; wow, THANK YOU S3, your wisdom is exceeded only by your
@@ -181,6 +183,7 @@
                     ;; part length is greater than the min part size (5MB in our
                     ;; case)
                     ;(format t "- s3: appending data to part: ~a~%" (stream-length part))
+                    (setf last-chunk-sent (or continuep last-chunk-sent))
                     (write-sequence data part)
                     (when (or (not continuep)
                               (<= min-part-size (stream-length part)))
@@ -218,7 +221,10 @@
                             (let ((etag (cdr (assoc :etag headers))))
                               (format t "- s3: saving part ~a etag: ~a~%" local-part-num etag)
                               (push (cons local-part-num etag) finished-parts))
-                            (if continuep
+                            (format t "- s3: num finished/parts (~a): ~a ~a~%" last-chunk-sent (length finished-parts) part-num)
+                            (if (or continuep
+                                    (not last-chunk-sent)
+                                    (< (length finished-parts) (1- part-num)))
                                 ;; finish true
                                 (finish future t)
                                 ;; looks like we're done. finish the upload
