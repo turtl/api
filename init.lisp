@@ -32,7 +32,7 @@
 
   ;; start the server
   (unwind-protect
-    (as:with-event-loop (:catch-app-errors nil)
+    (as:with-event-loop (:catch-app-errors t)
       (let* ((listener (make-instance 'listener :bind bind :port port))
              (server (start-server listener)))
         (cleanup)

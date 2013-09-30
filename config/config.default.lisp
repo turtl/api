@@ -59,5 +59,6 @@
 (defvar *amazon-s3* '(:token ""
                       :secret ""
                       :bucket "")
+                      :endpoint "https://s3.amazonaws.com")
   "Holds Amazon S3 config.")
 

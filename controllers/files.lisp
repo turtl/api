@@ -63,12 +63,13 @@
                  (format t "- file: reset chunks~%")
                  (setf buffered-chunks (flexi-streams:make-in-memory-output-stream :element-type '(unsigned-byte 8))))
                (write-sequence chunk-data buffered-chunks)
-               (format t "- file: buffering data until uploader ready: ~a~%" (stream-length buffered-chunks)))
+               ;(format t "- file: buffering data until uploader ready: ~a~%" (stream-length buffered-chunks))
+               )
               (t
                (when buffered-chunks
                  (write-sequence chunk-data buffered-chunks)
                  (setf chunk-data (flexi-streams:get-output-stream-sequence buffered-chunks)))
-               (format t "- file: uploader ready, passing in data: ~a~%" (length chunk-data))
+               ;(format t "- file: uploader ready, passing in data: ~a~%" (length chunk-data))
                (wait-for (funcall s3-uploader chunk-data (not last-chunk-p))
                  (when last-chunk-p
                    (funcall finish-fn)))
