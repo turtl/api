@@ -3,18 +3,6 @@
 (defun define-app-routes ()
   ;; clear out all routes (start anew)
   (clear-routes)
-  ;; load our models. note we specify a load order to cut back on "UNDEFINED
-  ;; FUNCTION LOL" errors.
-  (load-folder (concatenate 'string (namestring *root*) "models/")
-               '("users"
-                 "challenges"
-                 "email"
-                 "personas"
-                 "notes"
-                 "boards"
-                 "messages"
-                 "invites"
-                 "sync"))
 
   ;; load all our controllers. this will load all our API routes
   (load-folder (concatenate 'string (namestring *root*) "controllers/"))
