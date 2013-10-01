@@ -19,16 +19,13 @@
 (defafun get-board-notes (future) (board-id)
   "Get the notes for a board."
   (alet* ((sock (db-sock))
-          ;; TODO: implement (:without ... "user_id") once >= RDB 1.8
-          (query (r:r 
-                        (:filter
-                          ;; get all user notes
-                          (:get-all
-                            (:table "notes")
-                            board-id
-                            :index "board_id")
-                          (r:fn (note) (:== (:default (:attr note "deleted") nil) nil)))
-                        ))
+          (query (r:r (:filter
+                        ;; get all user notes
+                        (:get-all
+                          (:table "notes")
+                          board-id
+                          :index "board_id")
+                        (r:fn (note) (:== (:default (:attr note "deleted") nil) nil)))))
           (cursor (r:run sock query))
           (results (r:to-array sock cursor)))
     (wait-for (r:stop sock cursor)

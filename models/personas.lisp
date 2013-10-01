@@ -63,8 +63,7 @@
               (finish future (coerce (nreverse items) 'simple-vector)))))
         (finish future #()))))
   
-;; TODO: find a way to limit number of personas per account/user.
-;; might not be possible with current method of obscuring the links.
+;; TODO: limit number of personas a user can have
 (defafun add-persona (future) (user-id persona-data)
   "Add a persona to the system."
   (add-id persona-data)
@@ -103,16 +102,14 @@
                 (setf (gethash k new-settings) new-val))))
           (setf (gethash "settings" persona-data) new-settings)))
       (alet* ((email (gethash "email" persona-data))
-              (availablep (if (or (not email)
-                                  (persona-email-available-p email persona-id))
-                              t
-                              nil)))
+              (availablep (or (not email)
+                              (persona-email-available-p email persona-id))))
         (if availablep
             (alet* ((sock (db-sock))
                     (query (r:r (:replace
                                   (:get (:table "personas") persona-id)
                                   (r:fn (persona)
-                                    (:merge persona-data
+                                    (:merge (:literal persona-data)
                                             (:pluck persona "secret"))))))
                     (nil (r:run sock query)))
               (r:disconnect sock)
@@ -173,7 +170,6 @@
   "Grab a persona via its email. Must be an exact match (for now)."
   (alet* ((sock (db-sock))
           (email (string-downcase email))
-          ;; TODO: implement (:without ... "secret") when Rethink is fixed
           (query (r:r (:limit
                         (:get-all (:table "personas")
                                   email
@@ -224,8 +220,9 @@
                                  (:~ (:default (:attr link "deleted") nil)))))
                         (r:fn (link)
                           (:get (:table "personas") (:attr link "to"))))))
-          (personas (r:run sock query)))
-    (r:disconnect sock)
+          (cursor (r:run sock query))
+          (personas (r:to-array sock cursor)))
+    (r:stop/disconnect sock cursor)
     (finish future (remove nil personas))))
 
 (defafun persona-email-available-p (future) (email &optional ignore-id)
