@@ -70,9 +70,10 @@
                               (:~ (:has-fields link "invite")))))
                      (r:fn (link)
                        (:get (:table "boards") (:attr link "board_id"))))))
-          (boards (r:run sock query))
+          (cursor (r:run sock query))
+          (boards (r:to-array sock cursor))
           (boards (populate-boards-data (coerce boards 'simple-vector) :set-shared t)))
-    (r:disconnect sock)
+    (r:stop/disconnect sock cursor)
     (finish future boards)))
 
 (defafun sync-user-notes (future) (user-id sync-time &key get-persona-notes)
@@ -92,9 +93,10 @@
                        "right")
                      (r:fn (note)
                        (:> (:default (:attr note "mod") 0) sync-time)))))
-          (notes (r:run sock query))
+          (cursor (r:run sock query))
+          (notes (r:to-array sock cursor))
           (notes (coerce notes 'simple-array)))
-    (r:disconnect sock)
+    (r:stop/disconnect sock cursor)
     (alet* ((persona-notes (if get-persona-notes
                                (user-personas-map
                                  user-id
@@ -121,8 +123,9 @@
                        "right")
                      (r:fn (note)
                        (:<= sync-time (:default (:attr note "mod") 0))))))
-          (notes (r:run sock query))
+          (cursor (r:run sock query))
+          (notes (r:to-array sock cursor))
           (notes (coerce notes 'simple-array)))
-    (r:disconnect sock)
+    (r:stop/disconnect sock cursor)
     (finish future notes)))
 
