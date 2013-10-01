@@ -32,6 +32,24 @@
       (r:disconnect sock))
     (finish future results)))
 
+(defafun get-user-note-permissions (future) (user-id note-id)
+  "'Returns' an integer used to determine a user's permissions for the given
+   note.
+   
+   0 == no permissions
+   1 == read permissions
+   2 == update permissions
+   3 == owner"
+  (alet* ((note (get-note-by-id note-id))
+          (board-perms (get-user-board-permissions user-id (gethash "board_id" note)))
+          (sock (db-sock))
+          (query (r:r (:== (:attr (:get (:table "notes") note-id) "user_id") user-id)))
+          (note-owner-p (r:run sock query)))
+    (r:disconnect sock)
+    (finish future (if note-owner-p
+                       3
+                       board-perms))))
+
 (defafun add-note (future) (user-id board-id note-data &key persona-id)
   "Add a new note."
   (setf (gethash "user_id" note-data) user-id
@@ -103,22 +121,4 @@
     (let ((note-id (gethash "id" note-edit)))
       (edit-note user-id note-id note-edit)))
   (finish future t))
-
-(defafun get-user-note-permissions (future) (user-id note-id)
-  "'Returns' an integer used to determine a user's permissions for the given
-   note.
-   
-   0 == no permissions
-   1 == read permissions
-   2 == update permissions
-   3 == owner"
-  (alet* ((note (get-note-by-id note-id))
-          (board-perms (get-user-board-permissions user-id (gethash "board_id" note)))
-          (sock (db-sock))
-          (query (r:r (:== (:attr (:get (:table "notes") note-id) "user_id") user-id)))
-          (note-owner-p (r:run sock query)))
-    (r:disconnect sock)
-    (finish future (if note-owner-p
-                       3
-                       board-perms))))
 

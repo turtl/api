@@ -8,10 +8,34 @@
            (data (make-string len)))
       (values data (read-sequence data s)))))
 
-(defun load-folder (path)
+(defun load-folder (path &optional load-order)
   "Load all lisp files in a directory."
-  (dolist (file (directory (concatenate 'string path "*.lisp")))
-    (load file)))
+  (let* ((filename (lambda (x) (pathname-name (pathname x))))
+         (file-list (directory (concatenate 'string path "*.lisp")))
+         ;; if we have a load-order, do our best to sort the filesystem entries
+         ;; by that order. if a file isn't in the order list, it will come after
+         ;; all files that are in the list, and will be sorted at the end by its
+         ;; name.
+         (file-list (if load-order
+                        (sort
+                          file-list
+                          (lambda (a b)
+                            ;; grab the basename for the file and determine its
+                            ;; position in the load-order
+                            (let* ((a (funcall filename a))
+                                   (b (funcall filename b))
+                                   (a-pos (or (position a load-order :test #'string=) 9999))
+                                   (b-pos (or (position b load-order :test #'string=) 9999))
+                                   (sortval (- b-pos a-pos)))
+                              (if (zerop sortval)
+                                  ;; no load-order position, sort by name
+                                  (string< a b)
+                                  ;; return nil if sortval < 0
+                                  (when (< 0 sortval) sortval)))))
+                        file-list)))
+    (dolist (file file-list)
+      (load file))
+    file-list))
 
 (defun db-sock ()
   "Makes connecting to the database a smidgen easier."
