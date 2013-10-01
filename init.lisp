@@ -21,32 +21,12 @@
       ;; let the guy looking at the logs see.
       (format t "(turtl) UNcaught error: ~a~%" err))))
 
-(defun load-models ()
-  "Load Turtl's models. We specify a load order here to cut back on CALL TO
-   UNDEFINED FUNCTION warnings."
-  (load-folder (concatenate 'string (namestring *root*) "models/")
-               '("users"
-                 "challenges"
-                 "email"
-                 "personas"
-                 "notes"
-                 "boards"
-                 "messages"
-                 "invites"
-                 "sync")))
-
 ;; load all enabled wookie plugins
 (load-plugins :use-quicklisp t)
-
-;; load all Turtl's models
-(load-models)
 
 (defun start (&key bind (port 81))
   "Start the Turtl app."
   (setf *error-handler* 'error-handler)
-
-  ;; load all our app routes
-  (define-app-routes)
 
   ;; load/cache all the views
   (load-views)
