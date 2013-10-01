@@ -49,7 +49,7 @@
 	 (:file "analytics")))
    (:file "init" :depends-on ("template" "crypto" "errors" "cron"))
    (:module controllers
-    :depends-on ("errors" lib models "package")
+    :depends-on ("init" "errors" lib models "package")
 	:serial t
 	:components
 	((:file "admin")
