@@ -38,7 +38,6 @@
 (defafun get-user-boards (future) (user-id &key get-persona-boards get-notes get-personas)
   "Get all boards for a user."
   (alet* ((sock (db-sock))
-          ;; TODO: implement (:without ... "user_id") once >= RDB 1.8
           (query (r:r (:filter
                         (:get-all
                           (:table "boards")
@@ -105,7 +104,6 @@
 (defafun get-board-by-id (future) (board-id &key get-notes (get-privs t))
   "Grab a board by id."
   (alet* ((sock (db-sock))
-          ;; TODO: implement (:without ... "user_id") once >= RDB 1.8
           (query (r:r (:get (:table "boards") board-id)))
           (board (r:run sock query)))
     (r:disconnect sock)
