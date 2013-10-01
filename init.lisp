@@ -28,9 +28,6 @@
   "Start the Turtl app."
   (setf *error-handler* 'error-handler)
 
-  ;; load all our app routes
-  (define-app-routes)
-
   ;; load/cache all the views
   (load-views)
 
