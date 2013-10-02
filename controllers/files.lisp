@@ -2,18 +2,21 @@
 
 (defroute (:post "/api/filez" :chunk t :suppress-100 t) (req res)
   (catch-errors (res)
-    (let ((bytes (flexi-streams:make-in-memory-output-stream :element-type '(unsiged-byte 8)))
+    (let ((bytes (flexi-streams:make-in-memory-output-stream :element-type '(unsigned-byte 8)))
           ;(file (open "c:/tmp/haarwal.2.jpg"
           ;            :direction :output
           ;            :if-exists :supersede
           ;            :if-does-not-exist :create
           ;            :element-type '(unsigned-byte 8)))
-          )
+          (chunk-num 0))
       (send-100-continue res)
       (with-chunking req (data lastp)
         (write-sequence data bytes)
         ;(write-sequence data file)
-        (format t "length: ~a ~a~%" (length data) (stream-length bytes))
+        (let ((sample (subseq data 0 (min 3 (length data)))))
+          (format t "chunk (~a): ~a ~a (~s)~%" chunk-num (length data) (stream-length bytes) sample))
+        (incf chunk-num)
+        (sleep .001)
         (when lastp
           ;(close file)
           (format t "done.~%")
