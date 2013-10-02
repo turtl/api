@@ -15,6 +15,9 @@
 (defvar *db-port* 28015
   "The database port number.")
 
+(defvar *enable-webapp* t
+  "If t will load/serve the Turtl webapp at /. Use only for testing!")
+
 (defvar *site-url* "http://turtl.dev:8181"
   "The main URL the site will load from.")
 
