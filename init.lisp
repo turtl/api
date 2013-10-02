@@ -29,7 +29,8 @@
   (setf *error-handler* 'error-handler)
 
   ;; load/cache all the views
-  (load-views)
+  (when *enable-webapp*
+    (load-views))
 
   ;; write our PID file (if *pid-file* is set)
   (when *pid-file*
