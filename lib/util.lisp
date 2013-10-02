@@ -193,3 +193,17 @@
   #-(or clisp (and lispworks unix) (and sbcl unix) (and cmu unix) (and openmcl unix) openmcl)
   if-not-exists-return)
 
+(defun mem-mon (&optional (time 3))
+  "Returns an plist with two fields: start (function) and stop (function). When
+   start is called, `(room)` is called every `time` seconds indefinitely (or
+   until `(stop)` is called."
+  (let ((enabled nil))
+    (labels ((run ()
+               (when enabled
+                 (room)
+                 (as:delay #'run :time time))))
+      (list :start (lambda ()
+                     (setf enabled t)
+                     (run))
+            :stop (lambda () (setf enabled nil))))))
+
