@@ -50,9 +50,12 @@
         (unless chunking-started
           (send-100-continue res))
         (when last-chunk-sent
-          (format t "- file: last chunk sent before upload init. sending.~%")
-          (wait-for (funcall s3-uploader (flexi-streams:get-output-stream-sequence buffered-chunks))
-            (funcall finish-fn))))
+          (alet ((finishedp (funcall s3-uploader (flexi-streams:get-output-stream-sequence buffered-chunks))))
+            ;; note that finishedp should ALWAYS be true here, but "should" and
+            ;; "will" are very different things (especially in async, i'm
+            ;; finding)
+            (when finishedp
+              (funcall finish-fn)))))
       ;; listen for chunked data. if we have an uploader object, send in our
       ;; data directly, otherwise buffer it until the uploader becomes
       ;; available
@@ -63,18 +66,15 @@
               last-chunk-sent (or last-chunk-sent last-chunk-p))
         (cond ((eq s3-uploader :starting)
                (unless buffered-chunks
-                 (format t "- file: reset chunks~%")
+                 (format t "- file: uploader not ready, buffering chunks~%")
                  (setf buffered-chunks (flexi-streams:make-in-memory-output-stream :element-type '(unsigned-byte 8))))
-               (write-sequence chunk-data buffered-chunks)
-               ;(format t "- file: buffering data until uploader ready: ~a~%" (stream-length buffered-chunks))
-               )
+               (write-sequence chunk-data buffered-chunks))
               (t
                (when buffered-chunks
                  (write-sequence chunk-data buffered-chunks)
                  (setf chunk-data (flexi-streams:get-output-stream-sequence buffered-chunks)))
-               ;(format t "- file: uploader ready, passing in data: ~a~%" (length chunk-data))
-               (wait-for (funcall s3-uploader chunk-data (not last-chunk-p))
-                 (when last-chunk-p
+               (alet ((finishedp (funcall s3-uploader chunk-data (not last-chunk-p))))
+                 (when finishedp
                    (funcall finish-fn)))
                (setf buffered-chunks nil)))))))
 

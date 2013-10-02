@@ -1,6 +1,7 @@
 (in-package :turtl)
 
-(defconstant +nl+ (format nil "~c" #\newline))
+(defparameter +nl+ (format nil "~c" #\newline)
+  "Should be defconstant, but NOOOOOO it doesn't support strings")
   
 (defun combine-headers (headers)
   "Combine same-name headers into one value."
@@ -218,7 +219,7 @@
                       ;; part length is greater than the min part size (5MB in our
                       ;; case)
                       ;(format t "- s3: appending data to part: ~a~%" (stream-length part))
-                      (setf last-chunk-sent (or continuep last-chunk-sent))
+                      (setf last-chunk-sent (or (not continuep) last-chunk-sent))
                       (write-sequence data part)
                       (when (or (not continuep)
                                 (<= min-part-size (stream-length part)))
@@ -249,8 +250,7 @@
                               (s3-op :put resource-part
                                      :content part-data
                                      :content-md5 part-md5
-                                     :headers '(("Host" . "s3.amazonaws.com"))
-                                     :read-timeout 30
+                                     :read-timeout nil
                                      :write-timeout 30)
                             (setf part-data nil)
                             ;; OH NO!! now we have to parse XML to pull out an
@@ -265,11 +265,10 @@
                               (format t "- s3: saving part ~a etag: ~a~%" local-part-num etag)
                               (push (cons local-part-num etag) finished-parts))
                             (format t "- s3: num finished/parts (~a): ~a ~a~%" last-chunk-sent (length finished-parts) (1- part-num))
-                            (if (or continuep
-                                    (not last-chunk-sent)
+                            (if (or (not last-chunk-sent)
                                     (< (length finished-parts) (1- part-num)))
-                                ;; finish true
-                                (finish future t)
+                                ;; T is "ALL DONE" nil is "still have chunks to process"
+                                (finish future nil)
                                 ;; looks like we're done. finish the upload
                                 (let* ((body (build-upload-completion finished-parts))
                                        (resource-final
