@@ -15,7 +15,7 @@
   (let* ((sequence (if (stringp sequence/string)
                        (babel:string-to-octets sequence/string)
                        sequence/string))
-         (sequence (coerce sequence '(simple-array (unsigned-byte 8))))
+         (sequence (coerce sequence '(vector (unsigned-byte 8))))
          ;(hash (ironclad:digest-sequence :md5 sequence))
          (hash (md5:md5sum-sequence sequence)))
     (if base64
