@@ -1,7 +1,7 @@
 (in-package :turtl)
 
 (defparameter +nl+ (format nil "~c" #\newline)
-  "Should be defconstant, but NOOOOOO it doesn't support strings")
+  "Should use defconstant, but NOOoOoO it doesn't support strings")
   
 (defun combine-headers (headers)
   "Combine same-name headers into one value."
