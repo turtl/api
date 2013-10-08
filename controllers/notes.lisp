@@ -9,8 +9,13 @@
             (note (if persona-id
                       (with-valid-persona (persona-id user-id)
                         (add-note user-id board-id note-data :persona-id persona-id))
-                      (add-note user-id board-id note-data))))
-      (track "note-add" `(:shared ,(when persona-id t)))
+                      (add-note user-id board-id note-data)))
+            (has-file (= (varint (post-var req "file") 0) 1))
+            (file (when has-file (make-file)))
+            (nil (when file (add-file user-id file))))
+      (when file
+        (setf (gethash "file_id" note) (gethash "id" file)))
+      (track "note-add" `(:shared ,(when persona-id t) :file ,has-file))
       (send-json res note))))
 
 (defroute (:put "/api/notes/([0-9a-f-]+)") (req res args)
@@ -22,7 +27,15 @@
             (note (if persona-id
                       (with-valid-persona (persona-id user-id)
                         (edit-note persona-id note-id note-data))
-                      (edit-note user-id note-id note-data))))
+                      (edit-note user-id note-id note-data)))
+            ;; only allow file upload if note doesn't have a file (file has to
+            ;; be deleted first)
+            (has-file (and (not (gethash "file_id" note))
+                           (= (varint (post-var req "file") 0) 1)))
+            (file (when has-file (make-file)))
+            (nil (when file (add-file user-id file))))
+      (when file
+        (setf (gethash "file_id" note) (gethash "id" file)))
       (track "note-edit" `(:shared ,(when persona-id t)))
       (send-json res note))))
 
@@ -36,6 +49,18 @@
                       (delete-note persona-id note-id))
                     (delete-note user-id note-id))))
       (track "note-delete" `(:shared ,(when persona-id t)))
+      (send-json res t))))
+
+(defroute (:delete "/api/notes/([0-9a-f-]+)/file") (req res args)
+  (catch-errors (res)
+    (alet* ((note-id (car args))
+            (user-id (user-id req))
+            (persona-id (post-var req "persona"))
+            (nil (if persona-id
+                     (with-valid-persona (persona-id user-id)
+                       (delete-note-file persona-id note-id))
+                     (delete-note-file user-id note-id))))
+      (track "file-delete" `(:shared ,(when persona-id t)))
       (send-json res t))))
 
 (defroute (:put "/api/notes/batch") (req res)

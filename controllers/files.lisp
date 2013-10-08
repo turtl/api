@@ -1,38 +1,35 @@
 (in-package :turtl)
 
-(defroute (:post "/api/filez" :chunk t :suppress-100 t) (req res)
+(defroute (:post "/api/filez" :chunk t :suppress-100 t :buffer-body t) (req res)
   (catch-errors (res)
     (let ((bytes (flexi-streams:make-in-memory-output-stream :element-type '(unsigned-byte 8)))
-          ;(file (open "c:/tmp/haarwal.2.jpg"
-          ;            :direction :output
-          ;            :if-exists :supersede
-          ;            :if-does-not-exist :create
-          ;            :element-type '(unsigned-byte 8)))
           (chunk-num 0))
-      (send-100-continue res)
+      (when (string= (getf (request-headers req) :transfer-encoding) "chunked")
+        (send-100-continue res))
       (with-chunking req (data lastp)
+        (format t "- chunk: ~a~%---~%" (babel:octets-to-string data :encoding :utf-8))
         (write-sequence data bytes)
-        ;(write-sequence data file)
-        (let ((sample (subseq data 0 (min 3 (length data)))))
-          (format t "chunk (~a): ~a ~a (~s)~%" chunk-num (length data) (stream-length bytes) sample))
         (incf chunk-num)
-        (sleep .001)
         (when lastp
-          ;(close file)
           (format t "done.~%")
-          (send-response res :body "thxLOL"))))))
+          (send-json res (flex:get-output-stream-sequence bytes)))))))
 
-(defroute (:post "/api/files" :chunk t :suppress-100 t) (req res)
+(defroute (:post "/api/files" :chunk t :suppress-100 t :buffer-body t) (req res)
   (catch-errors (res)
     (let* ((s3-uploader :starting)
            (user-id (user-id req))
+           (file-id (get-var req "file_id"))
+           (hash (get-var req "hash"))
            (buffered-chunks nil)
-           (file (make-file :uploading t))
-           (path (format nil "/files/~a/~a" user-id (gethash "id" file)))
+           (file (make-file :id file-id :hash hash :uploading t))
+           (path (format nil "/files/~a" (gethash "id" file)))
            (chunking-started nil)
            (last-chunk-sent nil)
+           (total-file-size 0)
            (finish-fn (lambda ()
                         (format t "- file: sending final response to client~%")
+                        (setf (gethash "size" file) total-file-size)
+                        (edit-file user-id file-id file)
                         (send-json res file))))
       ;; create an uploader lambda, used to stream our file chunk by chunk to S3
       (format t "- file: starting uploader with path: ~a~%" path)
@@ -40,7 +37,7 @@
           (s3-upload path)
         ;; save our file record
         (setf (gethash "upload_id" file) upload-id)
-        (wait-for (save-file user-id file)
+        (wait-for (edit-file user-id file-id file)
           (format t "- file: file saved: ~a~%" (gethash "id" file)))
         ;; save our uploader so the chunking brahs can use it
         (format t "- file: uploader created: ~a~%" upload-id)
@@ -50,6 +47,7 @@
         (unless chunking-started
           (send-100-continue res))
         (when last-chunk-sent
+          (incf total-file-size (stream-length buffered-chunks))   ; track the file size
           (alet ((finishedp (funcall s3-uploader (flexi-streams:get-output-stream-sequence buffered-chunks))))
             ;; note that finishedp should ALWAYS be true here, but "should" and
             ;; "will" are very different things (especially in async, i'm
@@ -73,6 +71,7 @@
                (when buffered-chunks
                  (write-sequence chunk-data buffered-chunks)
                  (setf chunk-data (flexi-streams:get-output-stream-sequence buffered-chunks)))
+               (incf total-file-size (length chunk-data))   ; track the file size
                (alet ((finishedp (funcall s3-uploader chunk-data (not last-chunk-p))))
                  (when finishedp
                    (funcall finish-fn)))

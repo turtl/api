@@ -77,22 +77,32 @@
     (if (<= 2 perms)
         (validate-note (note-data future :edit t)
           (add-mod note-data)
+          ;; don't allow ownership change or file id change
           (remhash "user_id" note-data)
+          (remhash "file_id" note-data)
           (alet* ((sock (db-sock))
                   (query (r:r (:update
                                 (:get (:table "notes") note-id)
                                 note-data)))
-                  (nil (r:run sock query)))
+                  (nil (r:run sock query))
+                  (query (r:r (:get (:table "notes") note-id)))
+                  (note-data (r:run sock query)))
             (r:disconnect sock)
             (finish future note-data)))
         (signal-error future (make-instance 'insufficient-privileges
                                             :msg "Sorry, you are editing a note you don't have access to.")))))
 
+(defafun delete-note-file (future) (user-id note-id &key perms)
+  "Delete the file attachment for a note (also removes the file itself from the
+   storage system, wiping the file out forever)."
+  (finish future t))
+
 (defafun delete-note (future) (user-id note-id &key permanent)
   "Delete a note."
   (alet ((perms (get-user-note-permissions user-id note-id)))
     (if (<= 2 perms)
-        (alet* ((sock (db-sock))
+        (alet* ((nil (delete-note-file user-id note-id :perms perms))
+                (sock (db-sock))
                 (query (r:r (if permanent
                                 (:delete
                                   (:filter
