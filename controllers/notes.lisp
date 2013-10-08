@@ -6,13 +6,15 @@
             (persona-id (post-var req "persona"))
             (board-id (car args))
             (note-data (post-var req "data"))
+            (has-file (= (varint (post-var req "file") 0) 1))
+            (file (when has-file (make-file)))
+            (nil (when file
+                   (setf (gethash "file_id" note-data) (gethash "id" file))
+                   (add-file user-id file)))
             (note (if persona-id
                       (with-valid-persona (persona-id user-id)
                         (add-note user-id board-id note-data :persona-id persona-id))
-                      (add-note user-id board-id note-data)))
-            (has-file (= (varint (post-var req "file") 0) 1))
-            (file (when has-file (make-file)))
-            (nil (when file (add-file user-id file))))
+                      (add-note user-id board-id note-data))))
       (when file
         (setf (gethash "file_id" note) (gethash "id" file)))
       (track "note-add" `(:shared ,(when persona-id t) :file ,has-file))
@@ -24,14 +26,18 @@
             (user-id (user-id req))
             (persona-id (post-var req "persona"))
             (note-data (post-var req "data"))
+            (has-file (and (not (gethash "file_id" note))
+                           (= (varint (post-var req "file") 0) 1)))
+            (file (when has-file (make-file)))
+            (nil (when file
+                   (setf (gethash "file_id" note-data) (gethash "id" file))
+                   (add-file user-id file)))
             (note (if persona-id
                       (with-valid-persona (persona-id user-id)
                         (edit-note persona-id note-id note-data))
                       (edit-note user-id note-id note-data)))
             ;; only allow file upload if note doesn't have a file (file has to
             ;; be deleted first)
-            (has-file (and (not (gethash "file_id" note))
-                           (= (varint (post-var req "file") 0) 1)))
             (file (when has-file (make-file)))
             (nil (when file (add-file user-id file))))
       (when file
