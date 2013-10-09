@@ -108,6 +108,7 @@
       (:script :src "/library/cowcrypt/sha.js")
       (:script :src "/library/cowcrypt/hmac.js")
       (:script :src "/library/cowcrypt/aes.js")
+      (:script :src "/library/cowcrypt/twofish.js")
       (:script :src "/library/cowcrypt/rsa.js")
       (:script :src "/library/cowcrypt/pbkdf2.js")
       (:script :src "/turtl.js")
