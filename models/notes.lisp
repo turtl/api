@@ -86,8 +86,8 @@
                                 (:get (:table "notes") note-id)
                                 note-data)))
                   (nil (r:run sock query))
-                  (query (r:r (:get (:table "notes") note-id)))
-                  (note-data (r:run sock query)))
+                  ;; return the latest, full version of the note data
+                  (note-data (get-note-by-id note-id)))
             (r:disconnect sock)
             (finish future note-data)))
         (signal-error future (make-instance 'insufficient-privileges
