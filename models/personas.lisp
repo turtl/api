@@ -106,11 +106,9 @@
                               (persona-email-available-p email persona-id))))
         (if availablep
             (alet* ((sock (db-sock))
-                    (query (r:r (:replace
+                    (query (r:r (:update
                                   (:get (:table "personas") persona-id)
-                                  (r:fn (persona)
-                                    (:merge (:literal persona-data)
-                                            (:pluck persona "secret"))))))
+                                  persona-data)))
                     (nil (r:run sock query)))
               (r:disconnect sock)
               (finish future persona-data))
