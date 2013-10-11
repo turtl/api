@@ -28,8 +28,23 @@
                         (r:fn (note) (:== (:default (:attr note "deleted") nil) nil)))))
           (cursor (r:run sock query))
           (results (r:to-array sock cursor)))
-    (wait-for (r:stop sock cursor)
-      (r:disconnect sock))
+    (r:stop/disconnect sock cursor)
+    (finish future results)))
+
+(defafun get-notes-from-board-ids (future) (board-ids)
+  "Given a list (not vector!) of board_ids, get all notes in those boards. This
+   function does no validation, so be sure you only pass it board_ids you know
+   the user owns or has been shared with."
+  (alet* ((sock (db-sock))
+          (query (r:r (:filter
+                        (:get-all
+                          (:table "notes")
+                          board-ids
+                          :index "board_id")
+                        (r:fn (note) (:== (:default (:attr note "deleted") nil) nil)))))
+          (cursor (r:run sock query))
+          (results (r:to-array sock cursor)))
+    (r:stop/disconnect sock cursor)
     (finish future results)))
 
 (defafun get-user-note-permissions (future) (user-id note-id)
