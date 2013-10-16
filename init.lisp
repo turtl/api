@@ -16,7 +16,9 @@
       ;; if we've got a response object and an error hasn't been sent yet, send
       ;; one. this will fix 99.99% of client hanging. the other 0.01% has yet to
       ;; be discovered.
-      (when (and response (not (response-finished-p response)))
+      (when (and response
+                 (not (response-finished-p response))
+                 (not (typep err 'auth-failed)))
         (send-response response :status 500 :body "There was an error processing your request."))
       ;; let the guy looking at the logs see.
       (format t "(turtl) UNcaught error: ~a~%" err))))
