@@ -10,18 +10,23 @@
   "Main app error handler. Shouldn't be called all that often since every inch
    of our models/controllers are covered in future-handler-case, but accidents
    do happen."
-  (let* ((socket-data (as:socket-data socket))
-         (response (getf socket-data :response)))
-    (unless (typep err 'as:tcp-info)
-      ;; if we've got a response object and an error hasn't been sent yet, send
-      ;; one. this will fix 99.99% of client hanging. the other 0.01% has yet to
-      ;; be discovered.
-      (when (and response
-                 (not (response-finished-p response))
-                 (not (typep err 'auth-failed)))
-        (send-response response :status 500 :body "There was an error processing your request."))
-      ;; let the guy looking at the logs see.
-      (format t "(turtl) UNcaught error: ~a~%" err))))
+  (when socket
+    (let* ((socket-data (as:socket-data socket))
+           (response (getf socket-data :response)))
+      (unless (typep err 'as:tcp-info)
+        ;; if we've got a response object and an error hasn't been sent yet, send
+        ;; one. this will fix 99.99% of client hanging. the other 0.01% has yet to
+        ;; be discovered.
+        (when (and response
+                   (not (response-finished-p response))
+                   (not (typep err 'auth-failed)))
+          (let ((body (format nil "There was an error processing your request~a"
+                              (if *display-errors*
+                                  (format nil ": ~a" err)
+                                  "."))))
+            (send-response response :status 500 :body body))))))
+  ;; let the guy looking at the logs see.
+  (format t "(turtl) UNcaught error: ~a~%" err))
 
 ;; load all enabled wookie plugins
 (load-plugins :use-quicklisp t)
