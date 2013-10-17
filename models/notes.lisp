@@ -35,6 +35,9 @@
   "Given a list (not vector!) of board_ids, get all notes in those boards. This
    function does no validation, so be sure you only pass it board_ids you know
    the user owns or has been shared with."
+  (unless board-ids
+    (finish future #())
+    (return-from get-notes-from-board-ids))
   (alet* ((sock (db-sock))
           (query (r:r (:filter
                         (:get-all
