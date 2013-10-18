@@ -1,5 +1,33 @@
 (in-package :turtl)
 
+(defafun add-sync-record (future) (user-id item-type item-id action &key rel-id)
+  "Adds a record to the sync table describing a change to a specific object.
+   Allows specifying a relation id (:rel-id) which can be used for quick lookups
+   on sync items. This id is completely dependant on what model is calling this
+   function. For instance, a boards_personas_link entry might use the board ID
+   as the rel-id."
+  ;; bomb out if bac action given (should never happen since this function is
+  ;; only used internally, but accidents to happen)
+  (unless (find action '("add" "update" "delete") :test #'string=)
+    (signal-error future (make-instance 'server-error
+                                        :msg (format nil "Bad sync record action: ~s~%" action)))
+    (return-from add-sync-record))
+  (let* ((sync-record (make-hash-table :test #'equal)))
+    (add-id sync-record)
+    (setf (gethash "user_id" sync-record) user-id
+          (gethash "type" sync-record) item-type
+          (gethash "item_id" sync-record) item-id
+          (gethash "action" sync-record) action)
+    ;; set our relation, if specified
+    (when rel-id (setf (gethash "rel" sync-record) rel-id))
+    (alet* ((sock (db-sock))
+            (query (r:r (:insert
+                          (:table "sync")
+                          sync-record)))
+            (nil (r:run sock query)))
+      (r:disconnect sock)
+      (finish future sync-record))))
+
 (defafun sync-user (future) (user-id sync-time)
   "Grab any changed user data."
   (alet* ((sock (db-sock))
@@ -58,6 +86,10 @@
 (defafun sync-persona-boards (future) (persona-id sync-time)
   "Grab all a persona's changed boards (shared)."
   (alet* ((sock (db-sock))
+          ;; TODO: fix, only sync when board <--> persona relationship changes
+          ;; for instance, changing the name of a shared board won't sync to
+          ;; sharee
+          ;; TODO: index MORE
           (query (r:r
                    (:map
                      (:filter
