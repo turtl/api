@@ -24,9 +24,9 @@
                               (if *display-errors*
                                   (format nil ": ~a" err)
                                   "."))))
-            (send-response response :status 500 :body body))))))
+            (send-response response :status 500 :body body)))))
     ;; let the guy looking at the logs see.
-    (format t "(turtl) UNcaught error: ~a~%" err))
+    (format t "(turtl) UNcaught error: ~a~%" err)))
 
 ;; load all enabled wookie plugins
 (load-plugins :use-quicklisp t)

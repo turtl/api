@@ -2,6 +2,7 @@
 
 (defvalidator validate-note
   (("id" :type string :required t :length 24)
+   ("cid" :type string :required nil :max-length 32)
    ("user_id" :type string :required t :length 24)
    ("board_id" :type string :required t :length 24)
    ("keys" :type sequence :required t :coerce simple-vector)
