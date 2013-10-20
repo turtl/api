@@ -1,6 +1,6 @@
 (in-package :turtl)
 
-(defafun add-sync-record (future) (user-id item-type item-ids action &key rel-id)
+(defafun add-sync-record (future) (user-id item-type item-ids action &key client-id rel-id)
   "Adds a record to the sync table describing a change to a specific object.
    Allows specifying a relation id (:rel-id) which can be used for quick lookups
    on sync items. Returns the added sync records IDs as the first value and the
@@ -26,6 +26,7 @@
               (gethash "time" sync-record) (get-timestamp))
         ;; set our relation, if specified
         (when rel-id (setf (gethash "rel" sync-record) rel-id))
+        (when client-id (setf (gethash "cid" sync-record) client-id))
         (push sync-record records)))
     (alet* ((sock (db-sock))
             (query (r:r (:insert
@@ -33,7 +34,7 @@
                           records)))
             (nil (r:run sock query)))
       (r:disconnect sock)
-      (finish future (mapcar (lambda (x) (gethash "id" x)) records) records))))
+      (finish future (mapcar (lambda (x) (gethash "id" x)) records)))))
 
 (defafun sync-user (future) (user-id sync-time)
   "Grab any changed user data."

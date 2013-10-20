@@ -2,7 +2,6 @@
 
 (defvalidator validate-note
   (("id" :type string :required t :length 24)
-   ("cid" :type string :required nil :max-length 32)
    ("user_id" :type string :required t :length 24)
    ("board_id" :type string :required t :length 24)
    ("keys" :type sequence :required t :coerce simple-vector)
@@ -72,19 +71,21 @@
   ;; first, check that the user/persona is a member of this board
   (alet ((perms (get-user-board-permissions (if persona-id persona-id user-id) board-id)))
     (if (<= 2 perms)
-        (validate-note (note-data future)
-          (alet* ((sock (db-sock))
-                  (query (r:r (:insert
-                                (:table "notes")
-                                note-data)))
-                  (nil (r:run sock query))
-                  (sync-ids (add-sync-record user-id
-                                             "note"
-                                             (gethash "id" note-data)
-                                             "add")))
-            (r:disconnect sock)
-            (setf (gethash "sync_ids" note-data) sync-ids)
-            (finish future note-data)))
+        (let ((cid (gethash "cid" note-data)))
+          (validate-note (note-data future)
+            (alet* ((sock (db-sock))
+                    (query (r:r (:insert
+                                  (:table "notes")
+                                  note-data)))
+                    (nil (r:run sock query))
+                    (sync-ids (add-sync-record user-id
+                                               "note"
+                                               (gethash "id" note-data)
+                                               "add"
+                                               :client-id cid)))
+              (r:disconnect sock)
+              (setf (gethash "sync_ids" note-data) sync-ids)
+              (finish future note-data))))
         (signal-error future (make-instance 'insufficient-privileges
                                             :msg "Sorry, you aren't a member of that board.")))))
 

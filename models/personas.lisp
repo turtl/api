@@ -5,11 +5,9 @@
   
 (defvalidator validate-persona
   (("id" :type string :required t :length 24)
-   ("cid" :type string :required nil :max-length 32)
    ("user_id" :type string :required t :length 24)
    ("pubkey" :type string :required t)
    ("email" :type string :required t :transform string-downcase)
-   ;("screenname" :type string :required t :max-length 24)
    ("name" :type string)
    ("body" :type cl-async-util:bytes-or-string :required t)
    ("settings" :type hash-table)))
@@ -65,24 +63,26 @@
   "Add a persona to the system."
   (add-id persona-data)
   (setf (gethash "user_id" persona-data) user-id)
-  (validate-persona (persona-data future)
-    (when (string= (gethash "pubkey" persona-data) "false")
-      (setf (gethash "pubkey" persona-data) nil))
-    (aif (persona-email-available-p (gethash "email" persona-data))
-         (alet* ((sock (db-sock))
-                 (query (r:r (:insert
-                               (:table "personas")
-                               persona-data)))
-                 (nil (r:run sock query))
-                 (sync-ids (add-sync-record user-id
-                                            "persona"
-                                            (gethash "id" persona-data)
-                                            "add")))
-           (r:disconnect sock)
-           (setf (gethash "sync_ids" persona-data) sync-ids)
-           (finish future persona-data))
-         (signal-error future (make-instance 'persona-email-exists
-                                             :msg "That email is already registered to another persona.")))))
+  (let ((cid (gethash "cid" persona-data)))
+    (validate-persona (persona-data future)
+      (when (string= (gethash "pubkey" persona-data) "false")
+        (setf (gethash "pubkey" persona-data) nil))
+      (aif (persona-email-available-p (gethash "email" persona-data))
+           (alet* ((sock (db-sock))
+                   (query (r:r (:insert
+                                 (:table "personas")
+                                 persona-data)))
+                   (nil (r:run sock query))
+                   (sync-ids (add-sync-record user-id
+                                              "persona"
+                                              (gethash "id" persona-data)
+                                              "add"
+                                              :client-id cid)))
+             (r:disconnect sock)
+             (setf (gethash "sync_ids" persona-data) sync-ids)
+             (finish future persona-data))
+           (signal-error future (make-instance 'persona-email-exists
+                                               :msg "That email is already registered to another persona."))))))
 
 (defafun edit-persona (future) (user-id persona-id persona-data)
   "Update a persona."

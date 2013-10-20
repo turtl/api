@@ -2,7 +2,6 @@
 
 (defvalidator validate-board
   (("id" :type string :required t :length 24)
-   ("cid" :type string :required nil :max-length 32)
    ("user_id" :type string :required t :length 24)
    ("keys" :type sequence :required t :coerce simple-vector)
    ("body" :type cl-async-util:bytes-or-string)))
@@ -114,19 +113,21 @@
   "Save a board with a user."
   (setf (gethash "user_id" board-data) user-id)
   (add-id board-data)
-  (validate-board (board-data future)
-    (alet* ((sock (db-sock))
-            (query (r:r (:insert
-                          (:table "boards")
-                          board-data)))
-            (nil (r:run sock query))
-            (sync-ids (add-sync-record user-id
-                                       "board"
-                                       (gethash "id" board-data)
-                                       "add")))
-      (r:disconnect sock)
-      (setf (gethash "sync_ids" board-data) sync-ids)
-      (finish future board-data))))
+  (let ((cid (gethash "cid" board-data)))
+    (validate-board (board-data future)
+      (alet* ((sock (db-sock))
+              (query (r:r (:insert
+                            (:table "boards")
+                            board-data)))
+              (nil (r:run sock query))
+              (sync-ids (add-sync-record user-id
+                                         "board"
+                                         (gethash "id" board-data)
+                                         "add"
+                                         :client-id cid)))
+        (r:disconnect sock)
+        (setf (gethash "sync_ids" board-data) sync-ids)
+        (finish future board-data)))))
 
 (defafun edit-board (future) (user-id board-id board-data)
   "Edit an existing board."
