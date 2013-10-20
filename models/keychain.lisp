@@ -24,7 +24,7 @@
                      (:get-all
                        (:table "keychain")
                        user-id
-                       :index "user_id")
+                       :index (db-index "keychain" "user_id"))
                      (r:fn (k)
                        (:~ (:has-fields k "deleted"))))))
           (cursor (r:run sock query))
