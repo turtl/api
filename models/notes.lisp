@@ -2,6 +2,7 @@
 
 (defvalidator validate-note
   (("id" :type string :required t :length 24)
+   ("cid" :type string :required nil :max-length 32)
    ("user_id" :type string :required t :length 24)
    ("board_id" :type string :required t :length 24)
    ("keys" :type sequence :required t :coerce simple-vector)
@@ -28,8 +29,26 @@
                         (r:fn (note) (:== (:default (:attr note "deleted") nil) nil)))))
           (cursor (r:run sock query))
           (results (r:to-array sock cursor)))
-    (wait-for (r:stop sock cursor)
-      (r:disconnect sock))
+    (r:stop/disconnect sock cursor)
+    (finish future results)))
+
+(defafun get-notes-from-board-ids (future) (board-ids)
+  "Given a list (not vector!) of board_ids, get all notes in those boards. This
+   function does no validation, so be sure you only pass it board_ids you know
+   the user owns or has been shared with."
+  (unless board-ids
+    (finish future #())
+    (return-from get-notes-from-board-ids))
+  (alet* ((sock (db-sock))
+          (query (r:r (:filter
+                        (:get-all
+                          (:table "notes")
+                          board-ids
+                          :index "board_id")
+                        (r:fn (note) (:== (:default (:attr note "deleted") nil) nil)))))
+          (cursor (r:run sock query))
+          (results (r:to-array sock cursor)))
+    (r:stop/disconnect sock cursor)
     (finish future results)))
 
 (defafun get-user-note-permissions (future) (user-id note-id)

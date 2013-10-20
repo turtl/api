@@ -2,6 +2,7 @@
 
 (defvalidator validate-board
   (("id" :type string :required t :length 24)
+   ("cid" :type string :required nil :max-length 32)
    ("user_id" :type string :required t :length 24)
    ("keys" :type sequence :required t :coerce simple-vector)
    ("body" :type cl-async-util:bytes-or-string)
