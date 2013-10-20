@@ -37,6 +37,7 @@
     :serial t
     :components
     ((:file "users")
+	 (:file "keychain")
      (:file "challenges")
      (:file "email")
      (:file "personas")
@@ -61,7 +62,8 @@
      (:file "personas")
      (:file "profile")
      (:file "sync")
-     (:file "users")))
+     (:file "users")
+	 (:file "keychain")))
    (:file "routes" :depends-on ("init" controllers "crypto" "errors"))
    (:file "init-thread" :depends-on ("init" "routes"))))
 
