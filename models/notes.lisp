@@ -44,7 +44,7 @@
                         (:get-all
                           (:table "notes")
                           board-ids
-                          :index "board_id")
+                          :index (db-index "notes" "board_id"))
                         (r:fn (note) (:== (:default (:attr note "deleted") nil) nil)))))
           (cursor (r:run sock query))
           (results (r:to-array sock cursor)))
