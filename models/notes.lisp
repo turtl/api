@@ -20,13 +20,10 @@
 (defafun get-board-notes (future) (board-id)
   "Get the notes for a board."
   (alet* ((sock (db-sock))
-          (query (r:r (:filter
-                        ;; get all user notes
-                        (:get-all
-                          (:table "notes")
-                          board-id
-                          :index "board_id")
-                        (r:fn (note) (:== (:default (:attr note "deleted") nil) nil)))))
+          (query (r:r (:get-all
+                        (:table "notes")
+                        board-id
+                        :index "board_id")))
           (cursor (r:run sock query))
           (results (r:to-array sock cursor)))
     (r:stop/disconnect sock cursor)
@@ -40,12 +37,10 @@
     (finish future #())
     (return-from get-notes-from-board-ids))
   (alet* ((sock (db-sock))
-          (query (r:r (:filter
-                        (:get-all
-                          (:table "notes")
-                          board-ids
-                          :index "board_id")
-                        (r:fn (note) (:== (:default (:attr note "deleted") nil) nil)))))
+          (query (r:r (:get-all
+                        (:table "notes")
+                        board-ids
+                        :index "board_id")))
           (cursor (r:run sock query))
           (results (r:to-array sock cursor)))
     (r:stop/disconnect sock cursor)
@@ -74,7 +69,6 @@
   (setf (gethash "user_id" note-data) user-id
         (gethash "board_id" note-data) board-id)
   (add-id note-data)
-  (add-mod note-data)
   ;; first, check that the user/persona is a member of this board
   (alet ((perms (get-user-board-permissions (if persona-id persona-id user-id) board-id)))
     (if (<= 2 perms)
@@ -83,8 +77,13 @@
                   (query (r:r (:insert
                                 (:table "notes")
                                 note-data)))
-                  (nil (r:run sock query)))
+                  (nil (r:run sock query))
+                  (sync-ids (add-sync-record user-id
+                                             "note"
+                                             (gethash "id" note-data)
+                                             "add")))
             (r:disconnect sock)
+            (setf (gethash "sync_ids" note-data) sync-ids)
             (finish future note-data)))
         (signal-error future (make-instance 'insufficient-privileges
                                             :msg "Sorry, you aren't a member of that board.")))))
@@ -95,41 +94,29 @@
   (alet ((perms (get-user-note-permissions user-id note-id)))
     (if (<= 2 perms)
         (validate-note (note-data future :edit t)
-          (add-mod note-data)
           (remhash "user_id" note-data)
           (alet* ((sock (db-sock))
                   (query (r:r (:update
                                 (:get (:table "notes") note-id)
                                 note-data)))
-                  (nil (r:run sock query)))
+                  (nil (r:run sock query))
+                  (sync-ids (add-sync-record user-id "note" note-id "edit")))
             (r:disconnect sock)
+            (setf (gethash "sync_ids" note-data) sync-ids)
             (finish future note-data)))
         (signal-error future (make-instance 'insufficient-privileges
                                             :msg "Sorry, you are editing a note you don't have access to.")))))
 
-(defafun delete-note (future) (user-id note-id &key permanent)
+(defafun delete-note (future) (user-id note-id)
   "Delete a note."
   (alet ((perms (get-user-note-permissions user-id note-id)))
     (if (<= 2 perms)
         (alet* ((sock (db-sock))
-                (query (r:r (if permanent
-                                (:delete
-                                  (:filter
-                                    (:table "notes")
-                                    `(("id" . ,note-id)
-                                      ("user_id" . ,user-id))))
-                                (:update
-                                  (:get (:table "notes") note-id)
-                                  `(("deleted" . t)
-                                    ("body" . "")
-                                    ("keys" . (make-hash-table))
-                                    ("mod" . ,(get-timestamp)))))))
-                (res (r:run sock query)))
+                (query (r:r (:delete (:get (:table "notes") note-id))))
+                (nil (r:run sock query))
+                (sync-ids (add-sync-record user-id "note" note-id "delete")))
           (r:disconnect sock)
-          (if (gethash "first_error" res)
-              (signal-error future (make-instance 'server-error
-                                                  :msg "There was an error deleting your note. Please try again."))
-              (finish future t)))
+          (finish future sync-ids))
         (signal-error future (make-instance 'insufficient-privileges
                                             :msg "Sorry, you are deleting a note you don't have access to.")))))
 

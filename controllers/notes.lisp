@@ -31,12 +31,14 @@
     (alet* ((note-id (car args))
             (user-id (user-id req))
             (persona-id (post-var req "persona"))
-            (nil (if persona-id
-                    (with-valid-persona (persona-id user-id)
-                      (delete-note persona-id note-id))
-                    (delete-note user-id note-id))))
+            (sync-ids (if persona-id
+                          (with-valid-persona (persona-id user-id)
+                            (delete-note persona-id note-id))
+                          (delete-note user-id note-id))))
       (track "note-delete" `(:shared ,(when persona-id t)))
-      (send-json res t))))
+      (let ((hash (make-hash-table :test #'equal)))
+        (setf (gethash "sync_ids" hash) sync-ids)
+        (send-json res hash)))))
 
 (defroute (:put "/api/notes/batch") (req res)
   (catch-errors (res)

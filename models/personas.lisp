@@ -12,8 +12,7 @@
    ;("screenname" :type string :required t :max-length 24)
    ("name" :type string)
    ("body" :type cl-async-util:bytes-or-string :required t)
-   ("settings" :type hash-table)
-   ("mod" :type integer :required t :default 'get-timestamp)))
+   ("settings" :type hash-table)))
 
 (defafun get-persona-by-id (future) (persona-id &key without-keys)
   "Get a persona by id."
@@ -31,13 +30,10 @@
 (defafun get-user-personas (future) (user-id)
   "Get personas by user id."
   (alet* ((sock (db-sock))
-          (query (r:r (:filter
-                        (:get-all
-                          (:table "personas")
-                          user-id
-                          :index "user_id")
-                        (r:fn (persona)
-                          (:~ (:default (:attr persona "deleted") nil))))))
+          (query (r:r (:get-all
+                        (:table "personas")
+                        user-id
+                        :index "user_id")))
           (cursor (r:run sock query))
           (personas (r:to-array sock cursor)))
     (r:stop/disconnect sock cursor)
@@ -68,7 +64,6 @@
 (defafun add-persona (future) (user-id persona-data)
   "Add a persona to the system."
   (add-id persona-data)
-  (add-mod persona-data)
   (setf (gethash "user_id" persona-data) user-id)
   (validate-persona (persona-data future)
     (when (string= (gethash "pubkey" persona-data) "false")
@@ -78,8 +73,13 @@
                  (query (r:r (:insert
                                (:table "personas")
                                persona-data)))
-                 (nil (r:run sock query)))
+                 (nil (r:run sock query))
+                 (sync-ids (add-sync-record user-id
+                                            "persona"
+                                            (gethash "id" persona-data)
+                                            "add")))
            (r:disconnect sock)
+           (setf (gethash "sync_ids" persona-data) sync-ids)
            (finish future persona-data))
          (signal-error future (make-instance 'persona-email-exists
                                              :msg "That email is already registered to another persona.")))))
@@ -88,7 +88,6 @@
   "Update a persona."
   (with-valid-persona (persona-id user-id future)
     (validate-persona (persona-data future :edit t)
-      (add-mod persona-data)
       (when (string= (gethash "pubkey" persona-data) "false")
         (setf (gethash "pubkey" persona-data) nil))
       (setf (gethash "user_id" persona-data) user-id)
@@ -110,58 +109,38 @@
                     (query (r:r (:update
                                   (:get (:table "personas") persona-id)
                                   persona-data)))
-                    (nil (r:run sock query)))
+                    (nil (r:run sock query))
+                    (sync-ids (add-sync-record user-id "persona" persona-id "edit")))
               (r:disconnect sock)
+              (setf (gethash "sync_ids" persona-data) sync-ids)
               (finish future persona-data))
             (signal-error future (make-instance 'persona-email-exists
                                                 :msg "That email is taken by another persona.")))))))
 
-(defafun delete-persona (future) (user-id persona-id &key permanent)
+(defafun delete-persona (future) (user-id persona-id)
   "Delete a persona."
   (with-valid-persona (persona-id user-id future)
     (alet* ((sock (db-sock))
-            (query (r:r (if permanent
-                            (:delete (:get (:table "personas") persona-id))
-                            (:update
-                              (:get (:table "personas") persona-id)
-                              `(("deleted" . t)
-                                ("email" . "")
-                                ("pubkey" . "")
-                                ("body" . "")
-                                ("mod" . ,(get-timestamp)))))))
+            (query (r:r (:delete (:get (:table "personas") persona-id))))
             (nil (r:run sock query))
-            (nil (delete-persona-links persona-id :permanent permanent)))
+            (sync-ids (add-sync-record user-id "persona" persona-id "delete"))
+            (nil (delete-persona-links user-id persona-id)))
       (r:disconnect sock)
-      (finish future t))))
+      (finish future sync-ids))))
 
-(defafun delete-persona-links (future) (persona-id &key permanent)
+(defafun delete-persona-links (future) (user-id persona-id)
   "Delete all persona-related information. This generally means board-persona
    links."
   (alet* ((sock (db-sock))
-          (query-to (r:r (if permanent
-                             (:delete (:get-all (:table "boards_personas_link") persona-id :index "to"))
-                             (:update
-                               (:get-all (:table "boards_personas_link") persona-id :index "to")
-                               `(("deleted" . ,t)
-                                 ("mod" . ,(get-timestamp)))))))
-          (query-from (r:r (if permanent
-                               (:delete (:get-all (:table "boards_personas_link") persona-id :index "from"))
-                               (:update
-                                 (:get-all (:table "boards_personas_link") persona-id :index "from")
-                                 `(("deleted" . ,t)
-                                   ("mod" . ,(get-timestamp)))))))
-          (query-mod (r:r
-                       (:foreach
-                         (:set-union
-                           (:attr (:get-all (:table "boards_personas_link") persona-id :index "to") "board_id")
-                           (:attr (:get-all (:table "boards_personas_link") persona-id :index "from") "board_id"))
-                         (r:fn (board-id)
-                           (:update
-                             (:get (:table "boards") board-id)
-                             `(("mod" . ,(get-timestamp))))))))
+          (query-to (r:r (:delete (:get-all (:table "boards_personas_link") persona-id :index "to"))))
+          (query-from (r:r (:delete (:get-all (:table "boards_personas_link") persona-id :index "from"))))
+          (query-boards (r:r (:set-union
+                               (:attr (:get-all (:table "boards_personas_link") persona-id :index "to") "board_id")
+                               (:attr (:get-all (:table "boards_personas_link") persona-id :index "from") "board_id"))))
+          (board-ids (r:run sock query-boards))
+          (nil (add-sync-record user-id "board" board-ids "edit"))
           (nil (r:run sock query-to))
-          (nil (r:run sock query-from))
-          (nil (r:run sock query-mod)))
+          (nil (r:run sock query-from)))
     (r:disconnect sock)
     (finish future t)))
 
@@ -215,8 +194,7 @@
                             board-id
                             :index "board_id")
                           (r:fn (link)
-                            (:&& (:~ (:== (:attr link "perms") 0))
-                                 (:~ (:default (:attr link "deleted") nil)))))
+                            (:~ (:== (:attr link "perms") 0))))
                         (r:fn (link)
                           (:get (:table "personas") (:attr link "to"))))))
           (cursor (r:run sock query))

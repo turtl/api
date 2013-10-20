@@ -23,9 +23,11 @@
   (catch-errors (res)
     (alet* ((board-id (car args))
             (user-id (user-id req))
-            (nil (delete-board user-id board-id)))
+            (sync-ids (delete-board user-id board-id)))
       (track "board-delete")
-      (send-json res t))))
+      (let ((hash (make-hash-table :test #'equal)))
+        (setf (gethash "sync_ids" hash) sync-ids)
+        (send-json res hash)))))
 
 (defroute (:put "/api/boards/([0-9a-f-]+)/invites/persona/([0-9a-f-]+)") (req res args)
   "Invite a persona to a board."
@@ -34,10 +36,13 @@
             (board-id (car args))
             (to-persona-id (cadr args))
             (from-persona-id (post-var req "from_persona"))
-            (permissions (varint (post-var req "permissions") nil))
-            (priv-entry (invite-persona-to-board user-id board-id from-persona-id to-persona-id permissions)))
-      (track "invite" `(:persona t))
-      (send-json res (convert-alist-hash priv-entry)))))
+            (permissions (varint (post-var req "permissions") nil)))
+      (multiple-future-bind (priv-entry sync-ids)
+          (invite-persona-to-board user-id board-id from-persona-id to-persona-id permissions)
+        (track "invite" `(:persona t))
+        (let ((hash (convert-alist-hash priv-entry)))
+          (setf (gethash "sync_ids" hash) sync-ids)
+          (send-json res hash))))))
 
 (defroute (:put "/api/boards/([0-9a-f-]+)/persona/([0-9a-f-]+)") (req res args)
   "Accept a board invite (persona-intiated)."
@@ -45,9 +50,10 @@
     (alet* ((user-id (user-id req))
             (board-id (car args))
             (persona-id (cadr args))
-            (nil (accept-board-invite user-id board-id persona-id))
+            (sync-ids (accept-board-invite user-id board-id persona-id))
             (board (get-board-by-id board-id :get-notes t)))
       (track "invite-accept" `(:persona t))
+      (setf (gethash "sync_ids" board) sync-ids)
       (send-json res board))))
 
 (defroute (:delete "/api/boards/([0-9a-f-]+)/persona/([0-9a-f-]+)") (req res args)
@@ -56,8 +62,9 @@
     (alet* ((user-id (user-id req))
             (board-id (car args))
             (persona-id (cadr args))
-            (nil (leave-board-share user-id board-id persona-id)))
+            (sync-ids (leave-board-share user-id board-id persona-id)))
       (track "board-leave")
-      (send-json res t))))
-
+      (let ((hash (make-hash-table :test #'equal)))
+        (setf (gethash "sync_ids" hash) sync-ids)
+        (send-json res hash)))))
 
