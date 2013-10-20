@@ -10,7 +10,8 @@
 (defafun get-messages-by-persona (future) (persona-id &key (after "") (index "get_messages_to"))
   "Gets messages for a persona. If a message ID is specified for :after, will
    only get messages after that ID."
-  (alet* ((sock (db-sock))
+  (alet* ((index (db-index "messages" index))
+          (sock (db-sock))
           (query (r:r (:map
                         (:eq-join
                           (:between

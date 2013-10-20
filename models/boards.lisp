@@ -42,7 +42,7 @@
                         (:get-all
                           (:table "boards")
                           user-id
-                          :index "user_id")
+                          :index (db-index "boards" "user_id"))
                         (r:fn (board)
                           (:~ (:default (:attr board "deleted") nil))))))
           (cursor (r:run sock query))
@@ -88,7 +88,7 @@
           (query (r:r (:get-all
                         (:table "boards_personas_link")
                         (list board-id)
-                        :index "board_id")))
+                        :index (db-index "boards_personas_link" "board_id"))))
           (cursor (r:run sock query))
           (privs (r:to-array sock cursor)))
     (r:stop/disconnect sock cursor)
@@ -164,9 +164,9 @@
                 (nil (r:run sock query))
                 (query (r:r (if permanent
                                 (:delete
-                                  (:get-all (:table "notes") board-id :index "board_id"))
+                                  (:get-all (:table "notes") board-id :index (db-index "notes" "board_id")))
                                 (:update
-                                  (:get-all (:table "notes") board-id :index "board_id")
+                                  (:get-all (:table "notes") board-id :index (db-index "notes" "board_id"))
                                   `(("deleted" . t)
                                     ("body" . "")
                                     ("keys" . (make-hash-table))

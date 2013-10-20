@@ -41,6 +41,20 @@
   "Makes connecting to the database a smidgen easier."
   (r:connect *db-host* *db-port* :db *db-name* :read-timeout 15))
 
+(defun db-index (table index)
+  "Grab the correct index name from the db schema."
+  (let* ((table-key (if (keywordp table)
+                        table
+                        (intern (string-upcase table) :keyword)))
+         (index-key (if (keywordp index)
+                        index
+                        (intern (string-upcase index) :keyword)))
+         (indexes (getf (getf *db-schema* table-key) :indexes))
+         (index-entry (getf indexes index-key)))
+    (unless index-entry
+      (error (format nil "Bad index name passed to db-index: ~a" index)))
+    (format nil "~a.v~a" (string-downcase (string index-key)) (getf index-entry :version))))
+
 (defun to-json (object)
   "Convert an object to JSON."
   (with-output-to-string (s)

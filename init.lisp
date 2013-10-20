@@ -50,15 +50,21 @@
   ;; start the server
   (unwind-protect
     (as:with-event-loop (:catch-app-errors t)
-      (let* ((listener (make-instance 'listener :bind bind :port port))
-             (server (start-server listener)))
-        (cleanup)
-        (as:signal-handler 2
-          (lambda (sig)
-            (declare (ignore sig))
-            (as:free-signal-handler 2)
-            (as:close-tcp-server server)
-            (as:exit-event-loop)))))
+      ;; set up the database schema
+      (format t "(turtl) Applying DB schema...~%")
+      (future-handler-case
+        (alet ((report (apply-db-schema *db-schema*)))
+          (wookie-util:wlog :notice "(turtl) Schema applied: ~s~%" report)
+          (let* ((listener (make-instance 'listener :bind bind :port port))
+                 (server (start-server listener)))
+            (cleanup)
+            (as:signal-handler 2
+              (lambda (sig)
+                (declare (ignore sig))
+                (as:free-signal-handler 2)
+                (as:close-tcp-server server)
+                (as:exit-event-loop)))))
+        (t (e) (format t "(turtl) Error initializing: ~a~%" e))))
     (when *pid-file*
       (delete-file *pid-file*))))
   
