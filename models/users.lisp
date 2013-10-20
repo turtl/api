@@ -22,7 +22,7 @@
                           (:get-all
                             (:table "users")
                             auth-key
-                            :index "a")
+                            :index (db-index "users" "a"))
                           "id")
                         1)))
           (cursor (r:run sock query))

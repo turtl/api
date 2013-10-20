@@ -35,7 +35,7 @@
                         (:get-all
                           (:table "personas")
                           user-id
-                          :index "user_id")
+                          :index (db-index "personas" "user_id"))
                         (r:fn (persona)
                           (:~ (:default (:attr persona "deleted") nil))))))
           (cursor (r:run sock query))
@@ -139,22 +139,22 @@
    links."
   (alet* ((sock (db-sock))
           (query-to (r:r (if permanent
-                             (:delete (:get-all (:table "boards_personas_link") persona-id :index "to"))
+                             (:delete (:get-all (:table "boards_personas_link") persona-id :index (db-index "boards_personas_link" "to")))
                              (:update
-                               (:get-all (:table "boards_personas_link") persona-id :index "to")
+                               (:get-all (:table "boards_personas_link") persona-id :index (db-index "boards_personas_link" "to"))
                                `(("deleted" . ,t)
                                  ("mod" . ,(get-timestamp)))))))
           (query-from (r:r (if permanent
-                               (:delete (:get-all (:table "boards_personas_link") persona-id :index "from"))
+                               (:delete (:get-all (:table "boards_personas_link") persona-id :index (db-index "boards_personas_link" "from")))
                                (:update
-                                 (:get-all (:table "boards_personas_link") persona-id :index "from")
+                                 (:get-all (:table "boards_personas_link") persona-id :index (db-index "boards_personas_link" "from"))
                                  `(("deleted" . ,t)
                                    ("mod" . ,(get-timestamp)))))))
           (query-mod (r:r
                        (:foreach
                          (:set-union
-                           (:attr (:get-all (:table "boards_personas_link") persona-id :index "to") "board_id")
-                           (:attr (:get-all (:table "boards_personas_link") persona-id :index "from") "board_id"))
+                           (:attr (:get-all (:table "boards_personas_link") persona-id :index (db-index "boards_personas_link" "to")) "board_id")
+                           (:attr (:get-all (:table "boards_personas_link") persona-id :index (db-index "boards_personas_link" "from")) "board_id"))
                          (r:fn (board-id)
                            (:update
                              (:get (:table "boards") board-id)
@@ -172,7 +172,7 @@
           (query (r:r (:limit
                         (:get-all (:table "personas")
                                   email
-                                  :index "email")
+                                  :index (db-index "personas" "email"))
                         1)))
           (cursor (r:run sock query))
           (persona (when (r:has-next cursor)
@@ -213,7 +213,7 @@
                           (:get-all
                             (:table "boards_personas_link")
                             board-id
-                            :index "board_id")
+                            :index (db-index "boards_personas_link" "board_id"))
                           (r:fn (link)
                             (:&& (:~ (:== (:attr link "perms") 0))
                                  (:~ (:default (:attr link "deleted") nil)))))
