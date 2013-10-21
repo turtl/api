@@ -42,14 +42,16 @@
                          (index-name (format nil "~a.v~a"
                                              base-name
                                              (getf index-schema :version)))
-                         (index-value (if (getf index-schema :function)
-                                          (getf index-schema :function)
-                                          (r:fn (rec)
-                                            (:attr rec base-name))))
+                         (index-fn (if (getf index-schema :function)
+                                       (getf index-schema :function)
+                                       (r:fn (rec)
+                                         (:attr rec base-name))))
+                         (multi (getf index-schema :multi))
                          (query (r:r (:index-create
                                        (:table table-name)
                                        index-name
-                                       index-value)))
+                                       :function index-fn
+                                       :multi multi)))
                          (nil (r:run sock query)))
                    t))
                (delete-index (index-name)
