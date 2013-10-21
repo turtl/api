@@ -22,8 +22,7 @@
         (setf (gethash "user_id" sync-record) user-id
               (gethash "type" sync-record) item-type
               (gethash "item_id" sync-record) item-id
-              (gethash "action" sync-record) action
-              (gethash "time" sync-record) (get-timestamp))
+              (gethash "action" sync-record) action)
         ;; set our relation, if specified
         (when rel-id (setf (gethash "rel" sync-record) rel-id))
         (when client-id (setf (gethash "cid" sync-record) client-id))
