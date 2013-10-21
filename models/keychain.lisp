@@ -43,14 +43,17 @@
             (query (r:r (:insert
                           (:table "keychain")
                           key-data)))
-            (nil (r:run sock query)))
+            (nil (r:run sock query))
+            (sync-ids (add-sync-record user-id
+                                       "keychain"
+                                       (gethash "id" key-data)
+                                       "add")))
       (r:disconnect sock)
+      (setf (gethash "sync_ids" key-data) sync-ids)
       (finish future key-data))))
 
 (defafun edit-keychain-entry (future) (user-id key-id key-data)
   "Edit a keychain entry."
-  (format t "key-id: ~a~%" key-id)
-  (wookie-util::print-hash key-data)
   (alet* ((entry (get-keychain-entry-by-id key-id)))
     (if (string= (gethash "user_id" entry) user-id)
         (validate-keychain-entry (key-data future)
@@ -61,8 +64,10 @@
                   (query (r:r (:update
                                 (:get (:table "keychain") key-id)
                                 key-data)))
-                  (nil (r:run sock query)))
+                  (nil (r:run sock query))
+                  (sync-ids (add-sync-record user-id "keychain" key-id "edit")))
             (r:disconnect sock)
+            (setf (gethash "sync_ids" key-data) sync-ids)
             (finish future t)))
         (signal-error future (make-instance 'insufficient-privileges
                                             :msg "You're trying to edit a keychain entry that isn't yours.")))))
@@ -73,13 +78,11 @@
   (alet* ((entry (get-keychain-entry-by-id key-id)))
     (if (string= (gethash "user_id" entry) user-id)
         (alet* ((sock (db-sock))
-                (query (r:r (:update
-                              (:get (:table "keychain") key-id)
-                              `(("mod" . ,(get-timestamp))
-                                ("deleted" . t)))))
-                (nil (r:run sock query)))
+                (query (r:r (:delete (:get (:table "keychain") key-id))))
+                (nil (r:run sock query))
+                (sync-ids (add-sync-record user-id "keychain" key-id "delete")))
           (r:disconnect sock)
-          (finish future t))
+          (finish future sync-ids))
         (signal-error future (make-instance 'insufficient-privileges
                                             :msg "You're trying to delete a keychain entry that isn't yours.")))))
 

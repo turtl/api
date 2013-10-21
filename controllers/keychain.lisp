@@ -19,6 +19,8 @@
   (catch-errors (res)
     (alet* ((user-id (user-id req))
             (key-id (car args))
-            (nil (delete-keychain-entry user-id key-id)))
-      (send-json res t))))
+            (sync-ids (delete-keychain-entry user-id key-id)))
+      (let ((hash (make-hash-table :test #'equal)))
+        (setf (gethash "sync_ids" hash) sync-ids)
+        (send-json res hash)))))
 
