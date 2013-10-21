@@ -5,7 +5,7 @@
    ("cid" :type string :required nil :max-length 32)
    ("user_id" :type string :required t :length 24)
    ("type" :type string :required t :max-length 24)
-   ("item_id" :type string :required t :length 24)
+   ("item_id" :type string :required t)
    ("body" :type string :required t)
    ("mod" :type integer :required t :default 'get-timestamp)))
 
