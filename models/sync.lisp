@@ -46,6 +46,23 @@
         (finish future user)
         (finish future nil))))
 
+(defafun sync-user-keychain (future) (user-id sync-time)
+  "Grab all changed keychain entries."
+  (alet* ((sock (db-sock))
+          (query (r:r
+                   (:filter
+                     (:get-all
+                       (:table "keychain")
+                       user-id
+                       :index (db-index "keychain" "user_id"))
+                     (r:fn (entry)
+                       (:&& (:> (:default (:attr entry "mod") 0)
+                                sync-time))))))
+          (cursor (r:run sock query))
+          (keychain (r:to-array sock cursor)))
+    (r:stop/disconnect sock cursor)
+    (finish future keychain)))
+
 (defafun sync-user-personas (future) (user-id sync-time)
   "Grab any changed personas."
   (alet* ((sock (db-sock))
@@ -54,7 +71,7 @@
                      (:get-all
                        (:table "personas")
                        user-id
-                       :index "user_id")
+                       :index (db-index "personas" "user_id"))
                      (r:fn (persona)
                        (:&& (:> (:default (:attr persona "mod") 0)
                                 sync-time))))))
@@ -71,7 +88,7 @@
                      (:get-all
                        (:table "boards")
                        user-id
-                       :index "user_id")
+                       :index (db-index "boards" "user_id"))
                      (r:fn (board)
                        (:&& (:== (:attr board "user_id") user-id)
                             (:> (:default (:attr board "mod") 0)
@@ -104,7 +121,7 @@
                        (:get-all
                          (:table "boards_personas_link")
                          persona-id
-                         :index "to")
+                         :index (db-index "boards_personas_link" "to"))
                        (r:fn (link)
                          (:&& (:<= sync-time (:default (:attr link "mod") 0))
                               (:~ (:has-fields link "invite")))))
@@ -126,10 +143,10 @@
                          (:get-all
                            (:table "boards")
                            user-id
-                           :index "user_id")
+                           :index (db-index "boards" "user_id"))
                          "id"
                          (:table "notes")
-                         :index "board_id")
+                         :index (db-index "notes" "board_id"))
                        "right")
                      (r:fn (note)
                        (:> (:default (:attr note "mod") 0) sync-time)))))
@@ -156,10 +173,10 @@
                          (:get-all
                            (:table "boards_personas_link")
                            persona-id
-                           :index "to")
+                           :index (db-index "boards_personas_link" "to"))
                          "board_id"
                          (:table "notes")
-                         :index "board_id")
+                         :index (db-index "notes" "board_id"))
                        "right")
                      (r:fn (note)
                        (:<= sync-time (:default (:attr note "mod") 0))))))

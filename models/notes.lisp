@@ -22,7 +22,7 @@
           (query (r:r (:get-all
                         (:table "notes")
                         board-id
-                        :index "board_id")))
+                        :index (db-index "notes" "board_id"))))
           (cursor (r:run sock query))
           (results (r:to-array sock cursor)))
     (r:stop/disconnect sock cursor)
@@ -39,7 +39,7 @@
           (query (r:r (:get-all
                         (:table "notes")
                         board-ids
-                        :index "board_id")))
+                        :index (db-index "notes" "board_id"))))
           (cursor (r:run sock query))
           (results (r:to-array sock cursor)))
     (r:stop/disconnect sock cursor)

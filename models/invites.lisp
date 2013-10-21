@@ -39,7 +39,7 @@
           (query (r:r (:count
                         (:get-all (:table "invites")
                                   code
-                                  :index "code"))))
+                                  :index (db-index "invites" "code")))))
           (num (r:run sock query)))
     (r:disconnect sock)
     ;; loop until we have a unique code

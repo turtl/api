@@ -9,6 +9,7 @@
       (alet ((boards (get-user-boards user-id :get-persona-boards t :get-personas t))
              (personas (get-user-personas user-id))
              (user-data (get-user-data user-id))
+             (keychain (get-user-keychain user-id))
              (response (make-hash-table :test #'equal)))
         ;; notes require all our board ids, so load them here
         (alet ((notes (get-notes-from-board-ids (map 'list (lambda (b) (gethash "id" b)) boards))))
@@ -17,6 +18,7 @@
                 (gethash "notes" response) notes
                 (gethash "personas" response) personas
                 (gethash "user" response) user-data
+                (gethash "keychain" response) keychain
                 (gethash "time" response) (get-timestamp))
           (send-json res response))))))
 

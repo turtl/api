@@ -70,7 +70,7 @@
           (query (r:r (:get-all
                         (:table "challenges")
                         `((,type-int ,item-id))
-                        :index "search")))
+                        :index (db-index "challenges" "search"))))
           (cursor (r:run sock query))
           (challenges (r:to-array sock cursor)))
     (wait-for (r:stop sock cursor)
@@ -137,7 +137,7 @@
             (query (r:r (:get-all
                           (:table "challenges")
                           search-clause
-                          :index "search")))
+                          :index (db-index "challenges" "search"))))
             (cursor (r:run sock query))
             (challenges (r:to-array sock cursor)))
       (if (r:cursorp cursor)

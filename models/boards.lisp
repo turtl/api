@@ -39,7 +39,7 @@
           (query (r:r (:get-all
                         (:table "boards")
                         user-id
-                        :index "user_id")))
+                        :index (db-index "boards" "user_id"))))
           (cursor (r:run sock query))
           (boards (r:to-array sock cursor)))
     (r:stop/disconnect sock cursor)
@@ -82,7 +82,7 @@
           (query (r:r (:get-all
                         (:table "boards_personas_link")
                         (list board-id)
-                        :index "board_id")))
+                        :index (db-index "boards_personas_link" "board_id"))))
           (cursor (r:run sock query))
           (privs (r:to-array sock cursor)))
     (r:stop/disconnect sock cursor)
@@ -158,7 +158,7 @@
                 (query (r:r (:delete (:get (:table "boards") board-id))))
                 (nil (r:run sock query))
                 (query (r:r (:delete
-                              (:get-all (:table "notes") board-id :index "board_id"))))
+                              (:get-all (:table "notes") board-id :index (db-index "notes" "board_id")))))
                 (nil (r:run sock query))
                 (sync-ids (add-sync-record user-id "board" board-id "delete")))
           (r:disconnect sock)

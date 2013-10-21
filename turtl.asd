@@ -28,15 +28,18 @@
      (:file "validation")
      (:file "crypto")))
    (:file "config/config" :depends-on (lib))
+   (:file "config/schema" :depends-on (lib))
    (:file "crypto" :depends-on (lib "config/config"))
    (:file "errors" :depends-on (lib "config/config" "crypto"))
    (:file "template" :depends-on (lib "crypto" "errors"))
    (:file "cron" :depends-on (lib "config/config"))
    (:module models
-    :depends-on ("errors" "crypto" lib "package")
+    :depends-on ("errors" "crypto" lib "package" "config/schema")
     :serial t
     :components
-    ((:file "users")
+    ((:file "schema")
+	 (:file "users")
+	 (:file "keychain")
      (:file "challenges")
      (:file "email")
      (:file "personas")
@@ -47,7 +50,7 @@
      (:file "sync")
      (:file "admin")
      (:file "analytics")))
-   (:file "init" :depends-on ("template" "crypto" "errors" "cron"))
+   (:file "init" :depends-on ("template" "crypto" "errors" "cron" "config/schema" models))
    (:module controllers
     :depends-on ("init" "errors" lib models "package")
     :serial t
@@ -61,7 +64,8 @@
      (:file "personas")
      (:file "profile")
      (:file "sync")
-     (:file "users")))
+     (:file "users")
+	 (:file "keychain")))
    (:file "routes" :depends-on ("init" controllers "crypto" "errors"))
    (:file "init-thread" :depends-on ("init" "routes"))))
 

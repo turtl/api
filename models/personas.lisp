@@ -31,7 +31,7 @@
           (query (r:r (:get-all
                         (:table "personas")
                         user-id
-                        :index "user_id")))
+                        :index (db-index "personas" "user_id"))))
           (cursor (r:run sock query))
           (personas (r:to-array sock cursor)))
     (r:stop/disconnect sock cursor)
@@ -132,11 +132,11 @@
   "Delete all persona-related information. This generally means board-persona
    links."
   (alet* ((sock (db-sock))
-          (query-to (r:r (:delete (:get-all (:table "boards_personas_link") persona-id :index "to"))))
-          (query-from (r:r (:delete (:get-all (:table "boards_personas_link") persona-id :index "from"))))
+          (query-to (r:r (:delete (:get-all (:table "boards_personas_link") persona-id :index (db-index "boards_personas_link" "to")))))
+          (query-from (r:r (:delete (:get-all (:table "boards_personas_link") persona-id :index (db-index "boards_personas_link" "from")))))
           (query-boards (r:r (:set-union
-                               (:attr (:get-all (:table "boards_personas_link") persona-id :index "to") "board_id")
-                               (:attr (:get-all (:table "boards_personas_link") persona-id :index "from") "board_id"))))
+                               (:attr (:get-all (:table "boards_personas_link") persona-id :index (db-index "boards_personas_link" "to")) "board_id")
+                               (:attr (:get-all (:table "boards_personas_link") persona-id :index (db-index "boards_personas_link" "from")) "board_id"))))
           (board-ids (r:run sock query-boards))
           (nil (add-sync-record user-id "board" board-ids "edit"))
           (nil (r:run sock query-to))
@@ -151,7 +151,7 @@
           (query (r:r (:limit
                         (:get-all (:table "personas")
                                   email
-                                  :index "email")
+                                  :index (db-index "personas" "email"))
                         1)))
           (cursor (r:run sock query))
           (persona (when (r:has-next cursor)
@@ -192,7 +192,7 @@
                           (:get-all
                             (:table "boards_personas_link")
                             board-id
-                            :index "board_id")
+                            :index (db-index "boards_personas_link" "board_id"))
                           (r:fn (link)
                             (:~ (:== (:attr link "perms") 0))))
                         (r:fn (link)
