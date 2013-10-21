@@ -33,7 +33,14 @@
        (:board_id (:version 1)
         :to (:version 1)
         :from (:version 1)))
-    :keychain (:indexes (:user_id (:version 1))))
+    :keychain (:indexes (:user_id (:version 1)))
+    :sync
+     (:indexes
+       (:item_id
+         (:version 2
+          :function ,(r:fn (s)
+                       #( (:attr s "item_id")
+                          (:attr s "type") ))))))
   "Holds our entire db/table/index schema. Tables are are created if they don't
    exist. Indexes are also created/updated if they don't exist or if the version
    doesn't match. Index names store the version in them, ie the index `user_id`
