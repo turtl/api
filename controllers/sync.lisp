@@ -9,12 +9,14 @@
     (alet* ((user-id (user-id req))
             (sync-time (varint (post-var req "time") 999999999)))
       (alet ((user-sync (sync-user user-id sync-time))
+             (keychain-sync (sync-user-keychain user-id sync-time))
              (persona-sync (sync-user-personas user-id sync-time))
              (board-sync (sync-user-boards user-id sync-time :get-persona-boards t :get-personas t))
              (note-sync (sync-user-notes user-id sync-time :get-persona-notes t)))
         (let ((response (make-hash-table :test #'equal)))
           (setf (gethash "time" response) (get-timestamp)
                 (gethash "user" response) user-sync
+                (gethash "keychain" response) keychain-sync
                 (gethash "personas" response) persona-sync
                 (gethash "notes" response) note-sync
                 (gethash "boards" response) board-sync)

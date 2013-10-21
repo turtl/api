@@ -2,10 +2,11 @@
 
 (defvalidator validate-keychain-entry
   (("id" :type string :required t :length 24)
+   ("cid" :type string :required nil :max-length 32)
    ("user_id" :type string :required t :length 24)
    ("type" :type string :required t :max-length 24)
    ("item_id" :type string :required t :length 24)
-   ("key" :type string :required t)
+   ("body" :type string :required t)
    ("mod" :type integer :required t :default 'get-timestamp)))
 
 (defafun get-keychain-entry-by-id (future) (key-id)
@@ -46,6 +47,26 @@
       (r:disconnect sock)
       (finish future key-data))))
 
+(defafun edit-keychain-entry (future) (user-id key-id key-data)
+  "Edit a keychain entry."
+  (format t "key-id: ~a~%" key-id)
+  (wookie-util::print-hash key-data)
+  (alet* ((entry (get-keychain-entry-by-id key-id)))
+    (if (string= (gethash "user_id" entry) user-id)
+        (validate-keychain-entry (key-data future)
+          (setf (gethash "id" key-data) key-id)
+          (add-mod key-data)
+          (remhash "user_id" key-data)
+          (alet* ((sock (db-sock))
+                  (query (r:r (:update
+                                (:get (:table "keychain") key-id)
+                                key-data)))
+                  (nil (r:run sock query)))
+            (r:disconnect sock)
+            (finish future t)))
+        (signal-error future (make-instance 'insufficient-privileges
+                                            :msg "You're trying to edit a keychain entry that isn't yours.")))))
+
 (defafun delete-keychain-entry (future) (user-id key-id)
   "Delete a keychain entry."
   ;; check that the user owns it first
@@ -61,5 +82,4 @@
           (finish future t))
         (signal-error future (make-instance 'insufficient-privileges
                                             :msg "You're trying to delete a keychain entry that isn't yours.")))))
-                         
 

@@ -10,6 +10,23 @@
         (finish future user)
         (finish future nil))))
 
+(defafun sync-user-keychain (future) (user-id sync-time)
+  "Grab all changed keychain entries."
+  (alet* ((sock (db-sock))
+          (query (r:r
+                   (:filter
+                     (:get-all
+                       (:table "keychain")
+                       user-id
+                       :index (db-index "keychain" "user_id"))
+                     (r:fn (entry)
+                       (:&& (:> (:default (:attr entry "mod") 0)
+                                sync-time))))))
+          (cursor (r:run sock query))
+          (keychain (r:to-array sock cursor)))
+    (r:stop/disconnect sock cursor)
+    (finish future keychain)))
+
 (defafun sync-user-personas (future) (user-id sync-time)
   "Grab any changed personas."
   (alet* ((sock (db-sock))
