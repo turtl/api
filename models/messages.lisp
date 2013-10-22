@@ -16,8 +16,8 @@
                         (:eq-join
                           (:between
                             (:table "messages")
-                            :left (list persona-id (concatenate 'string after ".")) ;; moar hax
-                            :right (list persona-id "zzzzzzzzzzzzzzzzzzzzzzzzz")    ;; lol h4x
+                            (list persona-id (concatenate 'string after ".")) ;; moar hax
+                            (list persona-id "zzzzzzzzzzzzzzzzzzzzzzzzz")    ;; lol h4x
                             :index index)
                           "from"
                           (:table "personas"))

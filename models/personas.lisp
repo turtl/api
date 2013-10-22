@@ -37,6 +37,20 @@
     (r:stop/disconnect sock cursor)
     (finish future personas)))
 
+(defafun get-user-persona-ids (future) (user-id)
+  "Get a user's persona IDs."
+  (alet* ((sock (db-sock))
+          (query (r:r (:attr
+                        (:get-all
+                          (:table "personas")
+                          user-id
+                          :index (db-index "personas" "user_id"))
+                        "id")))
+          (cursor (r:run sock query))
+          (personas (r:to-array sock cursor)))
+    (r:stop/disconnect sock cursor)
+    (finish future personas)))
+
 (defafun user-personas-map (future) (user-id map-fn &key flatten)
   "Run a function on all of a user's persona's and collect the results as an
    array. The callback takes one argument, the persona id."
