@@ -146,17 +146,21 @@
   "Delete all persona-related information. This generally means board-persona
    links."
   (alet* ((sock (db-sock))
-          (query-to (r:r (:delete (:get-all (:table "boards_personas_link") persona-id :index (db-index "boards_personas_link" "to")))))
-          (query-from (r:r (:delete (:get-all (:table "boards_personas_link") persona-id :index (db-index "boards_personas_link" "from")))))
           (query-boards (r:r (:set-union
                                (:attr (:get-all (:table "boards_personas_link") persona-id :index (db-index "boards_personas_link" "to")) "board_id")
                                (:attr (:get-all (:table "boards_personas_link") persona-id :index (db-index "boards_personas_link" "from")) "board_id"))))
+          (query-to (r:r (:delete (:get-all (:table "boards_personas_link") persona-id :index (db-index "boards_personas_link" "to")))))
+          (query-from (r:r (:delete (:get-all (:table "boards_personas_link") persona-id :index (db-index "boards_personas_link" "from")))))
           (board-ids (r:run sock query-boards))
-          (nil (add-sync-record user-id "board" board-ids "edit"))
           (nil (r:run sock query-to))
-          (nil (r:run sock query-from)))
-    (r:disconnect sock)
-    (finish future t)))
+          (nil (r:run sock query-from))
+          (sync-records nil))
+    (wait-for (adolist (board-id board-ids)
+                (alet ((user-ids (get-affected-users-from-board-ids (list board-id))))
+                  (push (make-sync-record user-id "board" board-id "edit" :rel-ids user-ids) sync-records)))
+      (alet* ((nil (insert-sync-records sync-records)))
+        (r:disconnect sock)
+        (finish future t)))))
 
 (defafun get-persona-by-email (future) (email &key ignore-persona require-key)
   "Grab a persona via its email. Must be an exact match (for now)."

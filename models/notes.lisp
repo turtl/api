@@ -16,6 +16,17 @@
     (r:disconnect sock)
     (finish future note)))
 
+(defafun get-note-board-id (future) (note-id)
+  "Get a note's board id."
+  (alet* ((sock (db-sock))
+          (query (r:r
+                   (:attr
+                     (:get-all (:table "notes") note-id)
+                     "board_id")))
+          (board-id (r:run sock query)))
+    (r:disconnect sock)
+    (finish future (car board-id))))
+
 (defafun get-board-notes (future) (board-id)
   "Get the notes for a board."
   (alet* ((sock (db-sock))
@@ -53,8 +64,8 @@
    1 == read permissions
    2 == update permissions
    3 == owner"
-  (alet* ((note (get-note-by-id note-id))
-          (board-perms (get-user-board-permissions user-id (gethash "board_id" note)))
+  (alet* ((board-id (get-note-board-id note-id))
+          (board-perms (get-user-board-permissions user-id board-id))
           (sock (db-sock))
           (query (r:r (:== (:attr (:get (:table "notes") note-id) "user_id") user-id)))
           (note-owner-p (r:run sock query)))
@@ -78,11 +89,13 @@
                                   (:table "notes")
                                   note-data)))
                     (nil (r:run sock query))
+                    (user-ids (get-affected-users-from-board-ids (list (gethash "board_id" note-data))))
                     (sync-ids (add-sync-record user-id
                                                "note"
                                                (gethash "id" note-data)
                                                "add"
-                                               :client-id cid)))
+                                               :client-id cid
+                                               :rel-ids user-ids)))
               (r:disconnect sock)
               (setf (gethash "sync_ids" note-data) sync-ids)
               (finish future note-data))))
@@ -94,14 +107,18 @@
   ;; first, check if the user owns the note
   (alet ((perms (get-user-note-permissions user-id note-id)))
     (if (<= 2 perms)
+        ;; TODO: validate if changing board_id that user is member of new board
         (validate-note (note-data future :edit t)
           (remhash "user_id" note-data)
-          (alet* ((sock (db-sock))
+          (alet* ((cur-board-id (get-note-board-id note-id))
+                  (new-board-id (or (gethash "board_id" note-data) cur-board-id))
+                  (sock (db-sock))
                   (query (r:r (:update
                                 (:get (:table "notes") note-id)
                                 note-data)))
                   (nil (r:run sock query))
-                  (sync-ids (add-sync-record user-id "note" note-id "edit")))
+                  (user-ids (get-affected-users-from-board-ids (list cur-board-id new-board-id)))
+                  (sync-ids (add-sync-record user-id "note" note-id "edit" :rel-ids user-ids)))
             (r:disconnect sock)
             (setf (gethash "sync_ids" note-data) sync-ids)
             (finish future note-data)))
@@ -112,10 +129,12 @@
   "Delete a note."
   (alet ((perms (get-user-note-permissions user-id note-id)))
     (if (<= 2 perms)
-        (alet* ((sock (db-sock))
+        (alet* ((board-id (get-note-board-id note-id))
+                (user-ids (get-affected-users-from-board-ids (list board-id)))
+                (sock (db-sock))
                 (query (r:r (:delete (:get (:table "notes") note-id))))
                 (nil (r:run sock query))
-                (sync-ids (add-sync-record user-id "note" note-id "delete")))
+                (sync-ids (add-sync-record user-id "note" note-id "delete" :rel-ids user-ids)))
           (r:disconnect sock)
           (finish future sync-ids))
         (signal-error future (make-instance 'insufficient-privileges

@@ -1,8 +1,8 @@
 (in-package :turtl)
 
-(defroute (:post "/api/boards/users/([0-9a-f-]+)") (req res args)
+(defroute (:post "/api/boards") (req res args)
   (catch-errors (res)
-    (alet* ((user-id (car args))
+    (alet* ((user-id (user-id req))
             (board-data (post-var req "data")))
       (unless (string= (user-id req) user-id)
         (error 'insufficient-privileges :msg "You are trying to access another user's boards. For shame."))

@@ -12,7 +12,7 @@
     (alet* ((user-id (user-id req))
             (key-id (car args))
             (key-data (post-var req "data"))
-            (key nil))
+            (key (edit-keychain-entry user-id key-id key-data)))
       (send-json res key))))
 
 (defroute (:delete "/api/keychain/([0-9a-f]+)") (req res args)

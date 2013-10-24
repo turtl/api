@@ -10,7 +10,8 @@
              (personas (get-user-personas user-id))
              (user-data (get-user-data user-id))
              (keychain (get-user-keychain user-id))
-             (response (make-hash-table :test #'equal)))
+             (response (make-hash-table :test #'equal))
+             (sync-id (get-latest-sync-id)))
         ;; notes require all our board ids, so load them here
         (alet ((notes (get-notes-from-board-ids (map 'list (lambda (b) (gethash "id" b)) boards))))
           ;; package it all up
@@ -19,7 +20,10 @@
                 (gethash "personas" response) personas
                 (gethash "user" response) user-data
                 (gethash "keychain" response) keychain
-                (gethash "time" response) (get-timestamp))
+                ;; add in a sync-id for syncing reference. if there is no sync
+                ;; ID (meaning the sync table is empty), return a new id in its
+                ;; place.
+                (gethash "sync_id" response) (or sync-id (string-downcase (mongoid:oid-str (mongoid:oid)))))
           (send-json res response))))))
 
 ;; NOTE: this route is unused and will remain so until personas have obscurity

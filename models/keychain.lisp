@@ -2,7 +2,6 @@
 
 (defvalidator validate-keychain-entry
   (("id" :type string :required t :length 24)
-   ("cid" :type string :required nil :max-length 32)
    ("user_id" :type string :required t :length 24)
    ("type" :type string :required t :max-length 24)
    ("item_id" :type string :required t)
@@ -55,34 +54,40 @@
 (defafun edit-keychain-entry (future) (user-id key-id key-data)
   "Edit a keychain entry."
   (alet* ((entry (get-keychain-entry-by-id key-id)))
-    (if (string= (gethash "user_id" entry) user-id)
-        (validate-keychain-entry (key-data future)
-          (setf (gethash "id" key-data) key-id)
-          (add-mod key-data)
-          (remhash "user_id" key-data)
-          (alet* ((sock (db-sock))
-                  (query (r:r (:update
-                                (:get (:table "keychain") key-id)
-                                key-data)))
-                  (nil (r:run sock query))
-                  (sync-ids (add-sync-record user-id "keychain" key-id "edit")))
-            (r:disconnect sock)
-            (setf (gethash "sync_ids" key-data) sync-ids)
-            (finish future t)))
-        (signal-error future (make-instance 'insufficient-privileges
-                                            :msg "You're trying to edit a keychain entry that isn't yours.")))))
+    (if entry
+        (if (string= (gethash "user_id" entry) user-id)
+            (validate-keychain-entry (key-data future :edit t)
+              (setf (gethash "id" key-data) key-id)
+              (add-mod key-data)
+              (remhash "user_id" key-data)
+              (alet* ((sock (db-sock))
+                      (query (r:r (:update
+                                    (:get (:table "keychain") key-id)
+                                    key-data)))
+                      (nil (r:run sock query))
+                      (sync-ids (add-sync-record user-id "keychain" key-id "edit")))
+                (r:disconnect sock)
+                (setf (gethash "sync_ids" key-data) sync-ids)
+                (finish future key-data)))
+            (signal-error future (make-instance 'insufficient-privileges
+                                                :msg "You're trying to edit a keychain entry that isn't yours.")))
+        (signal-error future (make-instance 'not-found
+                                            :msg "Keychain entry not found.")))))
 
 (defafun delete-keychain-entry (future) (user-id key-id)
   "Delete a keychain entry."
   ;; check that the user owns it first
   (alet* ((entry (get-keychain-entry-by-id key-id)))
-    (if (string= (gethash "user_id" entry) user-id)
-        (alet* ((sock (db-sock))
-                (query (r:r (:delete (:get (:table "keychain") key-id))))
-                (nil (r:run sock query))
-                (sync-ids (add-sync-record user-id "keychain" key-id "delete")))
-          (r:disconnect sock)
-          (finish future sync-ids))
-        (signal-error future (make-instance 'insufficient-privileges
-                                            :msg "You're trying to delete a keychain entry that isn't yours.")))))
+    (if entry
+        (if (string= (gethash "user_id" entry) user-id)
+            (alet* ((sock (db-sock))
+                    (query (r:r (:delete (:get (:table "keychain") key-id))))
+                    (nil (r:run sock query))
+                    (sync-ids (add-sync-record user-id "keychain" key-id "delete")))
+              (r:disconnect sock)
+              (finish future sync-ids))
+            (signal-error future (make-instance 'insufficient-privileges
+                                                :msg "You're trying to delete a keychain entry that isn't yours.")))
+        (signal-error future (make-instance 'not-found
+                                            :msg "Keychain entry not found.")))))
 

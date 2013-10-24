@@ -33,6 +33,35 @@
             (finish future boards))))
       (finish future boards)))
 
+(defafun get-affected-users-from-board-ids (future) (board-ids)
+  "For all given board-ids (list), find users that will be affected by changes
+   to those boards or items in those boards. Returns a list of user-ids."
+  (alet* ((sock (db-sock))
+          (query (r:r
+                   (:attr
+                     (:attr
+                       (:eq-join
+                         (:get-all
+                           (:table "boards_personas_link")
+                           board-ids
+                           :index (db-index "boards_personas_link" "board_id"))
+                         "to"
+                         (:table "personas"))
+                       "right")
+                     "user_id")))
+          (cursor (r:run sock query))
+          (shared-user-ids (r:to-array sock cursor))
+          (nil (r:stop sock cursor))
+          (query (r:r
+                   (:attr
+                     (:get-all
+                       (:table "boards")
+                       board-ids)
+                     "user_id")))
+          (board-user-ids (r:run sock query)))
+    (r:stop/disconnect sock cursor)
+    (finish future (cl-async-util:append-array shared-user-ids board-user-ids))))
+
 (defafun get-user-boards (future) (user-id &key get-persona-boards get-notes get-personas)
   "Get all boards for a user."
   (alet* ((sock (db-sock))
@@ -156,7 +185,8 @@
                                          "board"
                                          (gethash "id" board-data)
                                          "add"
-                                         :client-id cid)))
+                                         :client-id cid
+                                         :rel-ids (list user-id))))
         (r:disconnect sock)
         (setf (gethash "sync_ids" board-data) sync-ids)
         (finish future board-data)))))
@@ -175,7 +205,8 @@
                                 (:get (:table "boards") board-id)
                                 board-data)))
                   (nil (r:run sock query))
-                  (sync-ids (add-sync-record user-id "board" board-id "edit")))
+                  (user-ids (get-affected-users-from-board-ids (list board-id)))
+                  (sync-ids (add-sync-record user-id "board" board-id "edit" :rel-ids user-ids)))
             (r:disconnect sock)
             (setf (gethash "sync_ids" board-data) sync-ids)
             (finish future board-data)))
@@ -186,13 +217,14 @@
   "Delete a board."
   (alet ((perms (get-user-board-permissions user-id board-id)))
     (if (<= 3 perms)
-        (alet* ((sock (db-sock))
+        (alet* ((user-ids (get-affected-users-from-board-ids (list board-id)))
+                (sock (db-sock))
                 (query (r:r (:delete (:get (:table "boards") board-id))))
                 (nil (r:run sock query))
                 (query (r:r (:delete
                               (:get-all (:table "notes") board-id :index (db-index "notes" "board_id")))))
                 (nil (r:run sock query))
-                (sync-ids (add-sync-record user-id "board" board-id "delete")))
+                (sync-ids (add-sync-record user-id "board" board-id "delete" :rel-ids user-ids)))
           (r:disconnect sock)
           (finish future sync-ids))
         (signal-error future (make-instance 'insufficient-privileges
@@ -281,7 +313,8 @@
                                priv-record
                                :upsert t)))
                     (nil (r:run sock query))
-                    (sync-ids (add-sync-record user-id "board" board-id "edit")))
+                    (user-ids (get-affected-users-from-board-ids (list board-id)))
+                    (sync-ids (add-sync-record user-id "board" board-id "edit" :rel-ids user-ids)))
               (r:disconnect sock)
               (finish future permission-value priv-entry sync-ids)))
         (signal-error future (make-instance 'insufficient-privileges
@@ -308,7 +341,8 @@
           (sock (db-sock))
           (query (r:r (:delete (:get (:table "boards_personas_link") id))))
           (nil (r:run sock query))
-          (sync-ids (add-sync-record user-id "board" board-id "edit")))
+          (user-ids (get-affected-users-from-board-ids (list board-id)))
+          (sync-ids (add-sync-record user-id "board" board-id "edit" :rel-ids user-ids)))
     (r:disconnect sock)
     (finish future 0 sync-ids)))
 
@@ -351,7 +385,8 @@
                                 (:table "boards_personas_link")
                                 link)))
                   (nil (r:run sock query))
-                  (sync-ids (add-sync-record user-id "board" board-id "edit")))
+                  (user-ids (get-affected-users-from-board-ids (list board-id)))
+                  (sync-ids (add-sync-record user-id "board" board-id "edit" :rel-ids user-ids)))
             (r:disconnect sock)
             (finish future sync-ids))
           (signal-error future (make-instance 'insufficient-privileges
