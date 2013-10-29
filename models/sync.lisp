@@ -58,17 +58,22 @@
 (defafun link-sync-items (future) (sync-items link-table)
   "Given an array of items pulled from the `sync` table and a string table name
    to link the items against, populate the sync items with their linked counter
-   parts (including the sync_id field for each sync item)."
-  ;; split up the items by deleted (ie, nother to link against, so we return a
+   parts (including the sync_id field for each sync item).
+   
+   Note that all functions that deal with syncing should call this function. It
+   not only makes linking sync items to their data counterparts easier, it
+   uses a standard format for everything."
+  ;; split up the items by deleted (ie, can't link against it, so we return a
   ;; "fake" record with deleted=true) or present (in which can we grab the
-  ;; present items from the link-table and return them with their sync-id
-  ;; set). this gives us a completed picture of what's been changed and/or
-  ;; deleted.
+  ;; present items from the link-table and return them (along with any sync
+  ;; metadata set. this gives us a completed picture of what's been changed
+  ;; and/or deleted.
   (let ((deleted-items nil)
         (present-items nil))
     (loop for sync-item across sync-items do
+      ;; test if the item was deleted
       (if (string= (gethash "action" sync-item) "delete")
-          ;; create a return-ready "deleted" record
+          ;; create a return-ready "deleted" record, complete with sync metadata
           (let ((hash (make-hash-table :test #'equal))
                 (sync-hash (make-hash-table :test #'equal)))
             (setf (gethash "id" sync-hash) (gethash "id" sync-item)
@@ -85,6 +90,10 @@
                       :cid (gethash "cid" sync-item)
                       :action (gethash "action" sync-item))
                 present-items)))
+    ;; define our finalizing function. this is needed because sometimes we'll
+    ;; call out to the DB to pull out present items, sometimes we won't, and
+    ;; since we're dealing with async, we define a function to handle both
+    ;; instances
     (flet ((finish (items)
              (let* ((index (make-hash-table :test #'equal))
                     (synced-items nil))
@@ -223,19 +232,6 @@
           (nil (r:run sock query)))
     (r:disconnect sock)
     (finish future t)))
-
-(defun test()
-(as:with-event-loop (:catch-app-errors t)
-  (future-handler-case
-    (alet* ((sync (delete-keychain-entry "5241e230735ca4892c000002" "52689633735ca41968000007")))
-      (format t "~%----------------~%")
-      ;(loop for h across sync do
-      ;  (wookie-util::print-hash h)
-      ;  (format t "~%"))
-      (format t "~%----------------~%")
-      (format t "sync: ~s~%" sync))
-    (t (e) (format t "err: ~a~%" e))))
-)
 
 ;;; ----------------------------------------------------------------------------
 ;;; next up: old sync functions (ie `mod` + `deleted` field based syncing)
