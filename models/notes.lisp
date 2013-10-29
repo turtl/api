@@ -5,8 +5,7 @@
    ("user_id" :type string :required t :length 24)
    ("board_id" :type string :required t :length 24)
    ("keys" :type sequence :required t :coerce simple-vector)
-   ("body" :type cl-async-util:bytes-or-string)
-   ("mod" :type integer :required t :default 'get-timestamp)))
+   ("body" :type cl-async-util:bytes-or-string)))
 
 (defafun get-note-by-id (future) (note-id)
   "Get a note by id."

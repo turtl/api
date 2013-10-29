@@ -5,8 +5,7 @@
    ("user_id" :type string :required t :length 24)
    ("type" :type string :required t :max-length 24)
    ("item_id" :type string :required t)
-   ("body" :type string :required t)
-   ("mod" :type integer :required t :default 'get-timestamp)))
+   ("body" :type string :required t)))
 
 (defafun get-keychain-entry-by-id (future) (key-id)
   "Get a keychain entry by its id."
@@ -36,7 +35,6 @@
   "Add a new keychain entry for the given user."
   (setf (gethash "user_id" key-data) user-id)
   (add-id key-data)
-  (add-mod key-data)
   (validate-keychain-entry (key-data future)
     (alet* ((sock (db-sock))
             (query (r:r (:insert
@@ -58,7 +56,6 @@
         (if (string= (gethash "user_id" entry) user-id)
             (validate-keychain-entry (key-data future :edit t)
               (setf (gethash "id" key-data) key-id)
-              (add-mod key-data)
               (remhash "user_id" key-data)
               (alet* ((sock (db-sock))
                       (query (r:r (:update
