@@ -39,7 +39,7 @@
           (query (r:r (:count
                         (:get-all (:table "invites")
                                   code
-                                  :index "code"))))
+                                  :index (db-index "invites" "code")))))
           (num (r:run sock query)))
     (r:disconnect sock)
     ;; loop until we have a unique code
@@ -100,16 +100,17 @@
                                  hash))
                   (invite (create-invite "b" board-id persona-id to-email invite-data expire))
                   (invite-id (gethash "id" invite)))
-            (multiple-future-bind (nil priv-entry)
+            (multiple-future-bind (nil priv-entry sync-ids)
                 (add-board-remote-invite user-id board-id persona-id invite-id 2 to-email)
               (alet* ((nil (insert-invite-record invite))
                       (nil (email-board-invite persona invite key)))
-                (setf (gethash "priv" invite) (convert-alist-hash priv-entry))
+                (setf (gethash "priv" invite) (convert-alist-hash priv-entry)
+                      (gethash "sync_ids" invite) sync-ids)
                 (finish future invite))))))))
 
 (defafun invite-persona-to-board (future) (user-id board-id from-persona-id to-persona-id permissions)
   "Invites a persona to join a board, setting all applicable permissions."
-  (multiple-future-bind (nil priv-entry)
+  (multiple-future-bind (nil priv-entry sync-ids)
       (set-board-persona-permissions user-id board-id from-persona-id to-persona-id permissions :invite t)
     (alet* ((from-persona (get-persona-by-id from-persona-id :without-keys t))
             (to-persona (get-persona-by-id to-persona-id :without-keys t))
@@ -124,16 +125,12 @@
         (alet ((sent (email-board-persona-invite from-persona to-persona)))
           (declare (ignore sent))
           nil)))
-    (finish future priv-entry)))
+    (finish future priv-entry sync-ids)))
 
-(defafun delete-invite-record (future) (invite-id &key permanent)
+(defafun delete-invite-record (future) (invite-id)
   "Delete an invite's record."
   (alet* ((sock (db-sock))
-          (query (if permanent
-                     (r:r (:delete (:get (:table "invites") invite-id)))
-                     (r:r (:update
-                            (:get (:table "invites") invite-id)
-                            `(("deleted" . ,(get-timestamp)))))))
+          (query (r:r (:delete (:get (:table "invites") invite-id))))
           (nil (r:run sock query)))
     (r:disconnect sock)
     (finish future t)))
@@ -153,9 +150,10 @@
 (defafun delete-board-invite (future) (user-id invite)
   "Delete a board invite."
   (alet* ((invite-id (gethash "id" invite))
-          (board-id (gethash "item_id" invite))
-          (perm (set-board-persona-permissions user-id board-id nil invite-id 0)))
-    (finish future perm)))
+          (board-id (gethash "item_id" invite)))
+    (multiple-future-bind (nil nil sync-ids)
+        (set-board-persona-permissions user-id board-id nil invite-id 0)
+      (finish future sync-ids))))
 
 (defafun accept-invite (future) (user-id invite-id invite-code persona-id)
   "Accept an invite. Removes the invite record, and updates the object
@@ -168,10 +166,11 @@
                 (invite-type-keyword (intern (string-upcase invite-type) :keyword))
                 (res (let ((subfuture (make-future)))
                        (case invite-type-keyword
-                         (:b (alet* ((nil (accept-board-invite user-id item-id persona-id :invite-id invite-id))
+                         (:b (alet* ((sync-ids (accept-board-invite user-id item-id persona-id :invite-id invite-id))
                                      (board (get-board-by-id item-id :get-notes t)))
+                               (setf (gethash "sync_ids" board) sync-ids)
                                (finish subfuture board))))))
-                (nil (delete-invite-record invite-id :permanent t)))
+                (nil (delete-invite-record invite-id)))
           (finish future res))
         (signal-error future (make-instance 'not-found :msg "That invite wasn't found.")))))
 
@@ -185,7 +184,7 @@
                 (invite-type-keyword (intern (string-upcase invite-type) :keyword))
                 (res (case invite-type-keyword
                        (:b (leave-board-share user-id item-id persona-id :invite-id invite-id))))
-                (nil (delete-invite-record invite-id :permanent t)))
+                (nil (delete-invite-record invite-id)))
           (finish future res))
         (signal-error future (make-instance 'not-found :msg "That invite wasn't found.")))))
 

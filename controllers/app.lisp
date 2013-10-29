@@ -14,14 +14,17 @@
              (path (puri:uri-path (request-uri req)))
              (method (request-method req))
              (auth-fail-fn (lambda ()
-                             (let ((err (make-instance 'auth-failed :msg "Authentication failed.")))
-                               ;; TODO: implement random delay between 1-250 ms
-                               ;; here to help prevent timing attacks
-                               (send-response res
-                                              :status (error-code err)
-                                              :headers '(:content-type "application/json")
-                                              :body (error-json err))
-                               (signal-error future err)))))
+                             (let ((err (make-instance 'auth-failed :msg "Authentication failed."))
+                                   ;; random wait time (0-2ms) to prevent timing attacks on auth
+                                   (rand-wait (/ (secure-random:number 2000000) 100000000d0)))
+                               (as:delay
+                                 (lambda ()
+                                   (send-response res
+                                                  :status (error-code err)
+                                                  :headers '(:content-type "application/json")
+                                                  :body (error-json err))
+                                   (signal-error future err))
+                                 :time rand-wait)))))
         (if (or (< (length path) 5)
                 (not (string= (subseq path 0 5) "/api/"))
                 (is-public-action method path))

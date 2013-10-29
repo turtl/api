@@ -12,5 +12,6 @@
    cleanup every N seconds."
   (do-cleanup-action cleanup-challenges)
   (do-cleanup-action cleanup-invites)
+  (do-cleanup-action cleanup-sync)
   (as:delay 'cleanup :time poll))
 

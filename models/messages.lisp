@@ -10,13 +10,14 @@
 (defafun get-messages-by-persona (future) (persona-id &key (after "") (index "get_messages_to"))
   "Gets messages for a persona. If a message ID is specified for :after, will
    only get messages after that ID."
-  (alet* ((sock (db-sock))
+  (alet* ((index (db-index "messages" index))
+          (sock (db-sock))
           (query (r:r (:map
                         (:eq-join
                           (:between
                             (:table "messages")
-                            :left (list persona-id (concatenate 'string after ".")) ;; moar hax
-                            :right (list persona-id "zzzzzzzzzzzzzzzzzzzzzzzzz")    ;; lol h4x
+                            (list persona-id (concatenate 'string after ".")) ;; moar hax
+                            (list persona-id "zzzzzzzzzzzzzzzzzzzzzzzzz")    ;; lol h4x
                             :index index)
                           "from"
                           (:table "personas"))

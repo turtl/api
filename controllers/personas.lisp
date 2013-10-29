@@ -29,9 +29,11 @@
   (catch-errors (res)
     (alet* ((user-id (user-id req))
             (persona-id (car args))
-            (nil (delete-persona user-id persona-id)))
+            (sync-ids (delete-persona user-id persona-id)))
       (track "persona-delete")
-      (send-json res t))))
+      (let ((hash (make-hash-table :test #'equal)))
+        (setf (gethash "sync_ids" hash) sync-ids)
+        (send-json res hash)))))
 
 (defroute (:get "/api/personas/email/([a-zA-Z0-9@\/\.\-]+)") (req res args)
   (catch-errors (res)

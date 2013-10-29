@@ -6,8 +6,7 @@
    ("board_id" :type string :required t :length 24)
    ("file_id" :type string :length 24)
    ("keys" :type sequence :required t :coerce simple-vector)
-   ("body" :type cl-async-util:bytes-or-string)
-   ("mod" :type integer :required t :default 'get-timestamp)))
+   ("body" :type cl-async-util:bytes-or-string)))
 
 (defafun get-note-by-id (future) (note-id)
   "Get a note by id."
@@ -17,20 +16,44 @@
     (r:disconnect sock)
     (finish future note)))
 
+(defafun get-note-board-id (future) (note-id)
+  "Get a note's board id."
+  (alet* ((sock (db-sock))
+          (query (r:r
+                   (:attr
+                     (:get-all (:table "notes") note-id)
+                     "board_id")))
+          (board-id (r:run sock query)))
+    (r:disconnect sock)
+    (finish future (car board-id))))
+
 (defafun get-board-notes (future) (board-id)
   "Get the notes for a board."
   (alet* ((sock (db-sock))
-          (query (r:r (:filter
-                        ;; get all user notes
-                        (:get-all
-                          (:table "notes")
-                          board-id
-                          :index "board_id")
-                        (r:fn (note) (:== (:default (:attr note "deleted") nil) nil)))))
+          (query (r:r (:get-all
+                        (:table "notes")
+                        board-id
+                        :index (db-index "notes" "board_id"))))
           (cursor (r:run sock query))
           (results (r:to-array sock cursor)))
-    (wait-for (r:stop sock cursor)
-      (r:disconnect sock))
+    (r:stop/disconnect sock cursor)
+    (finish future results)))
+
+(defafun get-notes-from-board-ids (future) (board-ids)
+  "Given a list (not vector!) of board_ids, get all notes in those boards. This
+   function does no validation, so be sure you only pass it board_ids you know
+   the user owns or has been shared with."
+  (unless board-ids
+    (finish future #())
+    (return-from get-notes-from-board-ids))
+  (alet* ((sock (db-sock))
+          (query (r:r (:get-all
+                        (:table "notes")
+                        board-ids
+                        :index (db-index "notes" "board_id"))))
+          (cursor (r:run sock query))
+          (results (r:to-array sock cursor)))
+    (r:stop/disconnect sock cursor)
     (finish future results)))
 
 (defafun get-user-note-permissions (future) (user-id note-id)
@@ -41,8 +64,8 @@
    1 == read permissions
    2 == update permissions
    3 == owner"
-  (alet* ((note (get-note-by-id note-id))
-          (board-perms (get-user-board-permissions user-id (gethash "board_id" note)))
+  (alet* ((board-id (get-note-board-id note-id))
+          (board-perms (get-user-board-permissions user-id board-id))
           (sock (db-sock))
           (query (r:r (:== (:attr (:get (:table "notes") note-id) "user_id") user-id)))
           (note-owner-p (r:run sock query)))
@@ -56,18 +79,26 @@
   (setf (gethash "user_id" note-data) user-id
         (gethash "board_id" note-data) board-id)
   (add-id note-data)
-  (add-mod note-data)
   ;; first, check that the user/persona is a member of this board
   (alet ((perms (get-user-board-permissions (if persona-id persona-id user-id) board-id)))
     (if (<= 2 perms)
-        (validate-note (note-data future)
-          (alet* ((sock (db-sock))
-                  (query (r:r (:insert
-                                (:table "notes")
-                                note-data)))
-                  (nil (r:run sock query)))
-            (r:disconnect sock)
-            (finish future note-data)))
+        (let ((cid (gethash "cid" note-data)))
+          (validate-note (note-data future)
+            (alet* ((sock (db-sock))
+                    (query (r:r (:insert
+                                  (:table "notes")
+                                  note-data)))
+                    (nil (r:run sock query))
+                    (user-ids (get-affected-users-from-board-ids (list (gethash "board_id" note-data))))
+                    (sync-ids (add-sync-record user-id
+                                               "note"
+                                               (gethash "id" note-data)
+                                               "add"
+                                               :client-id cid
+                                               :rel-ids user-ids)))
+              (r:disconnect sock)
+              (setf (gethash "sync_ids" note-data) sync-ids)
+              (finish future note-data))))
         (signal-error future (make-instance 'insufficient-privileges
                                             :msg "Sorry, you aren't a member of that board.")))))
 
@@ -76,19 +107,23 @@
   ;; first, check if the user owns the note
   (alet ((perms (get-user-note-permissions user-id note-id)))
     (if (<= 2 perms)
+        ;; TODO: validate if changing board_id that user is member of new board
         (validate-note (note-data future :edit t)
-          (add-mod note-data)
-          ;; don't allow ownership change or file id change
           (remhash "user_id" note-data)
           (remhash "file_id" note-data)
-          (alet* ((sock (db-sock))
+          (alet* ((cur-board-id (get-note-board-id note-id))
+                  (new-board-id (or (gethash "board_id" note-data) cur-board-id))
+                  (sock (db-sock))
                   (query (r:r (:update
                                 (:get (:table "notes") note-id)
                                 note-data)))
                   (nil (r:run sock query))
                   ;; return the latest, full version of the note data
-                  (note-data (get-note-by-id note-id)))
+                  (note-data (get-note-by-id note-id))
+                  (user-ids (get-affected-users-from-board-ids (list cur-board-id new-board-id)))
+                  (sync-ids (add-sync-record user-id "note" note-id "edit" :rel-ids user-ids)))
             (r:disconnect sock)
+            (setf (gethash "sync_ids" note-data) sync-ids)
             (finish future note-data)))
         (signal-error future (make-instance 'insufficient-privileges
                                             :msg "Sorry, you are editing a note you don't have access to.")))))
@@ -98,30 +133,19 @@
    storage system, wiping the file out forever)."
   (finish future t))
 
-(defafun delete-note (future) (user-id note-id &key permanent)
+(defafun delete-note (future) (user-id note-id)
   "Delete a note."
   (alet ((perms (get-user-note-permissions user-id note-id)))
     (if (<= 2 perms)
         (alet* ((nil (delete-note-file user-id note-id :perms perms))
+                (board-id (get-note-board-id note-id))
+                (user-ids (get-affected-users-from-board-ids (list board-id)))
                 (sock (db-sock))
-                (query (r:r (if permanent
-                                (:delete
-                                  (:filter
-                                    (:table "notes")
-                                    `(("id" . ,note-id)
-                                      ("user_id" . ,user-id))))
-                                (:update
-                                  (:get (:table "notes") note-id)
-                                  `(("deleted" . t)
-                                    ("body" . "")
-                                    ("keys" . (make-hash-table))
-                                    ("mod" . ,(get-timestamp)))))))
-                (res (r:run sock query)))
+                (query (r:r (:delete (:get (:table "notes") note-id))))
+                (nil (r:run sock query))
+                (sync-ids (add-sync-record user-id "note" note-id "delete" :rel-ids user-ids)))
           (r:disconnect sock)
-          (if (gethash "first_error" res)
-              (signal-error future (make-instance 'server-error
-                                                  :msg "There was an error deleting your note. Please try again."))
-              (finish future t)))
+          (finish future sync-ids))
         (signal-error future (make-instance 'insufficient-privileges
                                             :msg "Sorry, you are deleting a note you don't have access to.")))))
 
