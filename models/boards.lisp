@@ -216,7 +216,6 @@
 (defafun delete-board (future) (user-id board-id)
   "Delete a board."
   (alet ((perms (get-user-board-permissions user-id board-id)))
-    (format t "PERMS: ~a~%" perms)
     (if (<= 3 perms)
         (alet* ((user-ids (get-affected-users-from-board-ids (list board-id)))
                 (sock (db-sock))
