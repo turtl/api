@@ -216,6 +216,7 @@
 (defafun delete-board (future) (user-id board-id)
   "Delete a board."
   (alet ((perms (get-user-board-permissions user-id board-id)))
+    (format t "PERMS: ~a~%" perms)
     (if (<= 3 perms)
         (alet* ((user-ids (get-affected-users-from-board-ids (list board-id)))
                 (sock (db-sock))
@@ -224,6 +225,10 @@
                 (query (r:r (:delete
                               (:get-all (:table "notes") board-id :index (db-index "notes" "board_id")))))
                 (nil (r:run sock query))
+                (query (r:r (:delete
+                              (:get-all (:table "boards_personas_link") board-id :index (db-index "boards_personas_link" "board_id")))))
+                (nil (r:run sock query))
+                (nil (delete-keychain-entries user-id board-id))
                 (sync-ids (add-sync-record user-id "board" board-id "delete" :rel-ids user-ids)))
           (r:disconnect sock)
           (finish future sync-ids))

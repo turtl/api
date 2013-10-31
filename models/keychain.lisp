@@ -88,3 +88,20 @@
         (signal-error future (make-instance 'not-found
                                             :msg "Keychain entry not found.")))))
 
+(defafun delete-keychain-entries (future) (user-id item-id)
+  "Delete all keychain entries that are attached to the given item ID."
+  (alet* ((sock (db-sock))
+          (query (r:r (:get-all (:table "keychain") item-id :index (db-index "keychain" "item_id"))))
+          (cursor (r:run sock query))
+          (entries (r:to-array sock cursor))
+          (sync-records nil))
+    (if (zerop (length entries))
+        (finish future 0)
+        (wait-for (adolist (entry (coerce entries 'list))
+                    (push (make-sync-record user-id "keychain" (gethash "id" entry) "delete") sync-records))
+          (wait-for (insert-sync-records sync-records)
+            (alet* ((query (r:r (:delete (:get-all (:table "keychain") item-id :index (db-index "keychain" "item_id")))))
+                    (nil (r:run sock query)))
+              (r:disconnect sock)
+              (finish future (length entries))))))))
+

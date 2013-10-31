@@ -33,7 +33,10 @@
        (:board_id (:version 1)
         :to (:version 1)
         :from (:version 1)))
-    :keychain (:indexes (:user_id (:version 1)))
+    :keychain
+     (:indexes
+       (:user_id (:version 1)
+        :item_id (:version 1)))
     :sync
      (:indexes
        (:user_search
