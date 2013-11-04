@@ -49,3 +49,10 @@
       future))
   :turtl-auth)
 
+(add-hook :response-started
+  (lambda (response &rest _)
+    (declare (ignore _))
+    (when *enable-hsts-header*
+      (setf (getf (response-headers response) :strict-transport-security)
+            (format nil "max-age=~a" *enable-hsts-header*)))))
+
