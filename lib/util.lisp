@@ -135,7 +135,14 @@
          ,(if forward-errors
               `(future-handler-case
                  (progn ,@body)
-                 (t (e) (signal-error ,future-var e)))
+                 (t (e)
+                   ;; wrap the caught error in the error wrapper, which when
+                   ;; printed out gives us the name of the function the error
+                   ;; occurred in. makes debugging, oh, about 1000000x easier.
+                   (signal-error ,future-var
+                                 (make-instance 'turtl-error-wrapper
+                                                :error e
+                                                :function ',name))))
               `(progn ,@body))
          ,future-var))))
 
