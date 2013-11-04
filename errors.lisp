@@ -6,6 +6,12 @@
   (:report (lambda (c s) (format s "~a" (error-msg c))))
   (:documentation "A general turtl error."))
 
+(define-condition turtl-error-wrapper (simple-error)
+  ((error :accessor error-error :initarg :error :initform nil)
+   (function :accessor error-function :initarg :function :initform nil))
+  (:report (lambda (c s) (format s "Turtl wrapped error: ~a: ~a" (error-function c) (error-error c))))
+  (:documentation "Used to wrap caught errors and provide more debugging information about them."))
+
 (define-condition validation-failed (turtl-error)
   ((code :initform 400)))
 
