@@ -130,7 +130,9 @@
             (setf (gethash "sync_ids" note-data) sync-ids)
             (finish future note-data)))
         (signal-error future (make-instance 'insufficient-privileges
-                                            :msg "Sorry, you are editing a note you don't have access to.")))))
+                                            :msg (if (< perms-cur 2)
+                                                     "Sorry, you are editing a note you don't have access to."
+                                                     "You do not have access to the board you're moving this note to."))))))
 
 (defafun delete-note (future) (user-id note-id)
   "Delete a note."
