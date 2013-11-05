@@ -103,9 +103,17 @@
 
 (defafun edit-note (future) (user-id note-id note-data)
   "Edit an existing note."
-  ;; first, check if the user owns the note
-  (alet ((perms (get-user-note-permissions user-id note-id)))
-    (if (<= 2 perms)
+  ;; first, check if the user owns the note, or at least has write access to the
+  ;; board the note belongs to. we also check that, if moving the note to a new
+  ;; board, that the user has access tot he new board as well.
+  (alet* ((cur-board-id (get-note-board-id note-id))
+          (new-board-id (gethash "board_id" note-data))
+          (perms-cur (get-user-note-permissions user-id note-id))
+          (perms-new (if (string= cur-board-id new-board-id)
+                         perms-cur
+                         (get-user-board-permissions user-id new-board-id))))
+    (if (and (<= 2 perms-cur)
+             (<= 2 perms-new))
         ;; TODO: validate if changing board_id that user is member of new board
         (validate-note (note-data future :edit t)
           (remhash "user_id" note-data)
