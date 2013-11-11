@@ -1,6 +1,7 @@
 (in-package :turtl)
 
 (defroute (:get "/api/personas/([0-9a-f-]+)") (req res args)
+  "Get a persona by ID."
   (catch-errors (res)
     (alet* ((persona-id (car args))
             (persona (get-persona-by-id persona-id)))
@@ -9,6 +10,7 @@
           (send-json res "Persona not found." :status 404)))))
 
 (defroute (:post "/api/personas") (req res)
+  "Add a new persona."
   (catch-errors (res)
     (alet* ((user-id (user-id req))
             (persona-data (post-var req "data"))
@@ -17,6 +19,7 @@
       (send-json res persona))))
 
 (defroute (:put "/api/personas/([0-9a-f-]+)") (req res args)
+  "Edit a persona."
   (catch-errors (res)
     (alet* ((user-id (user-id req))
             (persona-id (car args))
@@ -26,6 +29,7 @@
       (send-json res persona))))
 
 (defroute (:delete "/api/personas/([0-9a-f-]+)") (req res args)
+  "Delete a persona."
   (catch-errors (res)
     (alet* ((user-id (user-id req))
             (persona-id (car args))
@@ -36,6 +40,8 @@
         (send-json res hash)))))
 
 (defroute (:get "/api/personas/email/([a-zA-Z0-9@\/\.\-]+)") (req res args)
+  "Get a persona by email (must be an *exact* match as there is no wildcard
+   searching or antyhing like that)."
   (catch-errors (res)
     (alet* ((email (car args))
             (ignore-persona-id (get-var req "ignore_persona_id"))

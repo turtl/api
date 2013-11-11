@@ -1,10 +1,9 @@
 (in-package :turtl)
 
-(defroute (:get "/api/sync") (req res)
-  (catch-errors (res)
-    (send-json res (get-timestamp))))
-
 (defroute (:post "/api/sync") (req res)
+  "Given the current user and a sync-id, spits out all data that has changes in
+   the user's profile since that sync id. Used by various clients to stay in
+   sync with the canonical profile (hosted on the server)."
   (catch-errors (res)
     (alet* ((user-id (user-id req))
             (sync-id (post-var req "sync_id")))

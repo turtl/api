@@ -1,6 +1,7 @@
 (in-package :turtl)
 
 (defroute (:post "/api/boards") (req res args)
+  "Add a board."
   (catch-errors (res)
     (alet* ((user-id (user-id req))
             (board-data (post-var req "data")))
@@ -11,6 +12,7 @@
         (send-json res board)))))
 
 (defroute (:put "/api/boards/([0-9a-f-]+)") (req res args)
+  "Edit a board."
   (catch-errors (res)
     (alet* ((user-id (user-id req))
             (board-id (car args))
@@ -20,6 +22,7 @@
         (send-json res board)))))
 
 (defroute (:delete "/api/boards/([0-9a-f-]+)") (req res args)
+  "Delete a board."
   (catch-errors (res)
     (alet* ((board-id (car args))
             (user-id (user-id req))
