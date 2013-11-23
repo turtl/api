@@ -290,7 +290,7 @@
                     (priv-entry `(("id" . ,(sha256 (concatenate 'string
                                                                 board-id ":"
                                                                 from-persona-id ":"
-                                                                to-persona-id ":")))
+                                                                to-persona-id)))
                                   ("board_id" . ,board-id)
                                   ("from" . ,from-persona-id)
                                   ("to" . ,to-persona-id)
@@ -306,7 +306,6 @@
                                       (t
                                         priv-entry)))
                     (priv-record (convert-alist-hash priv-entry))
-                    (nil (add-id priv-record))
                     (query (r:r
                              (:insert
                                (:table "boards_personas_link")
@@ -337,7 +336,7 @@
           (id (sha256 (concatenate 'string
                                    board-id ":"
                                    from-persona-id ":"
-                                   to-persona-id ":")))
+                                   to-persona-id)))
           (sock (db-sock))
           (query (r:r (:delete (:get (:table "boards_personas_link") id))))
           (nil (r:run sock query))
@@ -374,7 +373,7 @@
                   (id (sha256 (concatenate 'string
                                            board-id ":"
                                            from-persona-id ":"
-                                           to-persona-id ":")))
+                                           to-persona-id)))
                   (nil (r:run sock (r:r (:delete (:get (:table "boards_personas_link") (gethash "id" link))))))
                   (nil (progn
                          (setf (gethash "id" link) id

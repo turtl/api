@@ -77,7 +77,7 @@
     (r:disconnect sock)
     (finish future t)))
 
-(defafun create-board-invite (future) (user-id board-id persona-id to-email key board-key used-secret-p)
+(defafun create-board-invite (future) (user-id board-id persona-id to-email key board-key question used-secret-p)
   "Create (and send) a board invite. Also creates a stubbed persona for the
    invitee which is tied to them when they accept the invite."
   ;; make sure the persona/board auth check out
@@ -96,6 +96,7 @@
           (alet* ((expire (* 3 86400))
                   (invite-data (let ((hash (make-hash-table :test #'equal)))
                                  (setf (gethash "board_key" hash) board-key
+                                       (gethash "question" hash) question
                                        (gethash "used_secret" hash) used-secret-p)
                                  hash))
                   (invite (create-invite "b" board-id persona-id to-email invite-data expire))

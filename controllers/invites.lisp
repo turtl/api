@@ -9,6 +9,7 @@
             (to (post-var req "to"))
             (key (post-var req "key"))
             (board-key (post-var req "board_key"))
+            (question (post-var req "question"))
             (used-secret-p (< 0 (varint (post-var req "used_secret") 0)))
             (invite (create-board-invite user-id
                                          board-id
@@ -16,6 +17,7 @@
                                          to
                                          key
                                          board-key
+                                         question
                                          used-secret-p)))
       (track "invite" `(:persona nil :used-secret ,used-secret-p))
       (send-json res invite))))
