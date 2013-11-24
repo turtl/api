@@ -5,7 +5,8 @@
    ("user_id" :type string :required t :length 24)
    ("board_id" :type string :required t :length 24)
    ("keys" :type sequence :required t :coerce simple-vector)
-   ("body" :type cl-async-util:bytes-or-string)))
+   ("body" :type cl-async-util:bytes-or-string)
+   ("mod" :type integer)))
 
 (defafun get-note-by-id (future) (note-id)
   "Get a note by id."
@@ -78,6 +79,7 @@
   (setf (gethash "user_id" note-data) user-id
         (gethash "board_id" note-data) board-id)
   (add-id note-data)
+  (add-mod note-data)
   ;; first, check that the user/persona is a member of this board
   (alet ((perms (get-user-board-permissions (if persona-id persona-id user-id) board-id)))
     (if (<= 2 perms)
@@ -116,6 +118,7 @@
              (<= 2 perms-new))
         ;; TODO: validate if changing board_id that user is member of new board
         (validate-note (note-data future :edit t)
+          (add-mod note-data)
           (remhash "user_id" note-data)
           (alet* ((cur-board-id (get-note-board-id note-id))
                   (new-board-id (or (gethash "board_id" note-data) cur-board-id))
