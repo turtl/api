@@ -58,8 +58,10 @@
                        (:table "boards")
                        board-ids)
                      "user_id")))
-          (board-user-ids (r:run sock query)))
-    (r:stop/disconnect sock cursor)
+          (cursor (r:run sock query))
+          (board-user-ids (r:to-array sock cursor))
+          (nil (r:stop sock cursor)))
+    (r:disconnect sock)
     (finish future (cl-async-util:append-array shared-user-ids board-user-ids))))
 
 (defafun get-user-boards (future) (user-id &key get-persona-boards get-notes get-personas)

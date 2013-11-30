@@ -12,7 +12,9 @@
    the given db either way."
   (alet* ((sock (db-sock))
           (query (r:r (:db-list)))
-          (dbs (r:run sock query)))
+          (cursor (r:run sock query))
+          (dbs (r:to-array sock cursor))
+          (dbs (coerce dbs 'list)))
     (if (find name dbs :test #'string=)
         (progn 
           (r:disconnect sock)
@@ -25,11 +27,13 @@
 (defafun apply-indexes (future) (table schema)
   "Apply the given indexes to the given table."
   (alet* ((table-name (schema-name-to-string table))
-          (sock (db-sock))
-          (query (r:r (:index-list (:table table-name))))
           (schema-index-names (loop for (name) on schema by #'cddr collect name))
           (remove-version-fn (lambda (x) (cl-ppcre:regex-replace-all "\.v.*$" x "")))
-          (indexes (r:run sock query))
+          (sock (db-sock))
+          (query (r:r (:index-list (:table table-name))))
+          (cursor (r:run sock query))
+          (indexes (r:to-array sock cursor))
+          (indexes (coerce indexes 'list))
           (indexes-no-version (mapcar remove-version-fn indexes)))
     ;; keep track of what we're doing so we can report back
     (let ((to-add nil)
@@ -115,7 +119,9 @@
           (indexes nil)
           (sock (db-sock))
           (query (r:r (:table-list db)))
-          (tables (r:run sock query)))
+          (cursor (r:run sock query))
+          (tables (r:to-array sock cursor))
+          (tables (coerce tables 'list)))
     (r:disconnect sock)
     ;; track the tables we need to create (by seeing if there are schema tables
     ;; that aren't in the returned table list)

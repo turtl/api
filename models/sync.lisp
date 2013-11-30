@@ -12,8 +12,10 @@
                          (:desc "id"))
                        1)
                      "id")))
-          (sync-item (r:run sock query)))
-    (r:disconnect sock)
+          (cursor (r:run sock query))
+          (sync-item (r:to-array sock cursor))
+          (sync-item (coerce sync-item 'list)))
+    (r:stop/disconnect sock cursor)
     (finish future (car sync-item))))
 
 (defun make-sync-record (user-id item-type item-id action &key client-id rel-ids)
