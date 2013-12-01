@@ -41,10 +41,13 @@
                    (:attr
                      (:attr
                        (:eq-join
-                         (:get-all
-                           (:table "boards_personas_link")
-                           board-ids
-                           :index (db-index "boards_personas_link" "board_id"))
+                         (:filter
+                           (:get-all
+                             (:table "boards_personas_link")
+                             board-ids
+                             :index (db-index "boards_personas_link" "board_id"))
+                           (r:fn (l)
+                             (:== (:default (:attr l "invite") nil) nil)))
                          "to"
                          (:table "personas"))
                        "right")
