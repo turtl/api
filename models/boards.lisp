@@ -347,7 +347,20 @@
                                    from-persona-id ":"
                                    to-persona-id)))
           (sock (db-sock))
-          (query (r:r (:delete (:get (:table "boards_personas_link") id))))
+          (query (r:r (:do
+                        (r:fn (val)
+                          (:branch val
+                            (:delete val)
+                            (:delete
+                              (:filter
+                                (:get-all
+                                  (:table "boards_personas_link")
+                                  board-id
+                                  :index (db-index "boards_personas_link" "board_id"))
+                                (r:fn (l)
+                                  (:&& (:== from-persona-id (:attr l "from"))
+                                       (:== to-persona-id (:attr l "to"))))))))
+                        (:get (:table "boards_personas_link") id))))
           (nil (r:run sock query)))
     (r:disconnect sock)
     (finish future 0 sync-ids)))
