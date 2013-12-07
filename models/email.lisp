@@ -37,6 +37,17 @@ The Turtl Team
 {{site-url}}
 "))
 
+(defparameter *emails-feedback* (format nil "~
+You have received feedback from {{email}} (user id {{user-id}}):
+
+********
+
+{{body}}
+
+********
+
+Please respond in a timely manner!"))
+
 ;; -----------------------------------------------------------------------------
 ;; / email templates
 ;; -----------------------------------------------------------------------------
@@ -56,13 +67,13 @@ The Turtl Team
   "Turn andrew.lyon@teamaol.com into and******@teamaol.com."
   (cl-ppcre:regex-replace "^(.{0,3}).+@" email-addr "\\1*****@"))
 
-(defafun send-email (future) (to subject body &key reply-to from-name)
+(defafun send-email (future) (to subject body &key reply-to from-name (email-from *email-from*))
   "Send an email. Returns a future that finishes when the operation is done (or
    errors out otherwise)."
   (let ((params `(("api_user" . ,*email-user*)
                   ("api_key" . ,*email-pass*)
                   ("to" . ,to)
-                  ("from" . ,*email-from*)
+                  ("from" . ,email-from)
                   ("subject" . ,subject)
                   ("text" . ,body))))
     (when from-name (push `("fromname" . ,from-name) params))
@@ -142,3 +153,19 @@ The Turtl Team
          (body (email-template msg tpl-vars)))
     (alet* ((sentp (send-email to-email subject body :reply-to from-email :from-name (if from-name from-name from-email))))
       (finish future sentp))))
+
+(defafun email-feedback (future) (feedback-data)
+  "Send feedback to a Turtl admin email."
+  (let* ((msg *emails-feedback*)
+         (email (gethash "email" feedback-data))
+         (to-email *admin-email*)
+         (body (gethash "body" feedback-data))
+         (user-id (gethash "user_id" feedback-data))
+         (tpl-vars `(:user-id ,user-id
+                     :email ,email
+                     :body ,body))
+         (subject (format nil "New Turtl feedback from ~a" email))
+         (body (email-template msg tpl-vars)))
+    (alet ((sentp (send-email to-email subject body :email-from email :reply-to email :from-name "Turtl feedback")))
+      (finish future sentp))))
+

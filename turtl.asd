@@ -49,7 +49,8 @@
      (:file "invites")
      (:file "sync")
      (:file "admin")
-     (:file "analytics")))
+     (:file "analytics")
+	 (:file "feedback")))
    (:file "init" :depends-on ("template" "crypto" "errors" "cron" "config/schema" models))
    (:module controllers
     :depends-on ("init" "errors" lib models "package")
@@ -65,7 +66,8 @@
      (:file "profile")
      (:file "sync")
      (:file "users")
-	 (:file "keychain")))
+	 (:file "keychain")
+	 (:file "feedback")))
    (:file "routes" :depends-on ("init" controllers "crypto" "errors"))
    (:file "init-thread" :depends-on ("init" "routes"))))
 
