@@ -1,6 +1,11 @@
 (in-package :turtl)
 
 (defroute (:get "/api/profiles/users/([0-9a-f-]+)") (req res args)
+  "Returns the curren user's full data profile.
+   
+   Called when a user joins for the first time (in which case this is blank),
+   when a new client connects to an existing account, or an existing client gets
+   too far behind."
   (catch-errors (res)
     (let ((user-id (car args)))
       (unless (string= (user-id req) user-id)

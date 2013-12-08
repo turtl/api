@@ -41,10 +41,13 @@
                    (:attr
                      (:attr
                        (:eq-join
-                         (:get-all
-                           (:table "boards_personas_link")
-                           board-ids
-                           :index (db-index "boards_personas_link" "board_id"))
+                         (:filter
+                           (:get-all
+                             (:table "boards_personas_link")
+                             board-ids
+                             :index (db-index "boards_personas_link" "board_id"))
+                           (r:fn (l)
+                             (:== (:default (:attr l "invite") nil) nil)))
                          "to"
                          (:table "personas"))
                        "right")
@@ -58,8 +61,10 @@
                        (:table "boards")
                        board-ids)
                      "user_id")))
-          (board-user-ids (r:run sock query)))
-    (r:stop/disconnect sock cursor)
+          (cursor (r:run sock query))
+          (board-user-ids (r:to-array sock cursor))
+          (nil (r:stop sock cursor)))
+    (r:disconnect sock)
     (finish future (cl-async-util:append-array shared-user-ids board-user-ids))))
 
 (defafun get-user-boards (future) (user-id &key get-persona-boards get-notes get-personas)
@@ -294,7 +299,7 @@
                     (priv-entry `(("id" . ,(sha256 (concatenate 'string
                                                                 board-id ":"
                                                                 from-persona-id ":"
-                                                                to-persona-id ":")))
+                                                                to-persona-id)))
                                   ("board_id" . ,board-id)
                                   ("from" . ,from-persona-id)
                                   ("to" . ,to-persona-id)
@@ -310,7 +315,6 @@
                                       (t
                                         priv-entry)))
                     (priv-record (convert-alist-hash priv-entry))
-                    (nil (add-id priv-record))
                     (query (r:r
                              (:insert
                                (:table "boards_personas_link")
@@ -338,15 +342,30 @@
 (defafun clear-board-persona-permissions (future) (user-id board-id from-persona-id to-persona-id)
   "Clear out a persona's board permissions (revoke access)."
   (alet* ((from-persona-id (get-link-from-persona-id board-id to-persona-id :from-persona-id from-persona-id))
+          ;; grab user ids *before* removing link, otherwise the deleted user
+          ;; is left out in the cold >=]
+          (user-ids (get-affected-users-from-board-ids (list board-id)))
+          (sync-ids (add-sync-record user-id "board" board-id "edit" :rel-ids user-ids))
           (id (sha256 (concatenate 'string
                                    board-id ":"
                                    from-persona-id ":"
-                                   to-persona-id ":")))
+                                   to-persona-id)))
           (sock (db-sock))
-          (query (r:r (:delete (:get (:table "boards_personas_link") id))))
-          (nil (r:run sock query))
-          (user-ids (get-affected-users-from-board-ids (list board-id)))
-          (sync-ids (add-sync-record user-id "board" board-id "edit" :rel-ids user-ids)))
+          (query (r:r (:do
+                        (r:fn (val)
+                          (:branch val
+                            (:delete val)
+                            (:delete
+                              (:filter
+                                (:get-all
+                                  (:table "boards_personas_link")
+                                  board-id
+                                  :index (db-index "boards_personas_link" "board_id"))
+                                (r:fn (l)
+                                  (:&& (:== from-persona-id (:attr l "from"))
+                                       (:== to-persona-id (:attr l "to"))))))))
+                        (:get (:table "boards_personas_link") id))))
+          (nil (r:run sock query)))
     (r:disconnect sock)
     (finish future 0 sync-ids)))
 
@@ -378,7 +397,7 @@
                   (id (sha256 (concatenate 'string
                                            board-id ":"
                                            from-persona-id ":"
-                                           to-persona-id ":")))
+                                           to-persona-id)))
                   (nil (r:run sock (r:r (:delete (:get (:table "boards_personas_link") (gethash "id" link))))))
                   (nil (progn
                          (setf (gethash "id" link) id

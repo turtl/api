@@ -9,6 +9,7 @@
             (to (post-var req "to"))
             (key (post-var req "key"))
             (board-key (post-var req "board_key"))
+            (question (post-var req "question"))
             (used-secret-p (< 0 (varint (post-var req "used_secret") 0)))
             (invite (create-board-invite user-id
                                          board-id
@@ -16,11 +17,13 @@
                                          to
                                          key
                                          board-key
+                                         question
                                          used-secret-p)))
       (track "invite" `(:persona nil :used-secret ,used-secret-p))
       (send-json res invite))))
 
 (defroute (:get "/api/invites/codes/([0-9a-f-]+)") (req res args)
+  "Retrieve information about an invite."
   (catch-errors (res)
     (alet* ((invite-code (car args))
             (invite-id (or (get-var req "invite_id") ""))
@@ -30,7 +33,7 @@
           (send-response res :status 404 :body "\"Invite not found.\"")))))
 
 (defroute (:post "/api/invites/accepted/([0-9a-f-]+)") (req res args)
-  "Accept an invite"
+  "Accept an invite."
   (catch-errors (res)
     (alet* ((user-id (user-id req))
             (invite-id (car args))
@@ -54,6 +57,7 @@
         (send-json res hash)))))
 
 (defroute (:delete "/api/invites/([0-9a-f-]+)") (req res args)
+  "Delete an invite (aka deny)."
   (catch-errors (res)
     (alet* ((invite-id (car args))
             (user-id (user-id req))

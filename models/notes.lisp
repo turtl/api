@@ -6,7 +6,8 @@
    ("board_id" :type string :required t :length 24)
    ("file_id" :type string :length 24)
    ("keys" :type sequence :required t :coerce simple-vector)
-   ("body" :type cl-async-util:bytes-or-string)))
+   ("body" :type cl-async-util:bytes-or-string)
+   ("mod" :type integer)))
 
 (defafun get-note-by-id (future) (note-id)
   "Get a note by id."
@@ -23,9 +24,10 @@
                    (:attr
                      (:get-all (:table "notes") note-id)
                      "board_id")))
-          (board-id (r:run sock query)))
-    (r:disconnect sock)
-    (finish future (car board-id))))
+          (cursor (r:run sock query))
+          (board-id (r:to-array sock cursor)))
+    (r:stop/disconnect sock cursor)
+    (finish future (aref board-id 0))))
 
 (defafun get-board-notes (future) (board-id)
   "Get the notes for a board."
@@ -79,6 +81,7 @@
   (setf (gethash "user_id" note-data) user-id
         (gethash "board_id" note-data) board-id)
   (add-id note-data)
+  (add-mod note-data)
   ;; first, check that the user/persona is a member of this board
   (alet ((perms (get-user-board-permissions (if persona-id persona-id user-id) board-id)))
     (if (<= 2 perms)
@@ -104,11 +107,20 @@
 
 (defafun edit-note (future) (user-id note-id note-data)
   "Edit an existing note."
-  ;; first, check if the user owns the note
-  (alet ((perms (get-user-note-permissions user-id note-id)))
-    (if (<= 2 perms)
+  ;; first, check if the user owns the note, or at least has write access to the
+  ;; board the note belongs to. we also check that, if moving the note to a new
+  ;; board, that the user has access tot he new board as well.
+  (alet* ((cur-board-id (get-note-board-id note-id))
+          (new-board-id (gethash "board_id" note-data))
+          (perms-cur (get-user-note-permissions user-id note-id))
+          (perms-new (if (string= cur-board-id new-board-id)
+                         perms-cur
+                         (get-user-board-permissions user-id new-board-id))))
+    (if (and (<= 2 perms-cur)
+             (<= 2 perms-new))
         ;; TODO: validate if changing board_id that user is member of new board
         (validate-note (note-data future :edit t)
+          (add-mod note-data)
           (remhash "user_id" note-data)
           (remhash "file_id" note-data)
           (alet* ((cur-board-id (get-note-board-id note-id))
@@ -126,7 +138,9 @@
             (setf (gethash "sync_ids" note-data) sync-ids)
             (finish future note-data)))
         (signal-error future (make-instance 'insufficient-privileges
-                                            :msg "Sorry, you are editing a note you don't have access to.")))))
+                                            :msg (if (< perms-cur 2)
+                                                     "Sorry, you are editing a note you don't have access to."
+                                                     "You do not have access to the board you're moving this note to."))))))
 
 (defafun delete-note-file (future) (user-id note-id &key perms)
   "Delete the file attachment for a note (also removes the file itself from the

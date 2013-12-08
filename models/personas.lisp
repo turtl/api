@@ -147,11 +147,14 @@
    links."
   (alet* ((sock (db-sock))
           (query-boards (r:r (:set-union
-                               (:attr (:get-all (:table "boards_personas_link") persona-id :index (db-index "boards_personas_link" "to")) "board_id")
-                               (:attr (:get-all (:table "boards_personas_link") persona-id :index (db-index "boards_personas_link" "from")) "board_id"))))
+                               (:coerce-to (:attr (:get-all (:table "boards_personas_link") persona-id :index (db-index "boards_personas_link" "to")) "board_id") "array")
+                               (:coerce-to (:attr (:get-all (:table "boards_personas_link") persona-id :index (db-index "boards_personas_link" "from")) "board_id") "array"))))
           (query-to (r:r (:delete (:get-all (:table "boards_personas_link") persona-id :index (db-index "boards_personas_link" "to")))))
           (query-from (r:r (:delete (:get-all (:table "boards_personas_link") persona-id :index (db-index "boards_personas_link" "from")))))
-          (board-ids (r:run sock query-boards))
+          (cursor (r:run sock query-boards))
+          (board-ids (r:to-array sock cursor))
+          (board-ids (coerce board-ids 'list))
+          (nil (r:stop sock cursor))
           (nil (r:run sock query-to))
           (nil (r:run sock query-from))
           (sync-records nil))

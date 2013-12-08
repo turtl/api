@@ -11,7 +11,7 @@
    of our models/controllers are covered in future-handler-case, but accidents
    do happen."
   (unless (typep err 'as:tcp-info)
-    (when socket
+    (when (and socket (typep socket 'as:socket))
       (let* ((socket-data (as:socket-data socket))
            (response (getf socket-data :response)))
         ;; if we've got a response object and an error hasn't been sent yet, send

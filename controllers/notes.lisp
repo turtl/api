@@ -1,6 +1,19 @@
 (in-package :turtl)
 
+;;; Many of the routes in this controller look for a persona ID passed with the
+;;; request, and if found use that insteda of the currently logged-in user when
+;;; updating note data. The purpose of this is to use a persona's permissions to
+;;; validate changing note data intstead of the user's (in the case that the
+;;; note is in a board the persona has share access to).
+;;;
+;;; If a persona ID is apssed, it is *always* used. The client must make the
+;;; decision about whether or not to pass it, the server is not going to take
+;;; both and use the one with the highest permissions.
+
+;; TODO: just POST /notes instead of including the board id...
 (defroute (:post "/api/boards/([0-9a-f-]+)/notes") (req res args)
+  "Add a note. Allows passing in a persona ID, which will be used in place of
+   the current user ID when validating permissions."
   (catch-errors (res)
     (alet* ((user-id (user-id req))
             (persona-id (post-var req "persona"))
@@ -21,6 +34,8 @@
       (send-json res note))))
 
 (defroute (:put "/api/notes/([0-9a-f-]+)") (req res args)
+  "Edit a note. Allows passing in a persona ID, which will be used in place of
+   the current user ID when validating permissions."
   (catch-errors (res)
     (alet* ((note-id (car args))
             (user-id (user-id req))
@@ -48,6 +63,8 @@
       (send-json res note))))
 
 (defroute (:delete "/api/notes/([0-9a-f-]+)") (req res args)
+  "Delete a note. Allows passing in a persona ID, which will be used in place of
+   the current user ID when validating permissions."
   (catch-errors (res)
     (alet* ((note-id (car args))
             (user-id (user-id req))
@@ -74,6 +91,8 @@
       (send-json res t))))
 
 (defroute (:put "/api/notes/batch") (req res)
+  "Batch edit. Allows passing in a persona ID, which will be used in place of
+   the current user ID when validating permissions."
   (catch-errors (res)
     (alet* ((user-id (user-id req))
             (persona-id (post-var req "persona"))

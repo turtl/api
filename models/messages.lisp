@@ -68,8 +68,9 @@
     (alet* ((sock (db-sock))
             (query (r:r (:do
                           (r:fn (msg)
-                            (:branch (:|| (:== (:attr msg "to") persona-id)
-                                          (:== (:attr msg "from") persona-id))
+                            (:branch (:&& msg
+                                          (:|| (:== (:attr msg "to") persona-id)
+                                               (:== (:attr msg "from") persona-id)))
                               ;; message is from/to validated persona...perform the delete
                               (:delete (:get (:table "messages") message-id))
                               ;; message is NOT from the validated persona
