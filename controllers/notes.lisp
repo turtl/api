@@ -19,10 +19,14 @@
             (persona-id (post-var req "persona"))
             (board-id (car args))
             (note-data (post-var req "data"))
-            (has-file (= (varint (post-var req "file") 0) 1))
+            (file-type (post-var req "file_type"))
+            (has-file (not (string= (or file-type "") "")))
             (file (when has-file (make-file)))
             (nil (when file
-                   (setf (gethash "file_id" note-data) (gethash "id" file))
+                   (let ((fdata (make-hash-table :test #'equal)))
+                     (setf (gethash "id" fdata) (gethash "id" file)
+                           (gethash "type" fdata) file-type
+                           (gethash "file" note-data) fdata))
                    (add-file user-id file)))
             (note (if persona-id
                       (with-valid-persona (persona-id user-id)
