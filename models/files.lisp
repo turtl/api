@@ -1,12 +1,18 @@
 (in-package :turtl)
 
-(defun make-file (&key id hash uploading)
+(defvalidator validate-file
+  (("id" :type string :required t :length 24)
+   ("user_id" :type string :required t :length 24)
+   ("hash" :type string :required t)
+   ("upload_id" :type string)
+   ("body" :type cl-async-util:bytes-or-string)))
+
+(defun make-file (&key id hash)
   "Make a file stub."
   (let ((filedata (make-hash-table :test #'equal)))
     (if id
         (setf (gethash "id" filedata) id)
         (add-id filedata))
-    (when uploading (setf (gethash "status" filedata) "u"))
     (when hash (setf (gethash "hash" filedata) hash))
     filedata))
 
@@ -29,7 +35,6 @@
 (defafun add-file (future) (user-id filedata)
   "Adds a file record. Does *not* contain file contents, which will be streamed
    separately to storage system."
-  (add-mod filedata)
   (setf (gethash "user_id" filedata) user-id)
   (alet* ((sock (db-sock))
           (query (r:r (:insert
@@ -45,7 +50,6 @@
   (alet ((perms (get-user-file-permissions user-id file-id)))
     (if (<= 2 perms)
         (progn
-          (add-mod filedata)
           ;; disallow ownership change
           (remhash "user_id" filedata)
           (alet* ((sock (db-sock))

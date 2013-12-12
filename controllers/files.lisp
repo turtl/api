@@ -14,14 +14,14 @@
           (format t "done.~%")
           (send-json res (flex:get-output-stream-sequence bytes)))))))
 
-(defroute (:post "/api/files" :chunk t :suppress-100 t :buffer-body t) (req res)
+(defun do-upload (req res file)
+  "Abstraction function that handles chunking and streaming file contents to
+   storage system."
   (catch-errors (res)
     (let* ((s3-uploader :starting)
            (user-id (user-id req))
-           (file-id (get-var req "file_id"))
-           (hash (get-var req "hash"))
+           (file-id (gethash "id" file))
            (buffered-chunks nil)
-           (file (make-file :id file-id :hash hash :uploading t))
            (path (format nil "/files/~a" (gethash "id" file)))
            (chunking-started nil)
            (last-chunk-sent nil)
@@ -29,6 +29,8 @@
            (finish-fn (lambda ()
                         (format t "- file: sending final response to client~%")
                         (setf (gethash "size" file) total-file-size)
+                        (remhash "upload_id" file)
+                        (remhash "uploading" file)
                         (edit-file user-id file-id file)
                         (send-json res file))))
       ;; create an uploader lambda, used to stream our file chunk by chunk to S3
@@ -47,8 +49,9 @@
         (unless chunking-started
           (send-100-continue res))
         (when last-chunk-sent
-          (incf total-file-size (stream-length buffered-chunks))   ; track the file size
-          (alet ((finishedp (funcall s3-uploader (flexi-streams:get-output-stream-sequence buffered-chunks))))
+          (alet* ((body (flexi-streams:get-output-stream-sequence buffered-chunks))
+                  (finishedp (funcall s3-uploader body)))
+            (incf total-file-size (length body))   ; track the file size
             ;; note that finishedp should ALWAYS be true here, but "should" and
             ;; "will" are very different things (especially in async, i'm
             ;; finding)
@@ -57,6 +60,7 @@
       ;; listen for chunked data. if we have an uploader object, send in our
       ;; data directly, otherwise buffer it until the uploader becomes
       ;; available
+      (format t "- file: calling with-chunking~%")
       (with-chunking req (chunk-data last-chunk-p)
         ;; notify the upload creator that chunking has started. this prevents it
         ;; from sending a 100 Continue header if the flow has already started.
@@ -76,4 +80,21 @@
                  (when finishedp
                    (funcall finish-fn)))
                (setf buffered-chunks nil)))))))
+
+(defroute (:post "/api/files" :chunk t :suppress-100 t :buffer-body t) (req res)
+  "Upload a new file."
+  (catch-errors (res)
+    (alet* ((hash (get-var req "hash"))
+            (user-id (user-id req))
+            (file (make-file :hash hash))
+            (file (add-file user-id file)))
+      (do-upload req res file))))
+
+(defroute (:put "/api/files/([0-9a-f]+)" :chunk t :suppress-100 t :buffer-body t) (req res args)
+  "Replace a file's contents."
+  (catch-errors (res)
+    (alet* ((file-id (car args))
+            (hash (get-var req "hash"))
+            (file (make-file :id file-id :hash hash)))
+      (do-upload req res file))))
 
