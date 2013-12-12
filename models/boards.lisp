@@ -347,20 +347,33 @@
                                    from-persona-id ":"
                                    to-persona-id)))
           (sock (db-sock))
-          (query (r:r (:do
-                        (r:fn (val)
-                          (:branch val
-                            (:delete val)
-                            (:delete
-                              (:filter
-                                (:get-all
-                                  (:table "boards_personas_link")
-                                  board-id
-                                  :index (db-index "boards_personas_link" "board_id"))
-                                (r:fn (l)
-                                  (:&& (:== from-persona-id (:attr l "from"))
-                                       (:== to-persona-id (:attr l "to"))))))))
-                        (:get (:table "boards_personas_link") id))))
+          ;; TODO: delete based on ID. since we changed the id scheme a while
+          ;; ago, some records have the new ids, some the old. for this reason
+          ;; we must delete based on our data that derives the id instead of the
+          ;; id itself.
+          (query (r:r (:delete
+                        (:filter
+                          (:get-all
+                            (:table "boards_personas_link")
+                            board-id
+                            :index (db-index "boards_personas_link" "board_id"))
+                          (r:fn (l)
+                            (:&& (:== from-persona-id (:attr l "from"))
+                                 (:== to-persona-id (:attr l "to"))))))))
+          ;(query (r:r (:do
+          ;              (r:fn (val)
+          ;                (:branch val
+          ;                  (:delete val)
+          ;                  (:delete
+          ;                    (:filter
+          ;                      (:get-all
+          ;                        (:table "boards_personas_link")
+          ;                        board-id
+          ;                        :index (db-index "boards_personas_link" "board_id"))
+          ;                      (r:fn (l)
+          ;                        (:&& (:== from-persona-id (:attr l "from"))
+          ;                             (:== to-persona-id (:attr l "to"))))))))
+          ;              (:get (:table "boards_personas_link") id))))
           (nil (r:run sock query)))
     (r:disconnect sock)
     (finish future 0 sync-ids)))
