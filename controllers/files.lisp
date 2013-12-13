@@ -1,5 +1,6 @@
 (in-package :turtl)
 
+;; TODO: wire up persona-d to note permissions BS
 (defun do-upload (req res file user-id note-id &key persona-id)
   "Abstraction function that handles chunking and streaming file contents to
    storage system."
