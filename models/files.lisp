@@ -54,7 +54,9 @@
           (remhash "user_id" filedata)
           (alet* ((sock (db-sock))
                   (file-id (gethash "id" filedata))
-                  (query (r:r (:update
+                  ;; NOTE: we replace instead of edit since in many cases, we
+                  ;; want to remove certain keys (like upload_id)
+                  (query (r:r (:replace
                                 (:get (:table "files") file-id)
                                 filedata)))
                   (nil (r:run sock query)))

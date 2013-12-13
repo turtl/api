@@ -19,22 +19,11 @@
             (persona-id (post-var req "persona"))
             (board-id (car args))
             (note-data (post-var req "data"))
-            (file-type (post-var req "file_type"))
-            (has-file (not (string= (or file-type "") "")))
-            (file (when has-file (make-file)))
-            (nil (when file
-                   (let ((fdata (make-hash-table :test #'equal)))
-                     (setf (gethash "id" fdata) (gethash "id" file)
-                           (gethash "type" fdata) file-type
-                           (gethash "file" note-data) fdata))
-                   (add-file user-id file)))
             (note (if persona-id
                       (with-valid-persona (persona-id user-id)
                         (add-note user-id board-id note-data :persona-id persona-id))
                       (add-note user-id board-id note-data))))
-      (when file
-        (setf (gethash "file_id" note) (gethash "id" file)))
-      (track "note-add" `(:shared ,(when persona-id t) :file ,has-file))
+      (track "note-add" `(:shared ,(when persona-id t)))
       (send-json res note))))
 
 (defroute (:put "/api/notes/([0-9a-f-]+)") (req res args)
@@ -48,21 +37,7 @@
             (note (if persona-id
                       (with-valid-persona (persona-id user-id)
                         (edit-note persona-id note-id note-data))
-                      (edit-note user-id note-id note-data)))
-            (has-file (and (not (gethash "file_id" note))
-                           (= (varint (post-var req "file") 0) 1)))
-            (file (when has-file (make-file)))
-            (note (if file
-                      (let ((note-with-file (make-hash-table :test #'equal)))
-                        (setf (gethash "id" note-with-file) (gethash "id" note)
-                              (gethash "file_id" note-with-file) (gethash "id" file))
-                        (add-file user-id file)
-                        ;; re-save note with new file-id
-                        (if persona-id
-                            (with-valid-persona (persona-id user-id)
-                              (edit-note persona-id note-id note-with-file))
-                            (edit-note user-id note-id note-with-file)))
-                      note)))
+                      (edit-note user-id note-id note-data))))
       (track "note-edit" `(:shared ,(when persona-id t)))
       (send-json res note))))
 

@@ -142,6 +142,31 @@
                                                      "Sorry, you are editing a note you don't have access to."
                                                      "You do not have access to the board you're moving this note to."))))))
 
+(defafun attach-file-to-note (future) (user-id note-id file)
+  "Attach a file to a note. If the note already has a file attached, replace it
+   with the new file.
+   
+   This is called after a file finishes uploading to the storage system."
+  (alet* ((perms (get-user-note-permissions user-id note-id)))
+    (if (<= 2 perms)
+        (alet* ((note (get-note-by-id note-id))
+                (sync-ids (unless (string= (gethash "file_id" note)
+                                           (gethash "id" file))
+                            (delete-note-file user-id note-id)))
+                (sock (db-sock))
+                (query (r:r (:update
+                              (:get (:table "notes") note-id)
+                              `(("file_id" . ,(gethash "id" file))))))
+                (nil (r:run sock query))
+                (user-ids (get-affected-users-from-board-ids (list (gethash "board_id" note))))
+                (sync-ids-note (add-sync-record user-id "note" note-id "edit" :rel-ids user-ids))
+                (sync-ids-file (add-sync-record user-id "file" note-id "add" :rel-ids user-ids))
+                (sync-ids (append sync-ids sync-ids-note sync-ids-file)))
+          (setf (gethash "sync_ids" file) sync-ids)
+          (finish future file)))
+        (signal-error future (make-instance 'insufficient-privileges
+                                            :msg "Sorry, you don't have access to that note."))))
+
 (defafun delete-note-file (future) (user-id note-id &key perms)
   "Delete the file attachment for a note (also removes the file itself from the
    storage system, wiping the file out forever)."
