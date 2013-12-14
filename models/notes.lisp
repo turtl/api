@@ -160,8 +160,7 @@
                 (nil (r:run sock query))
                 (user-ids (get-affected-users-from-board-ids (list (gethash "board_id" note))))
                 (sync-ids-note (add-sync-record user-id "note" note-id "edit" :rel-ids user-ids))
-                (sync-ids-file (add-sync-record user-id "file" note-id "add" :rel-ids user-ids))
-                (sync-ids (append sync-ids sync-ids-note sync-ids-file)))
+                (sync-ids (append sync-ids sync-ids-note)))
           (setf (gethash "sync_ids" file) sync-ids)
           (finish future file)))
         (signal-error future (make-instance 'insufficient-privileges

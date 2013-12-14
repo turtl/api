@@ -1,15 +1,11 @@
 (in-package :turtl)
 
 ;; TODO: wire up persona-d to note permissions BS
-(defun do-upload (req res file user-id note-id &key persona-id)
+(defun do-upload (req res file user-id)
   "Abstraction function that handles chunking and streaming file contents to
    storage system."
   (catch-errors (res)
     (alet* ((s3-uploader :starting)
-            (note-perms (get-user-note-permissions user-id note-id))
-            (nil (when (<= 2 note-perms)
-                   (error 'insufficient-privileges
-                          :msg "You are attaching a file to a note you don't have access to.")))
             (file-id (gethash "id" file))
             (buffered-chunks nil)
             (path (format nil "/files/~a" (gethash "id" file)))
@@ -17,14 +13,16 @@
             (last-chunk-sent nil)
             (total-file-size 0)
             (finish-fn (lambda ()
-                         (format t "- file: sending final response to client~%")
-                         (setf (gethash "size" file) total-file-size)
-                         (remhash "upload_id" file)
-                         (alet* ((file (edit-file user-id file-id file))
-                                 ;; attach the file to the note. this generates
-                                 ;; our sync records as well.
-                                 (file (attach-file-to-note user-id note-id file)))
-                           (send-json res file)))))
+                         (catch-errors (res)
+                           (format t "- file: sending final response to client~%")
+                           (setf (gethash "size" file) total-file-size)
+                           (remhash "upload_id" file)
+                           (alet* ((file (edit-file user-id file-id file))
+                                   (nil (format t "fil saved.~%"))
+                                   (sync-ids (add-sync-record user-id "file" (gethash "id" file) "add")))
+                             (format t "got syncs...~%")
+                             (setf (gethash "sync_ids" file) sync-ids)
+                             (send-json res file))))))
       ;; create an uploader lambda, used to stream our file chunk by chunk to S3
       (format t "- file: starting uploader with path: ~a~%" path)
       (multiple-future-bind (uploader upload-id)
@@ -56,7 +54,6 @@
       (with-chunking req (chunk-data last-chunk-p)
         ;; notify the upload creator that chunking has started. this prevents it
         ;; from sending a 100 Continue header if the flow has already started.
-        (format t "chunk: ~a~%" (subseq chunk-data 0 40))
         (setf chunking-started t
               last-chunk-sent (or last-chunk-sent last-chunk-p))
         (cond ((eq s3-uploader :starting)
@@ -83,7 +80,7 @@
             (note-id (get-var req "note_id"))
             (file (make-file :hash hash))
             (file (add-file user-id file)))
-      (do-upload req res file user-id note-id :persona-id persona-id))))
+      (do-upload req res file user-id))))
 
 (defroute (:put "/api/files/([0-9a-f]+)" :chunk t :suppress-100 t :buffer-body t) (req res args)
   "Replace a file's contents."
@@ -95,5 +92,5 @@
             (note-id (get-var req "note_id"))
             (file (make-file :id file-id :hash hash))
             (file (edit-file user-id file)))
-      (do-upload req res file user-id note-id :persona-id persona-id))))
+      (do-upload req res file user-id))))
 
