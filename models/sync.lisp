@@ -18,7 +18,7 @@
     (r:stop/disconnect sock cursor)
     (finish future (car sync-item))))
 
-(defun make-sync-record (user-id item-type item-id action &key client-id rel-ids)
+(defun make-sync-record (user-id item-type item-id action &key client-id rel-ids fields)
   "Creates a sync hash record from the given params."
   (let* ((sync-record (make-hash-table :test #'equal)))
     (add-id sync-record)
@@ -28,7 +28,10 @@
           (gethash "action" sync-record) action)
     ;; set our relation, if specified
     (when rel-ids (setf (gethash "rel" sync-record) (remove-duplicates rel-ids :test #'string=)))
+    ;; can store the client id (cid) of a newly-created object
     (when client-id (setf (gethash "cid" sync-record) client-id))
+    ;; can be used to specify the public fields changed in an edit
+    (when (and fields (listp fields)) (setf (gethash "fields" sync-record) fields))
     sync-record))
 
 (defafun insert-sync-records (future) (sync-records)
@@ -42,7 +45,7 @@
     (r:disconnect sock)
     (finish future t)))
 
-(defafun add-sync-record (future) (user-id item-type item-id action &key client-id rel-ids)
+(defafun add-sync-record (future) (user-id item-type item-id action &key sub-action client-id rel-ids fields)
   "Adds a record to the sync table describing a change to a specific object.
    Allows specifying relation ids (:rel-ids) which can be used for filtering on
    sync items. Returns the added sync records IDs as the first value and the

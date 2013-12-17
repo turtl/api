@@ -45,8 +45,7 @@
                        (list (:attr s "user_id")
                              (:attr s "type")
                              (:attr s "id") )))
-        :rel (:version 1 :multi t)))
-    :files nil)
+        :rel (:version 1 :multi t))))
   "Holds our entire db/table/index schema. Tables are are created if they don't
    exist. Indexes are also created/updated if they don't exist or if the version
    doesn't match. Index names store the version in them, ie the index `user_id`

@@ -9,6 +9,11 @@
    ("body" :type cl-async-util:bytes-or-string)
    ("mod" :type integer)))
 
+(defvalidator validate-note-file
+  (("hash" :type string :required t)
+   ("size" :type integer)
+   ("upload_id" :type string)))
+
 (defafun get-note-by-id (future) (note-id)
   "Get a note by id."
   (alet* ((sock (db-sock))
@@ -142,34 +147,50 @@
                                                      "Sorry, you are editing a note you don't have access to."
                                                      "You do not have access to the board you're moving this note to."))))))
 
-(defafun attach-file-to-note (future) (user-id note-id file)
-  "Attach a file to a note. If the note already has a file attached, replace it
-   with the new file.
-   
-   This is called after a file finishes uploading to the storage system."
+(defun make-note-file (&key hash)
+  "Make a file descriptor hash object."
+  (let ((filedata (make-hash-table :test #'equal)))
+    (when hash (setf (gethash "hash" filedata) hash))
+    filedata))
+
+(defafun edit-note-file (future) (user-id note-id file-data)
+  "Edit a note's file data."
   (alet* ((perms (get-user-note-permissions user-id note-id)))
     (if (<= 2 perms)
-        (alet* ((note (get-note-by-id note-id))
-                (sync-ids (unless (string= (gethash "file_id" note)
-                                           (gethash "id" file))
-                            (delete-note-file user-id note-id)))
-                (sock (db-sock))
-                (query (r:r (:update
-                              (:get (:table "notes") note-id)
-                              `(("file_id" . ,(gethash "id" file))))))
-                (nil (r:run sock query))
-                (user-ids (get-affected-users-from-board-ids (list (gethash "board_id" note))))
-                (sync-ids-note (add-sync-record user-id "note" note-id "edit" :rel-ids user-ids))
-                (sync-ids (append sync-ids sync-ids-note)))
-          (setf (gethash "sync_ids" file) sync-ids)
-          (finish future file)))
+        (validate-note-file (file-data future)
+          (alet* ((board-id (get-note-board-id note-id))
+                  (sock (db-sock))
+                  (query (r:r (:update
+                                (:get (:table "notes") note-id)
+                                `(("file" . ,file-data)))))
+                  (nil (r:run sock query))
+                  (user-ids (get-affected-users-from-board-ids (list board-id)))
+                  (sync-ids (add-sync-record user-id "note" note-id "edit" :rel-ids user-ids :fields (list "file"))))
+            (r:disconnect sock)
+            (setf (gethash "sync_ids" file-data) sync-ids)
+            (finish future file-data)))
         (signal-error future (make-instance 'insufficient-privileges
-                                            :msg "Sorry, you don't have access to that note."))))
+                                            :msg "Sorry, you are editing a note you don't have access to.")))))
 
 (defafun delete-note-file (future) (user-id note-id &key perms)
   "Delete the file attachment for a note (also removes the file itself from the
    storage system, wiping the file out forever)."
-  (finish future t))
+  (alet* ((perms (or perms (get-user-note-permissions user-id note-id))))
+    (if (<= 2 perms)
+        (multiple-future-bind (nil res)
+            (s3-op :delete (format nil "/files/~a" note-id))
+          (if (<= 200 res 299)
+              (alet* ((sock (db-sock))
+                      (query (r:r (:replace
+                                    (:get (:table "notes") note-id)
+                                    (r:fn (note)
+                                      (:without note "file")))))
+                      (nil (r:run sock query)))
+                (r:disconnect sock))
+              (signal-error future (make-instance 'server-error
+                                                  :msg "There was a problem removing that note's attachment."))))
+        (signal-error future (make-instance 'insufficient-privileges
+                                            :msg "Sorry, you are editing a note you don't have access to.")))))
 
 (defafun delete-note (future) (user-id note-id)
   "Delete a note."
