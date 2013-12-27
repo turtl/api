@@ -1,18 +1,18 @@
 (in-package :turtl)
 
-(defvalidator validate-note
-  (("id" :type string :required t :length 24)
-   ("user_id" :type string :required t :length 24)
-   ("board_id" :type string :required t :length 24)
-   ("file" :type hash-table)
-   ("keys" :type sequence :required t :coerce simple-vector)
-   ("body" :type cl-async-util:bytes-or-string)
-   ("mod" :type integer)))
-
 (defvalidator validate-note-file
   (("hash" :type string :required t)
    ("size" :type integer)
    ("upload_id" :type string)))
+
+(defvalidator validate-note
+  (("id" :type string :required t :length 24)
+   ("user_id" :type string :required t :length 24)
+   ("board_id" :type string :required t :length 24)
+   ("file" :validator validate-note-file)
+   ("keys" :type sequence :required t :coerce simple-vector)
+   ("body" :type cl-async-util:bytes-or-string)
+   ("mod" :type integer)))
 
 (defafun get-note-by-id (future) (note-id)
   "Get a note by id."

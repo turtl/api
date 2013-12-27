@@ -1,5 +1,8 @@
 (in-package :turtl)
 
+(defparameter *validation-forms* nil
+  "Holds name -> form mappings for validation forms.")
+
 (defun do-validate (object validation-form &key edit)
   "Validation a hash object against a set of rules. Returns nil on *success* and
    returns the errors on failure."
@@ -13,12 +16,13 @@
          (val-error (str)
            (return-from do-validate str)))
     (dolist (entry validation-form)
-      (block do-validate
+      (block do-validate-next
         (let* ((key (car entry))
                (entry (cdr entry))
                (entry-type (getf entry :type))
                (coerce-to (getf entry :coerce))
                (transform (getf entry :transform))
+               (validator (getf entry :validator))
                (obj-entry (multiple-value-list (gethash key object)))
                (obj-val (car obj-entry))
                (exists (cadr obj-entry))
@@ -35,7 +39,16 @@
                    (val-error (format nil "Required field `~a` not present." key)))))
 
           ;; if the field doesn't exist, there's no point in validating it further
-          (unless exists (return-from do-validate))
+          (unless exists (return-from do-validate-next))
+
+          ;; check sub-objects against the given validator
+          (when (and (typep obj-val 'hash-table)
+                     validator)
+            (let ((validation (do-validate obj-val
+                                           (getf *validation-forms* validator)
+                                           :edit edit)))
+              (when validation
+                (return-from do-validate validation))))
 
           ;; do some typing work
           (when entry-type
@@ -71,8 +84,6 @@
           (when transform
             (setf obj-val (funcall transform obj-val)))
 
-          ;; TODO validate subobject/subsequence
-
           ;; set the value (in its processed form) back into the object
           (setf (gethash key object) obj-val))))
     ;; remove junk keys from object data
@@ -83,11 +94,16 @@
 
 (defmacro defvalidator (name validation-form)
   "Makes defining a validation function for a data type simpler."
+  (setf (getf *validation-forms* name) validation-form)
   `(defmacro ,name ((object future &key edit) &body body)
-     (let ((validation (gensym "validation")))
-       `(let ((,validation (do-validate ,object ,'',validation-form :edit ,edit)))
+     (let ((validation (gensym "validation"))
+           (validation-form-var (gensym "validation-form"))
+           (future-var (gensym "future")))
+       `(let* ((,future-var ,future)
+               (,validation-form-var (getf *validation-forms* ,'',name))
+               (,validation (do-validate ,object ,validation-form-var :edit ,edit)))
           (if ,validation
-              (signal-error ,future (make-instance 'validation-failed
-                                                   :msg (format nil "Validation failed: ~s~%" ,validation)))
+              (signal-error ,future-var (make-instance 'validation-failed
+                                                       :msg (format nil "Validation failed: ~s~%" ,validation)))
               (progn ,@body))))))
 
