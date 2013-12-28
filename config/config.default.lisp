@@ -57,8 +57,10 @@
     (:get . ,(cl-ppcre:create-scanner "/api/invites/codes/([0-9a-f-]+)")))
   "A list of public resources/actions that do not require authentication.")
 
-;; setup the wookie log
-(setf wookie:*log-level* :notice)
+;; setup the logger
+(log:config :info)
+(log:config '(wookie) :info)
+(log:config :nofile)
 
 (defvar *mixpanel* '(:enabled nil
                      :token "")

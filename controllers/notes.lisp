@@ -74,21 +74,21 @@
             (total-file-size 0)
             (finish-fn (lambda ()
                          (catch-errors (res)
-                           (format t "- file: sending final response to client~%")
+                           (log:debug "file: sending final response to client")
                            (setf (gethash "size" file) total-file-size)
                            (remhash "upload_id" file)
                            (alet* ((file (edit-note-file user-id file-id file)))
                              (send-json res file))))))
       ;; create an uploader lambda, used to stream our file chunk by chunk to S3
-      (format t "- file: starting uploader with path: ~a~%" path)
+      (log:debug "file: starting uploader with path: ~a" path)
       (multiple-future-bind (uploader upload-id)
           (s3-upload path)
         ;; save our file record
         (setf (gethash "upload_id" file) upload-id)
         (wait-for (edit-note-file user-id note-id file)
-          (format t "- file: file saved: ~a~%" (gethash "id" file)))
+          (log:debug "file: file saved: ~a" (gethash "id" file)))
         ;; save our uploader so the chunking brahs can use it
-        (format t "- file: uploader created: ~a~%" upload-id)
+        (log:debug "- file: uploader created: ~a" upload-id)
         (setf s3-uploader uploader)
         ;; if we haven't started getting the body yet, let the client know it's
         ;; ok to send
@@ -106,16 +106,14 @@
       ;; listen for chunked data. if we have an uploader object, send in our
       ;; data directly, otherwise buffer it until the uploader becomes
       ;; available
-      (format t "- file: calling with-chunking~%")
       (with-chunking req (chunk-data last-chunk-p)
         ;; notify the upload creator that chunking has started. this prevents it
         ;; from sending a 100 Continue header if the flow has already started.
-        (format t "chunking started.~%")
         (setf chunking-started t
               last-chunk-sent (or last-chunk-sent last-chunk-p))
         (cond ((eq s3-uploader :starting)
                (unless buffered-chunks
-                 (format t "- file: uploader not ready, buffering chunks~%")
+                 (log:debug "- file: uploader not ready, buffering chunks")
                  (setf buffered-chunks (flexi-streams:make-in-memory-output-stream :element-type '(unsigned-byte 8))))
                (write-sequence chunk-data buffered-chunks))
               (t

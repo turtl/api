@@ -30,7 +30,6 @@
     (let* ((len (file-length s))
            (data (make-array len :element-type '(unsigned-byte 8)))
            (num-bytes (read-sequence data s)))
-      (format t "num: ~a~%" num-bytes)
       (values data num-bytes))))
 
 (defun md5-test (&optional (path "/htdocs/tmp/fool.mp3"))

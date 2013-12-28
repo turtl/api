@@ -183,7 +183,7 @@
   ;; make a future that will be finished with our continuation function (or an
   ;; error if things go awry)
   (let ((future (make-future)))
-    (format t "- s3: creating upload~%")
+    (log:debug "s3: creating upload")
     (future-handler-case
       ;; make our initial request, humbly groveling at S3's feet for the
       ;; privilege of using their proprietary multi-part upload system when HTTP
@@ -210,20 +210,20 @@
                 (let ((part-num 1)
                       (part (flexi-streams:make-in-memory-output-stream :element-type '(unsigned-byte 8)))
                       (finished-parts nil))
-                  (format t "- s3: upload started: ~a~%" upload-id)
-                  (format t "- s3: returning continuation lambda~%")
+                  (log:debug "s3: upload started: ~a" upload-id)
+                  (log:debug "s3: returning continuation lambda")
                   (finish future
                     (lambda (data &optional continuep)
                       ;; append the data we got onto our current part. we keep
                       ;; doing this until either we have the last chunk or the
                       ;; part length is greater than the min part size (5MB in our
                       ;; case)
-                      ;(format t "- s3: appending data to part: ~a~%" (stream-length part))
+                      ;(log:debug "s3: appending data to part: ~a" (stream-length part))
                       (setf last-chunk-sent (or (not continuep) last-chunk-sent))
                       (write-sequence data part)
                       (when (or (not continuep)
                                 (<= min-part-size (stream-length part)))
-                        (format t "- s3: chunk overflow size hit (or last chunk): ~a~%" (stream-length part))
+                        (log:debug "s3: chunk overflow size hit (or last chunk): ~a" (stream-length part))
                         ;; ok, we're either done uploading or at the 5MB mark. run
                         ;; the upload of this part
                         (let* ((future (make-future))
@@ -240,12 +240,12 @@
                             future
                             (lambda (&rest _)
                               (declare (ignore _))
-                              (format t "- s3: ERROR (aborting upload ~a)~%" upload-id)
+                              (log:warn "s3: aborting upload ~a" upload-id)
                               (s3-upload-abort resource upload-id)))
                           (incf part-num)
                           ;; send the actual request, using our handy s3-op 
                           ;; unction
-                          (format t "- s3: sending part ~a to S3: ~a~%" local-part-num (length part-data))
+                          (log:debug "s3: sending part ~a to S3: ~a" local-part-num (length part-data))
                           (multiple-future-bind (res status headers)
                               (s3-op :put resource-part
                                      :content part-data
@@ -255,16 +255,16 @@
                             (setf part-data nil)
                             ;; OH NO!! now we have to parse XML to pull out an
                             ;; error string!! where did my life go so wrong?
-                            (format t "- s3: part ~a ret: ~a~%" local-part-num status)
+                            (log:debug "s3: part ~a ret: ~a" local-part-num status)
                             (unless (<= 200 status 299)
                               (error 's3-upload-error :upload-id upload-id :msg (get-s3-error res)))
                             ;; make sure we save our etags! god forbid we don't
                             ;; keep meticulous track of the data we're already
                             ;; uploading using S3's proprietary chunking API
                             (let ((etag (cdr (assoc :etag headers))))
-                              (format t "- s3: saving part ~a etag: ~a~%" local-part-num etag)
+                              (log:debug "s3: saving part ~a etag: ~a" local-part-num etag)
                               (push (cons local-part-num etag) finished-parts))
-                            (format t "- s3: num finished/parts (~a): ~a ~a~%" last-chunk-sent (length finished-parts) (1- part-num))
+                            (log:debug "s3: num finished/parts (~a): ~a ~a" last-chunk-sent (length finished-parts) (1- part-num))
                             (if (or (not last-chunk-sent)
                                     (< (length finished-parts) (1- part-num)))
                                 ;; T is "ALL DONE" nil is "still have chunks to process"
@@ -275,7 +275,7 @@
                                          (concatenate 'string
                                                       resource
                                                       "?uploadId=" upload-id)))
-                                  (format t "- s3: upload chunking done, finalize upload~%")
+                                  (log:debug "s3: upload chunking done, finalize upload")
                                   (multiple-future-bind (res)
                                       (s3-op :post resource-final
                                              :content body)
@@ -283,14 +283,14 @@
                                     ;; breaks HTTP yet again by passing 200 OK
                                     ;; even if there's a problem
                                     (let ((err-str (get-s3-error res)))
-                                      (format t "- s3: finalize response err (nil is good): ~a~%" err-str)
+                                      (log:debug "s3: finalize response err (nil is good): ~a" err-str)
                                       (if err-str
                                           (signal-error future (make-instance 's3-upload-error :upload-id upload-id :msg err-str))
                                           (finish future t)))))))
                           future)))
                     upload-id))
                 (t (e)
-                  (format t "- s3: ERROR (aborting upload ~a)~%" upload-id)
+                  (log:warn "s3: aborting upload ~a" upload-id)
                   (s3-upload-abort resource upload-id)
                   (signal-error future e)))
               (signal-error future (make-instance 's3-upload-error :msg "Error starting upload.")))))

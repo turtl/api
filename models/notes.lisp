@@ -160,7 +160,6 @@
   (alet* ((perms (get-user-note-permissions user-id note-id)))
     (if (<= 2 perms)
         (validate-note-file (file-data future)
-          (format t "filedata: ~a~%" file-data)
           (alet* ((board-id (get-note-board-id note-id))
                   (sock (db-sock))
                   (query (r:r (:replace

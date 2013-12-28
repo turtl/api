@@ -5,7 +5,7 @@
   `(future-handler-case
      (,action ,@args)
      (t (e)
-       (format t "(cleanup) Error running ~a: ~a" ',action e))))
+       (log:error "cleanup: Error running ~a: ~a" ',action e))))
   
 (defun cleanup (&key (poll 60))
   "Run various cleanup/maintenance tasks. Specify :poll (in seconds) to do

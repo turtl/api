@@ -146,12 +146,3 @@
           (finish future (list :tables-add tables-add
                                :indexes indexes)))))))
 
-;; ----- test
-(defun test ()
-  (as:with-event-loop (:catch-app-errors t)
-    (future-handler-case
-      (alet ((report (apply-db-schema *db-schema*)))
-        (format t "report: ~s~%" report))
-      (t (e) (format t "err: ~a~%" e)))))
-;; ----- /test
-    

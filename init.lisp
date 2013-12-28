@@ -26,7 +26,7 @@
                                   "."))))
             (send-response response :status 500 :body body)))))
     ;; let the guy looking at the logs see.
-    (format t "(turtl) UNcaught error: ~a~%" err)))
+    (log:error "UNcaught error: ~a" err)))
 
 ;; load all enabled wookie plugins
 (load-plugins :use-quicklisp t)
@@ -51,10 +51,10 @@
   (unwind-protect
     (as:with-event-loop (:catch-app-errors t)
       ;; set up the database schema
-      (format t "(turtl) Applying DB schema...~%")
+      (log:info "Applying DB schema...")
       (future-handler-case
         (alet ((report (apply-db-schema *db-schema*)))
-          (wookie-util:wlog :notice "(turtl) Schema applied: ~s~%" report)
+          (log:info "Schema applied: ~s" report)
           (let* ((listener (make-instance 'listener :bind bind :port port))
                  (server (start-server listener)))
             (cleanup)
@@ -64,7 +64,7 @@
                 (as:free-signal-handler 2)
                 (as:close-tcp-server server)
                 (as:exit-event-loop)))))
-        (t (e) (format t "(turtl) Error initializing: ~a~%" e))))
+        (t (e) (log:error "Error initializing: ~a" e))))
     (when *pid-file*
       (delete-file *pid-file*))))
   
