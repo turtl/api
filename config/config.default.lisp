@@ -58,9 +58,8 @@
   "A list of public resources/actions that do not require authentication.")
 
 ;; setup the logger
-(log:config :info)
-(log:config '(wookie) :info)
-(log:config :nofile)
+(log:config '(turtl) :debug)
+;(log:config :nofile)
 
 (defvar *mixpanel* '(:enabled nil
                      :token "")
