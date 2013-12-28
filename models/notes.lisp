@@ -154,15 +154,19 @@
     filedata))
 
 (defafun edit-note-file (future) (user-id note-id file-data)
-  "Edit a note's file data."
+  "Edit a note's file data. Note that this does a replace (vs update) meaning
+   if you need data to persist, you need to pass in ALL the file data you want
+   saved."
   (alet* ((perms (get-user-note-permissions user-id note-id)))
     (if (<= 2 perms)
         (validate-note-file (file-data future)
+          (format t "filedata: ~a~%" file-data)
           (alet* ((board-id (get-note-board-id note-id))
                   (sock (db-sock))
-                  (query (r:r (:update
+                  (query (r:r (:replace
                                 (:get (:table "notes") note-id)
-                                `(("file" . ,file-data)))))
+                                (r:fn (note)
+                                  (:merge (:without note "file") `(("file" . ,file-data)))))))
                   (nil (r:run sock query))
                   (user-ids (get-affected-users-from-board-ids (list board-id)))
                   (sync-ids (add-sync-record user-id "note" note-id "edit" :rel-ids user-ids :fields (list "file"))))
