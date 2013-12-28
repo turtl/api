@@ -19,7 +19,8 @@
                #:ironclad
                #:secure-random
                #:bordeaux-threads
-               #:xmls)
+               #:xmls
+               #:log4cl)
   :components
   ((:file "package")
    (:module lib
@@ -41,8 +42,8 @@
     :serial t
     :components
     ((:file "schema")
-	 (:file "users")
-	 (:file "keychain")
+     (:file "users")
+     (:file "keychain")
      (:file "challenges")
      (:file "email")
      (:file "personas")
@@ -53,7 +54,7 @@
      (:file "sync")
      (:file "admin")
      (:file "analytics")
-	 (:file "feedback")))
+     (:file "feedback")))
    (:file "init" :depends-on ("template" "crypto" "errors" "cron" "config/schema" models))
    (:module controllers
     :depends-on ("init" "errors" lib models "package")
@@ -69,8 +70,8 @@
      (:file "profile")
      (:file "sync")
      (:file "users")
-	 (:file "keychain")
-	 (:file "feedback")))
+     (:file "keychain")
+     (:file "feedback")))
    (:file "routes" :depends-on ("init" controllers "crypto" "errors"))
    (:file "init-thread" :depends-on ("init" "routes"))))
 
