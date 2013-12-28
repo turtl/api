@@ -3,6 +3,7 @@
 (defvalidator validate-note-file
   (("hash" :type string :required t)
    ("size" :type integer)
+   ("body" :type cl-async-util:bytes-or-string)
    ("upload_id" :type string)))
 
 (defvalidator validate-note
@@ -153,10 +154,8 @@
     (when hash (setf (gethash "hash" filedata) hash))
     filedata))
 
-(defafun edit-note-file (future) (user-id note-id file-data)
-  "Edit a note's file data. Note that this does a replace (vs update) meaning
-   if you need data to persist, you need to pass in ALL the file data you want
-   saved."
+(defafun edit-note-file (future) (user-id note-id file-data &key remove-upload-id)
+  "Edit a note's file data."
   (alet* ((perms (get-user-note-permissions user-id note-id)))
     (if (<= 2 perms)
         (validate-note-file (file-data future)
@@ -165,7 +164,14 @@
                   (query (r:r (:replace
                                 (:get (:table "notes") note-id)
                                 (r:fn (note)
-                                  (:merge (:without note "file") `(("file" . ,file-data)))))))
+                                  (:merge
+                                    (:without note "file")
+                                    `(("file" . ,(:literal
+                                                   (:merge
+                                                     (if remove-upload-id
+                                                         (:without (:attr note "file") "upload_id")
+                                                         (:attr note "file"))
+                                                     file-data)))))))))
                   (nil (r:run sock query))
                   (user-ids (get-affected-users-from-board-ids (list board-id)))
                   (sync-ids (add-sync-record user-id "note" note-id "edit" :rel-ids user-ids :fields (list "file"))))

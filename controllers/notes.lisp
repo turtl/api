@@ -77,7 +77,7 @@
                            (log:debug "file: sending final response to client")
                            (setf (gethash "size" file) total-file-size)
                            (remhash "upload_id" file)
-                           (alet* ((file (edit-note-file user-id file-id file)))
+                           (alet* ((file (edit-note-file user-id file-id file :remove-upload-id t)))
                              (send-json res file))))))
       ;; create an uploader lambda, used to stream our file chunk by chunk to S3
       (log:debug "file: starting uploader with path: ~a" path)
