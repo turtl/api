@@ -86,7 +86,7 @@
         ;; save our file record
         (setf (gethash "upload_id" file) upload-id)
         (wait-for (edit-note-file user-id note-id file)
-          (log:debug "file: file saved: ~a" (gethash "id" file)))
+          (log:debug "file: saved file ~a" file))
         ;; save our uploader so the chunking brahs can use it
         (log:debug "- file: uploader created: ~a" upload-id)
         (setf s3-uploader uploader)
