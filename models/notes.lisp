@@ -186,18 +186,23 @@
    storage system, wiping the file out forever)."
   (alet* ((perms (or perms (get-user-note-permissions user-id note-id))))
     (if (<= 2 perms)
-        (multiple-future-bind (nil res)
-            (s3-op :delete (format nil "/files/~a" note-id))
-          (if (<= 200 res 299)
-              (alet* ((sock (db-sock))
-                      (query (r:r (:replace
-                                    (:get (:table "notes") note-id)
-                                    (r:fn (note)
-                                      (:without note "file")))))
-                      (nil (r:run sock query)))
-                (r:disconnect sock))
-              (signal-error future (make-instance 'server-error
-                                                  :msg "There was a problem removing that note's attachment."))))
+        (alet* ((note (get-note-by-id note-id)))
+          (if (and (gethash "file" note)
+                   (gethash "hash" (gethash "file" note)))
+              (multiple-future-bind (nil res)
+                  (s3-op :delete (format nil "/files/~a" note-id))
+                (if (<= 200 res 299)
+                    (alet* ((sock (db-sock))
+                            (query (r:r (:replace
+                                          (:get (:table "notes") note-id)
+                                          (r:fn (note)
+                                            (:without note "file")))))
+                            (nil (r:run sock query)))
+                      (r:disconnect sock)
+                      (finish future t))
+                    (signal-error future (make-instance 'server-error
+                                                        :msg "There was a problem removing that note's attachment."))))
+              (finish future t)))
         (signal-error future (make-instance 'insufficient-privileges
                                             :msg "Sorry, you are editing a note you don't have access to.")))))
 
