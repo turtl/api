@@ -9,6 +9,12 @@
                                     (babel:string-to-octets sequence/string)
                                     sequence/string)))))
 
+(defun hmac (string password)
+  "Quick HMAC function."
+  (let* ((hmac (ironclad:make-hmac (ironclad:ascii-string-to-byte-array password) :sha1)))
+    (ironclad:update-hmac hmac (ironclad:ascii-string-to-byte-array string))
+    (ironclad:hmac-digest hmac)))
+
 (defun md5 (sequence/string &key base64 raw)
   "Return a *string* sha256 hash of the given string/byte sequence."
   (declare (optimize (speed 3)))

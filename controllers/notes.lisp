@@ -57,6 +57,17 @@
         (setf (gethash "sync_ids" hash) sync-ids)
         (send-json res hash)))))
 
+(defroute (:get "/api/notes/([0-9a-f-]+)/file") (req res args)
+  "Get a note's file. This works by generating a URL we can redirect the client
+   to on the storage system then running the redirect."
+  (catch-errors (res)
+    (alet* ((user-id (user-id req))
+            (note-id (car args))
+            (file-url (get-note-file-url user-id note-id)))
+      (if file-url
+          (send-response res :status 302 :headers `(:location ,file-url))
+          (send-response res :status 404 :body "That note has no attachments.")))))
+
 (defroute (:put "/api/notes/([0-9a-f-]+)/file" :chunk t :suppress-100 t :buffer-body t) (req res args)
   "Attach file contents to a note. The HTTP content body must be the raw,
    unencoded (encrypted) file data."
@@ -68,27 +79,27 @@
             (file (make-note-file :hash hash))
             (s3-uploader :starting)
             (buffered-chunks nil)
-            (path (format nil "/files/~a" file-id))
+            (path (get-file-path file-id))
             (chunking-started nil)
             (last-chunk-sent nil)
             (total-file-size 0)
             (finish-fn (lambda ()
                          (catch-errors (res)
-                           (log:debug "file: sending final response to client")
+                           (log:debu1 "file: sending final response to client")
                            (setf (gethash "size" file) total-file-size)
                            (remhash "upload_id" file)
                            (alet* ((file (edit-note-file user-id file-id file :remove-upload-id t)))
                              (send-json res file))))))
       ;; create an uploader lambda, used to stream our file chunk by chunk to S3
-      (log:debug "file: starting uploader with path: ~a" path)
+      (log:debu1 "file: starting uploader with path: ~a" path)
       (multiple-future-bind (uploader upload-id)
           (s3-upload path)
         ;; save our file record
         (setf (gethash "upload_id" file) upload-id)
         (wait-for (edit-note-file user-id note-id file)
-          (log:debug "file: saved file ~a" file))
+          (log:debu1 "file: saved file ~a" file))
         ;; save our uploader so the chunking brahs can use it
-        (log:debug "- file: uploader created: ~a" upload-id)
+        (log:debu1 "- file: uploader created: ~a" upload-id)
         (setf s3-uploader uploader)
         ;; if we haven't started getting the body yet, let the client know it's
         ;; ok to send
@@ -113,7 +124,7 @@
               last-chunk-sent (or last-chunk-sent last-chunk-p))
         (cond ((eq s3-uploader :starting)
                (unless buffered-chunks
-                 (log:debug "- file: uploader not ready, buffering chunks")
+                 (log:debu1 "- file: uploader not ready, buffering chunks")
                  (setf buffered-chunks (flexi-streams:make-in-memory-output-stream :element-type '(unsigned-byte 8))))
                (write-sequence chunk-data buffered-chunks))
               (t

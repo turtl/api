@@ -154,6 +154,26 @@
     (when hash (setf (gethash "hash" filedata) hash))
     filedata))
 
+(defun get-file-path (file-id)
+  "Generate the path of a file in the storage system based on its ID."
+  (format nil "/files/~a" file-id))
+
+(defafun get-note-file-url (future) (user-id note-id &key (lifetime 10))
+  "Get a note's file URL. If note has no file, return nil. By default, the URL
+   returned expires in 10 seconds, which should genreally be sufficient
+   (especially for a redirect)."
+  (alet* ((perms (get-user-note-permissions user-id note-id)))
+    (if (<= 1 perms)
+        (alet* ((note (get-note-by-id note-id))
+                (file (gethash "file" note)))
+          (finish future
+                  (when (and file (gethash "hash" file))
+                    (get-s3-auth-url (getf *amazon-s3* :bucket)
+                                     (get-file-path note-id)
+                                     lifetime))))
+        (signal-error future (make-instance 'insufficient-privileges
+                                            :msg "Sorry, you are accessing a note you don't have access to.")))))
+
 (defafun edit-note-file (future) (user-id note-id file-data &key remove-upload-id)
   "Edit a note's file data."
   (alet* ((perms (get-user-note-permissions user-id note-id)))
