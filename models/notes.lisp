@@ -158,7 +158,7 @@
   "Generate the path of a file in the storage system based on its ID."
   (format nil "/files/~a" file-id))
 
-(defafun get-note-file-url (future) (user-id note-id &key (lifetime 10))
+(defafun get-note-file-url (future) (user-id note-id &key (lifetime 60))
   "Get a note's file URL. If note has no file, return nil. By default, the URL
    returned expires in 10 seconds, which should genreally be sufficient
    (especially for a redirect)."
