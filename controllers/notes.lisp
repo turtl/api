@@ -65,7 +65,7 @@
             (note-id (car args))
             (file-url (get-note-file-url user-id note-id)))
       (if file-url
-          (send-response res :status 302 :headers `(:location ,file-url))
+          (send-response res :status 302 :headers `(:location ,file-url) :body (format nil "Moved: ~a" file-url))
           (send-response res :status 404 :body "That note has no attachments.")))))
 
 (defroute (:put "/api/notes/([0-9a-f-]+)/file" :chunk t :suppress-100 t :buffer-body t) (req res args)
