@@ -47,8 +47,11 @@
             (let ((validation (do-validate obj-val
                                            (getf *validation-forms* validator)
                                            :edit edit)))
-              (when validation
-                (return-from do-validate validation))))
+              (if validation
+                  (return-from do-validate validation)
+                  (progn
+                    (setf (gethash key object) obj-val)
+                    (return-from do-validate-next)))))
 
           ;; do some typing work
           (when entry-type
