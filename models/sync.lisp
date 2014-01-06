@@ -223,6 +223,11 @@
   (alet* ((notes (sync-id-user-scan user-id sync-id "note" "notes")))
     (finish future notes)))
 
+(defafun sync-user-files (future) (user-id sync-id)
+  "Grab all files for this user that have changed."
+  (alet* ((files (sync-id-user-scan user-id sync-id "file" "notes")))
+    (finish future files)))
+
 (defafun cleanup-sync (future) ()
   "Remove all sync items older than 30 days."
   (alet* ((timestamp (- (get-timestamp) 2592000))

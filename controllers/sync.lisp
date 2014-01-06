@@ -12,6 +12,7 @@
              (persona-sync (sync-user-personas user-id sync-id))
              (board-sync (sync-user-boards user-id sync-id :get-personas t))
              (note-sync (sync-user-notes user-id sync-id))
+             (file-sync (sync-user-files user-id sync-id))
              ;; grab the highest global sync-id. if we have no sync items, we'll
              ;; send this back. this not only keeps the client more up-to-date
              ;; on the sync process, it cuts back on the amount of items we have
@@ -24,6 +25,7 @@
                 (gethash "keychain" response) keychain-sync
                 (gethash "personas" response) persona-sync
                 (gethash "notes" response) note-sync
+                (gethash "files" response) file-sync
                 (gethash "boards" response) board-sync)
           ;; out of all the synced items, grab the highest sync id (the client
           ;; can use this as a reference for subseqent calls). this is easy

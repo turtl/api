@@ -128,7 +128,8 @@
         (validate-note (note-data future :edit t)
           (add-mod note-data)
           (remhash "user_id" note-data)
-          (remhash "file_id" note-data)
+          ;; don't let a regular note edit mess with file hashes, since it will
+          ;; throw syncing off.
           (alet* ((cur-board-id (get-note-board-id note-id))
                   (new-board-id (or (gethash "board_id" note-data) cur-board-id))
                   (sock (db-sock))
@@ -158,7 +159,7 @@
   "Generate the path of a file in the storage system based on its ID."
   (format nil "/files/~a" file-id))
 
-(defafun get-note-file-url (future) (user-id note-id &key (lifetime 60))
+(defafun get-note-file-url (future) (user-id note-id hash &key (lifetime 60))
   "Get a note's file URL. If note has no file, return nil. By default, the URL
    returned expires in 10 seconds, which should genreally be sufficient
    (especially for a redirect)."
@@ -167,19 +168,22 @@
         (alet* ((note (get-note-by-id note-id))
                 (file (gethash "file" note)))
           (finish future
-                  (when (and file (gethash "hash" file))
+                  (when (and file (gethash "hash" file)
+                             (or (not hash)
+                                 (and hash (string= hash (gethash "hash" file)))))
                     (get-s3-auth-url (getf *amazon-s3* :bucket)
                                      (get-file-path note-id)
                                      lifetime))))
         (signal-error future (make-instance 'insufficient-privileges
                                             :msg "Sorry, you are accessing a note you don't have access to.")))))
 
-(defafun edit-note-file (future) (user-id note-id file-data &key remove-upload-id)
+(defafun edit-note-file (future) (user-id note-id file-data &key remove-upload-id skip-sync)
   "Edit a note's file data."
   (alet* ((perms (get-user-note-permissions user-id note-id)))
     (if (<= 2 perms)
         (validate-note-file (file-data future)
-          (alet* ((board-id (get-note-board-id note-id))
+          (alet* ((note (get-note-by-id note-id))
+                  (board-id (gethash "board_id" note))
                   (sock (db-sock))
                   (query (r:r (:replace
                                 (:get (:table "notes") note-id)
@@ -193,8 +197,12 @@
                                                          (:attr note "file"))
                                                      file-data)))))))))
                   (nil (r:run sock query))
-                  (user-ids (get-affected-users-from-board-ids (list board-id)))
-                  (sync-ids (add-sync-record user-id "note" note-id "edit" :rel-ids user-ids :fields (list "file"))))
+                  (user-ids (unless skip-sync (get-affected-users-from-board-ids (list board-id))))
+                  (action (if (and (gethash "file" note)
+                                   (gethash "hash" (gethash "file" note)))
+                              "edit"
+                              "add"))
+                  (sync-ids (unless skip-sync (add-sync-record user-id "file" note-id action :rel-ids user-ids))))
             (r:disconnect sock)
             (setf (gethash "sync_ids" file-data) sync-ids)
             (finish future file-data)))
@@ -206,7 +214,8 @@
    storage system, wiping the file out forever)."
   (alet* ((perms (or perms (get-user-note-permissions user-id note-id))))
     (if (<= 2 perms)
-        (alet* ((note (get-note-by-id note-id)))
+        (alet* ((note (get-note-by-id note-id))
+                (board-id (gethash "board_id" note)))
           (if (and (gethash "file" note)
                    (gethash "hash" (gethash "file" note)))
               (multiple-future-bind (nil res)
@@ -217,9 +226,11 @@
                                           (:get (:table "notes") note-id)
                                           (r:fn (note)
                                             (:without note "file")))))
-                            (nil (r:run sock query)))
+                            (nil (r:run sock query))
+                            (user-ids (get-affected-users-from-board-ids (list board-id)))
+                            (sync-ids (add-sync-record user-id "file" note-id "delete" :rel-ids user-ids)))
                       (r:disconnect sock)
-                      (finish future t))
+                      (finish future sync-ids))
                     (signal-error future (make-instance 'server-error
                                                         :msg "There was a problem removing that note's attachment."))))
               (finish future t)))
@@ -230,7 +241,7 @@
   "Delete a note."
   (alet ((perms (get-user-note-permissions user-id note-id)))
     (if (<= 2 perms)
-        (alet* ((nil (delete-note-file user-id note-id :perms perms))
+        (alet* ((file-sync-ids (delete-note-file user-id note-id :perms perms))
                 (board-id (get-note-board-id note-id))
                 (user-ids (get-affected-users-from-board-ids (list board-id)))
                 (sock (db-sock))
@@ -238,7 +249,7 @@
                 (nil (r:run sock query))
                 (sync-ids (add-sync-record user-id "note" note-id "delete" :rel-ids user-ids)))
           (r:disconnect sock)
-          (finish future sync-ids))
+          (finish future (append sync-ids file-sync-ids)))
         (signal-error future (make-instance 'insufficient-privileges
                                             :msg "Sorry, you are deleting a note you don't have access to.")))))
 

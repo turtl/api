@@ -63,7 +63,8 @@
   (catch-errors (res)
     (alet* ((user-id (user-id req))
             (note-id (car args))
-            (file-url (get-note-file-url user-id note-id)))
+            (hash (get-var req "hash"))
+            (file-url (get-note-file-url user-id note-id hash)))
       (if file-url
           (send-response res :status 302 :headers `(:location ,file-url) :body (format nil "Moved: ~a" file-url))
           (send-response res :status 404 :body "That note has no attachments.")))))
@@ -96,7 +97,7 @@
           (s3-upload path)
         ;; save our file record
         (setf (gethash "upload_id" file) upload-id)
-        (wait-for (edit-note-file user-id note-id file)
+        (wait-for (edit-note-file user-id note-id file :skip-sync t)
           (log:debu1 "file: saved file ~a" file))
         ;; save our uploader so the chunking brahs can use it
         (log:debu1 "- file: uploader created: ~a" upload-id)
