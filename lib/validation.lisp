@@ -1,6 +1,6 @@
 (in-package :turtl)
 
-(defparameter *validation-forms* nil
+(defvar *validation-forms* nil
   "Holds name -> form mappings for validation forms.")
 
 (defun do-validate (object validation-form &key edit)
@@ -97,16 +97,17 @@
 
 (defmacro defvalidator (name validation-form)
   "Makes defining a validation function for a data type simpler."
-  (setf (getf *validation-forms* name) validation-form)
-  `(defmacro ,name ((object future &key edit) &body body)
-     (let ((validation (gensym "validation"))
-           (validation-form-var (gensym "validation-form"))
-           (future-var (gensym "future")))
-       `(let* ((,future-var ,future)
-               (,validation-form-var (getf *validation-forms* ,'',name))
-               (,validation (do-validate ,object ,validation-form-var :edit ,edit)))
-          (if ,validation
-              (signal-error ,future-var (make-instance 'validation-failed
-                                                       :msg (format nil "Validation failed: ~s~%" ,validation)))
-              (progn ,@body))))))
+  `(progn
+     (setf (getf *validation-forms* ',name) ',validation-form)
+     (defmacro ,name ((object future &key edit) &body body)
+       (let ((validation (gensym "validation"))
+             (validation-form-var (gensym "validation-form"))
+             (future-var (gensym "future")))
+         `(let* ((,future-var ,future)
+                 (,validation-form-var (getf *validation-forms* ,'',name))
+                 (,validation (do-validate ,object ,validation-form-var :edit ,edit)))
+            (if ,validation
+                (signal-error ,future-var (make-instance 'validation-failed
+                                                         :msg (format nil "Validation failed: ~s~%" ,validation)))
+                (progn ,@body)))))))
 

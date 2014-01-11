@@ -38,7 +38,7 @@
    (:file "template" :depends-on (lib "crypto" "errors"))
    (:file "cron" :depends-on (lib "config/config"))
    (:module models
-    :depends-on ("errors" "crypto" lib "package" "config/schema")
+    :depends-on (lib "errors" "crypto" "package" "config/schema")
     :serial t
     :components
     ((:file "schema")
@@ -55,7 +55,7 @@
      (:file "admin")
      (:file "analytics")
      (:file "feedback")))
-   (:file "init" :depends-on ("template" "crypto" "errors" "cron" "config/schema" models))
+   (:file "init" :depends-on (lib "template" "crypto" "errors" "cron" "config/schema" models))
    (:module controllers
     :depends-on ("init" "errors" lib models "package")
     :serial t
@@ -72,6 +72,6 @@
      (:file "users")
      (:file "keychain")
      (:file "feedback")))
-   (:file "routes" :depends-on ("init" controllers "crypto" "errors"))
-   (:file "init-thread" :depends-on ("init" "routes"))))
+   (:file "routes" :depends-on (lib "init" controllers "crypto" "errors"))
+   (:file "init-thread" :depends-on (lib "init" "routes"))))
 
