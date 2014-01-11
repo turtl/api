@@ -157,7 +157,9 @@
 
 (defun get-file-path (file-id)
   "Generate the path of a file in the storage system based on its ID."
-  (format nil "/files/~a" file-id))
+  (if *local-upload*
+      (format nil "~a/~a" *local-upload* file-id)
+      (format nil "/files/~a" file-id)))
 
 (defafun get-note-file-url (future) (user-id note-id hash &key (lifetime 60))
   "Get a note's file URL. If note has no file, return nil. By default, the URL
@@ -171,9 +173,11 @@
                   (when (and file (gethash "hash" file)
                              (or (not hash)
                                  (and hash (string= hash (gethash "hash" file)))))
-                    (get-s3-auth-url (getf *amazon-s3* :bucket)
-                                     (get-file-path note-id)
-                                     lifetime))))
+                    (if *local-upload*
+                        (format nil "~a/files/~a" *local-upload-url* note-id)
+                        (get-s3-auth-url (getf *amazon-s3* :bucket)
+                                         (get-file-path note-id)
+                                         lifetime)))))
         (signal-error future (make-instance 'insufficient-privileges
                                             :msg "Sorry, you are accessing a note you don't have access to.")))))
 

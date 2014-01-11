@@ -72,9 +72,35 @@
           (send-response res :status (if disable-redirect 200 302) :headers headers :body (to-json file-url))
           (send-response res :status 404 :body "That note has no attachments.")))))
 
-(defroute (:put "/api/notes/([0-9a-f-]+)/file" :chunk t :suppress-100 t :buffer-body t) (req res args)
-  "Attach file contents to a note. The HTTP content body must be the raw,
-   unencoded (encrypted) file data."
+(defafun upload-local (future) (req res args)
+  "Upload a file to the local filesystem."
+  (catch-errors (res)
+    (let* ((user-id (user-id req))
+           (note-id (car args))
+           (file-id note-id)
+           (hash (get-var req "hash"))
+           (file (make-note-file :hash hash))
+           (path (get-file-path file-id))
+           (total-file-size 0)
+           (fd nil)
+           (finish-fn (lambda ()
+                        (catch-errors (res)
+                          (close fd)
+                          (log:debu1 "file: sending final response to client")
+                          (setf (gethash "size" file) total-file-size)
+                          (remhash "upload_id" file)
+                          (alet* ((file (edit-note-file user-id file-id file :remove-upload-id t)))
+                            (send-json res file))))))
+      (with-chunking req (data lastp)
+        (unless fd
+          (setf fd (open path :direction :output :if-exists :supersede :element-type '(unsigned-byte 8))))
+        (incf total-file-size (length data))
+        (write-sequence data fd)
+        (when lastp
+          (funcall finish-fn))))))
+
+(defun upload-remote (req res args)
+  "Upload the given file data to a remote server."
   (catch-errors (res)
     (alet* ((user-id (user-id req))
             (note-id (car args))
@@ -140,6 +166,14 @@
                  (when finishedp
                    (funcall finish-fn)))
                (setf buffered-chunks nil)))))))
+
+(defroute (:put "/api/notes/([0-9a-f-]+)/file" :chunk t :suppress-100 t :buffer-body t) (req res args)
+  "Attach file contents to a note. The HTTP content body must be the raw,
+   unencoded (encrypted) file data."
+  (catch-errors (res)
+    (if *local-upload*
+        (upload-local req res args)
+        (upload-remote req res args))))
 
 (defroute (:delete "/api/notes/([0-9a-f-]+)/file") (req res args)
   "Remove a note's file attachment."

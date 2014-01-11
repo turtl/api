@@ -12,6 +12,10 @@
   "Who uses .ico??"
   (send-response res :status 301 :headers '(:location "/favicon.png") :body ""))
 
+;; if we're handling local file uploads, define a route to the upload dir.
+(when *local-upload*
+  (def-directory-route "/files" *local-upload* :disable-directory-listing t))
+
 ;; only turn these on if the webapp is enabled
 (when *enable-webapp*
   ;; set up a general file-serving route (hint: if you're in production and you

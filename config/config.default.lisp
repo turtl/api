@@ -65,6 +65,17 @@
                      :token "")
   "Holds mixpanel config.")
 
+(defvar *local-upload* nil
+  "NIL disables local files storage (files are uploaded to S3). Set to a local
+   path to save files locally instead of remotely. No trailing slash!")
+(defvar *local-upload-url* nil
+  "Define the URL that local files will be loaded from. Generally, this will be
+   the same URL the API is accessed from and only needs to be defined if the
+   *local-upload* variable has a value. This should *not* include the /files
+   path, and there should be no trailing slash. Example:
+
+     http://turtl.dev:8181")
+
 (defvar *amazon-s3* '(:token ""
                       :secret ""
                       :bucket ""
