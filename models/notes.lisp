@@ -233,7 +233,7 @@
                       (finish future sync-ids))
                     (signal-error future (make-instance 'server-error
                                                         :msg "There was a problem removing that note's attachment."))))
-              (finish future t)))
+              (finish future nil)))
         (signal-error future (make-instance 'insufficient-privileges
                                             :msg "Sorry, you are editing a note you don't have access to.")))))
 
