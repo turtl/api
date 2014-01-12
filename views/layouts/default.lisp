@@ -87,7 +87,7 @@
       (:link :rel "stylesheet" :href "/css/general.css")
       (make-css s (get-files *site-assets* ".css"
                              '("template.css" "reset.css" "general.css")))
-      (:link :rel "shortcut icon" :href "/favicon.png" :type "image/png")
+      (:link :rel "shortcut icon" :href "/images/favicon.png" :type "image/png")
       (:script :src "/library/mootools-core-1.4.5.js")
       (:script :src "/library/mootools-more-1.4.0.1.js")
       (:script :src "/library/composer/composer.js")
@@ -132,7 +132,7 @@
         (:div :id "wrap"
           (:div :class "sidebar-bg")
           (:header :class "clear"
-            (:h1 "Turtl<span>.</span>")
+            (:h1 "<span>Turtl</span>")
             (:div :class "loading"
               (:img :src "/images/site/icons/load_42x11.gif")))
           (:div :id "main" :class "maincontent")))
