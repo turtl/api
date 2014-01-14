@@ -1,5 +1,21 @@
 (in-package :turtl)
 
+;; Basically here to support the Firefox addon...
+;; TODO: send a real options response for each URL by reading the routing table.
+(add-hook :pre-route
+  (lambda (req res)
+    (let ((future (make-future)))
+      (if (eq (request-method req) :options)
+          (progn
+            (send-response res
+                           :status 200
+                           :headers '(:content-length 0
+                                      :allow "OPTIONS, GET, POST, PUT, DELETE"))
+            (signal-error future (make-instance 'as:tcp-info)))
+          (finish future))
+      future))
+  :options-support)
+
 (defroute (:* "/api/.+") (req res)
   "Any /api/* route that lands here wasn't caught by our controllers. Send the
    client a nice 404 and be done with it."
@@ -7,7 +23,7 @@
                  :status 404
                  :headers '(:content-type "application/json")
                  :body (to-json "Unknown resource.")))
-                 
+
 (defroute (:get "/favicon.ico") (req res)
   "Who uses .ico??"
   (send-response res :status 301 :headers '(:location "/favicon.png") :body ""))

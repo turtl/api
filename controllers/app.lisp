@@ -27,7 +27,8 @@
                                  :time rand-wait)))))
         (if (or (< (length path) 5)
                 (not (string= (subseq path 0 5) "/api/"))
-                (is-public-action method path))
+                (is-public-action method path)
+                (eq (request-method req) :options))
             ;; this is a signup or file serve. let it fly with no auth
             (finish future)
             ;; not a signup, test the auth...
@@ -50,9 +51,18 @@
   :turtl-auth)
 
 (add-hook :response-started
-  (lambda (response &rest _)
+  (lambda (res req &rest _)
     (declare (ignore _))
     (when *enable-hsts-header*
-      (setf (getf (response-headers response) :strict-transport-security)
-            (format nil "max-age=~a" *enable-hsts-header*)))))
+      (setf (getf (response-headers res) :strict-transport-security)
+            (format nil "max-age=~a" *enable-hsts-header*)))
+    ;; set up CORS junk. generally, we only allow it if it comes from the FF
+    ;; extension, which uses resource:// URLs
+    (let* ((req-headers (request-headers req))
+           (origin (getf req-headers :origin)))
+      (when (and origin (string= (subseq origin 0 11) "resource://"))
+        (setf (getf (response-headers res) :access-control-allow-origin) "resource://turtl-at-lyonbros-dot-com"
+              (getf (response-headers res) :access-control-allow-methods) "GET, POST"
+              (getf (response-headers res) :access-control-allow-headers) (getf (request-headers req) :access-control-request-headers)))))
+  :post-headers)
 
