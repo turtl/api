@@ -340,7 +340,7 @@
                        (:get (:table "boards") (:attr link "board_id"))))))
           (cursor (r:run sock query))
           (boards (r:to-array sock cursor))
-          (boards (populate-boards-data (coerce boards 'simple-vector) :set-shared t)))
+          (boards (populate-boards-data (coerce boards 'simple-vector))))
     (r:stop/disconnect sock cursor)
     (finish future boards)))
 

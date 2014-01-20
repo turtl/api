@@ -6,10 +6,10 @@
    ("keys" :type sequence :required t :coerce simple-vector)
    ("body" :type cl-async-util:bytes-or-string)))
 
-(defafun populate-boards-data (future) (boards &key (get-privs t) get-notes get-personas set-shared)
+(defafun populate-boards-data (future) (boards &key (get-privs t) get-notes get-personas)
   "Populate certain information given a list of boards."
   (if (and (< 0 (length boards))
-           (or get-privs get-notes get-personas set-shared))
+           (or get-privs get-notes get-personas))
       (loop for i = 0
             for board across boards
             for board-id = (gethash "id" board) do
@@ -25,7 +25,6 @@
               (when (and (hash-table-p entry)
                          (or (zerop (gethash "perms" entry))))
                 (remhash persona-id (gethash "privs" board)))))
-          (when set-shared (setf (gethash "shared" board) t))
           (when (and get-notes notes) (setf (gethash "notes" board) notes))
           (when (and get-personas personas) (setf (gethash "personas" board) personas))
           (incf i)
@@ -107,7 +106,7 @@
           (boards (r:to-array sock cursor)))
     (r:stop/disconnect sock cursor)
     (if populate
-        (alet ((boards-populated (populate-boards-data boards :get-notes get-notes :set-shared t)))
+        (alet ((boards-populated (populate-boards-data boards :get-notes get-notes)))
           (finish future boards-populated))
         boards)))
 
