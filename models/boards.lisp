@@ -87,7 +87,7 @@
                                                     :get-personas get-personas)))
       (finish future boards-populated))))
 
-(defafun get-persona-boards (future) (persona-id &key get-notes)
+(defafun get-persona-boards (future) (persona-id &key populate get-notes)
   "Get all boards for a persona."
   (alet* ((sock (db-sock))
           ;; TODO: index
@@ -106,8 +106,10 @@
           (cursor (r:run sock query))
           (boards (r:to-array sock cursor)))
     (r:stop/disconnect sock cursor)
-    (alet ((boards-populated (populate-boards-data boards :get-notes get-notes :set-shared t)))
-      (finish future boards-populated))))
+    (if populate
+        (alet ((boards-populated (populate-boards-data boards :get-notes get-notes :set-shared t)))
+          (finish future boards-populated))
+        boards)))
 
 (defafun get-all-user-board-ids (future) (user-id)
   "Get all board IDs for a user (including the user's persona/shared boards)."
