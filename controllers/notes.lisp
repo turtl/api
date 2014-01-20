@@ -76,11 +76,10 @@
           (send-response res :status (if disable-redirect 200 302) :headers headers :body (to-json file-url))
           (send-response res :status 404 :body "That note has no attachments.")))))
 
-(defafun upload-local (future) (req res args)
+(defafun upload-local (future) (user-id req res args)
   "Upload a file to the local filesystem."
   (catch-errors (res)
-    (let* ((user-id (user-id req))
-           (note-id (car args))
+    (let* ((note-id (car args))
            (file-id note-id)
            (hash (get-var req "hash"))
            (file (make-note-file :hash hash))
@@ -103,11 +102,10 @@
         (when lastp
           (funcall finish-fn))))))
 
-(defun upload-remote (req res args)
+(defun upload-remote (user-id req res args)
   "Upload the given file data to a remote server."
   (catch-errors (res)
-    (alet* ((user-id (user-id req))
-            (note-id (car args))
+    (alet* ((note-id (car args))
             (persona-id (get-var req "persona"))
             (file-id note-id)
             (hash (get-var req "hash"))
@@ -180,14 +178,16 @@
     (alet* ((user-id (user-id req))
             (note-id (car args))
             (persona-id (get-var req "persona"))
+            (persona-or-user user-id)
             (perms (if persona-id
                        (with-valid-persona (persona-id user-id)
+                         (setf persona-or-user persona-id)
                          (get-user-note-permissions persona-id note-id))
                        (get-user-note-permissions user-id note-id))))
       (if (<= 2 perms)
           (if *local-upload*
-              (upload-local req res args)
-              (upload-remote req res args))
+              (upload-local persona-or-user req res args)
+              (upload-remote persona-or-user req res args))
           (error (make-instance 'insufficient-privileges
                                 :msg "Sorry, you are accessing a note you don't have access to."))))))
 
