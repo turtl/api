@@ -60,8 +60,8 @@
     ;; extension, which uses resource:// URLs
     (let* ((req-headers (request-headers req))
            (origin (getf req-headers :origin)))
-      (when (and origin (string= (subseq origin 0 11) "resource://"))
-        (setf (getf (response-headers res) :access-control-allow-origin) "resource://turtl-at-lyonbros-dot-com"
+      (when (and origin (< 11 (length origin)) (string= (subseq origin 0 11) "resource://"))
+        (setf (getf (response-headers res) :access-control-allow-origin) *enabled-cors-resources*
               (getf (response-headers res) :access-control-allow-methods) "GET, POST"
               (getf (response-headers res) :access-control-allow-headers) (getf (request-headers req) :access-control-request-headers)))))
   :post-headers)
