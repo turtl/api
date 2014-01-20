@@ -63,9 +63,13 @@
   (catch-errors (res)
     (alet* ((user-id (user-id req))
             (note-id (car args))
+            (persona-id (get-var req "persona"))
             (disable-redirect (get-var req "disable_redirect"))
             (hash (get-var req "hash"))
-            (file-url (get-note-file-url user-id note-id hash))
+            (file-url (if persona-id
+                          (with-valid-persona (persona-id user-id)
+                            (get-note-file-url persona-id note-id hash))
+                          (get-note-file-url user-id note-id hash)))
             (headers (unless (string= disable-redirect "1")
                        `(:location ,file-url))))
       (if file-url
@@ -104,6 +108,7 @@
   (catch-errors (res)
     (alet* ((user-id (user-id req))
             (note-id (car args))
+            (persona-id (get-var req "persona"))
             (file-id note-id)
             (hash (get-var req "hash"))
             (file (make-note-file :hash hash))
@@ -119,6 +124,7 @@
                            (setf (gethash "size" file) total-file-size)
                            (remhash "upload_id" file)
                            (alet* ((file (edit-note-file user-id file-id file :remove-upload-id t)))
+                             (track "file-upload" `(:shared ,(when persona-id t)))
                              (send-json res file))))))
       ;; create an uploader lambda, used to stream our file chunk by chunk to S3
       (log:debu1 "file: starting uploader with path: ~a" path)
@@ -171,9 +177,19 @@
   "Attach file contents to a note. The HTTP content body must be the raw,
    unencoded (encrypted) file data."
   (catch-errors (res)
-    (if *local-upload*
-        (upload-local req res args)
-        (upload-remote req res args))))
+    (alet* ((user-id (user-id req))
+            (note-id (car args))
+            (persona-id (get-var req "persona"))
+            (perms (if persona-id
+                       (with-valid-persona (persona-id user-id)
+                         (get-user-note-permissions persona-id note-id))
+                       (get-user-note-permissions user-id note-id))))
+      (if (<= 2 perms)
+          (if *local-upload*
+              (upload-local req res args)
+              (upload-remote req res args))
+          (error (make-instance 'insufficient-privileges
+                                :msg "Sorry, you are accessing a note you don't have access to."))))))
 
 (defroute (:delete "/api/notes/([0-9a-f-]+)/file") (req res args)
   "Remove a note's file attachment."
