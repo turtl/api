@@ -108,7 +108,7 @@
     (if populate
         (alet ((boards-populated (populate-boards-data boards :get-notes get-notes)))
           (finish future boards-populated))
-        boards)))
+        (finish future boards))))
 
 (defafun get-all-user-board-ids (future) (user-id)
   "Get all board IDs for a user (including the user's persona/shared boards)."
