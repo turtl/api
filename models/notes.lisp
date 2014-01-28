@@ -224,7 +224,8 @@
                    (gethash "hash" (gethash "file" note)))
               (multiple-future-bind (nil res)
                   (if *local-upload*
-                      (values (delete-file (get-file-path note-id)) 200)
+                      (let ((file-path (get-file-path note-id)))
+                        (values (and (probe-file file-path) (delete-file file-path)) 200))
                       (s3-op :delete (format nil "/files/~a" note-id)))
                 (if (<= 200 res 299)
                     (alet* ((sock (db-sock))
