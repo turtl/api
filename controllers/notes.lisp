@@ -76,7 +76,7 @@
           (send-response res :status (if disable-redirect 200 302) :headers headers :body (to-json file-url))
           (send-response res :status 404 :body "That note has no attachments.")))))
 
-(defafun upload-local (future) (user-id req res args)
+(defun upload-local (user-id req res args)
   "Upload a file to the local filesystem."
   (catch-errors (res)
     (let* ((note-id (car args))
@@ -94,7 +94,12 @@
                           (remhash "upload_id" file)
                           (alet* ((file (edit-note-file user-id file-id file :remove-upload-id t)))
                             (send-json res file))))))
+      (log:debu1 "local headers: ~%~s" (request-headers req))
+      (log:debu1 "local: calling with-chunking")
+      (when (string= (getf (request-headers req) :expect) "100-continue")
+        (send-100-continue res))
       (with-chunking req (data lastp)
+        (log:debu1 "local: got chunk: ~a ~a" (length data) lastp)
         (unless fd
           (log:debu1 "file: opening local fd: ~a" path)
           (setf fd (open path :direction :output :if-exists :supersede :element-type '(unsigned-byte 8))))
@@ -139,7 +144,8 @@
         ;; if we haven't started getting the body yet, let the client know it's
         ;; ok to send
         (unless chunking-started
-          (send-100-continue res))
+          (when (string= (getf (request-headers req) :expect) "100-continue")
+            (send-100-continue res)))
         (when last-chunk-sent
           (alet* ((body (flexi-streams:get-output-stream-sequence buffered-chunks))
                   (finishedp (funcall s3-uploader body)))
