@@ -315,7 +315,7 @@
                   (log:warn "s3: aborting upload ~a" upload-id)
                   (s3-upload-abort resource upload-id)
                   (signal-error future e)))
-              (signal-error future (make-instance 's3-upload-error :msg "Error starting upload.")))))
+              (signal-error future (make-instance 's3-upload-error :msg (format nil "Error starting upload: ~s" (list status res)))))))
       (t (e) (signal-error future e)))
     future))
 
