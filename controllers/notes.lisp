@@ -177,7 +177,7 @@
                    (funcall finish-fn)))
                (setf buffered-chunks nil)))))))
 
-(defroute (:put "/api/notes/([0-9a-f-]+)/file" :chunk t :suppress-100 t :buffer-body t) (req res args)
+(defroute (:put "/api/notes/([0-9a-f-]+)/file" :chunk t :suppress-100 t :force-chunking t) (req res args)
   "Attach file contents to a note. The HTTP content body must be the raw,
    unencoded (encrypted) file data."
   (catch-errors (res)
