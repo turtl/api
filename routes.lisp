@@ -30,7 +30,11 @@
 
 ;; if we're handling local file uploads, define a route to the upload dir.
 (when *local-upload*
-  (def-directory-route "/files" *local-upload* :disable-directory-listing t))
+  (def-directory-route "/files" *local-upload* :disable-directory-listing t)
+  ;; if the directory route doesn't pick up a file and we're doing local uploads
+  ;; and downloads, signal a 404
+  (defroute (:get "/files/.+") (req res)
+    (send-response res :status 404 :body "\"File not found\"")))
 
 ;; only turn these on if the webapp is enabled
 (when *enable-webapp*
