@@ -93,6 +93,9 @@
     (if (<= 2 perms)
         (let ((cid (gethash "cid" note-data)))
           (validate-note (note-data future)
+            (when (and (gethash "file" note-data)
+                       (gethash "hash" (gethash "file" note-data)))
+              (setf (gethash "upload_id" (gethash "file" note-data)) -1))
             (alet* ((sock (db-sock))
                     (query (r:r (:insert
                                   (:table "notes")
