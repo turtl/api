@@ -38,7 +38,7 @@
   "The location (absolute or relative to *site-url*) that API calls will go to.")
 
 (defvar *api-key* "12345"
-  "The API key used for the app.")
+  "The API key used for the app. Completely unused.")
 
 (defvar *admin-email* "andrew@lyonbros.com"
   "The email used for admin communications. This is reported to users on a
@@ -58,7 +58,6 @@
 
 (defparameter *public-actions*
   `((:post . "/api/users")
-    (:get . ,(cl-ppcre:create-scanner "/api/personas/screenname/([a-zA-Z0-9\/\.]+)"))
     (:get . ,(cl-ppcre:create-scanner "/api/invites/codes/([0-9a-f-]+)")))
   "A list of public resources/actions that do not require authentication.")
 
