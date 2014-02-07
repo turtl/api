@@ -5,13 +5,31 @@
 		<meta http-equiv="Content-Language" content="en">
 		<title>Turtl admin dashboard</title>
 		<style type="text/css">
+			.clearMe {display: block; height: 0; clear: both; font-size: 0;}
+			.clear:after {content: "."; display: block; height: 0; clear: both; visibility: hidden;}
+			.clear {display: inline-block;}
+			/* hide IE mac \*/
+			* html .clear {height: 1%;}
+			.clear {display: block;}
+			/* */
+
 			body {font-size: 14px; font-family: arial; color: #222; background: #fff;}
 			header h1 {font-size: 64px; font-weight: normal; color: #999; text-transform: lowercase;}
 			header h1 small {font-size: 14px;}
+			h2 {font-weight: normal; color: #777;}
 			div.admin {width: 960px; margin: 0 auto;}
-			ul.stats {margin: 0; padding: 0; list-style: none;}
+			ul.stats {margin: 0 0 32px 0; padding: 0; list-style: none;}
 			ul.stats li {float: left; display: block; width: 132px; height: 132px; margin: 0 16px 16px 0; padding: 16px; font-size: 17px; color: #666; text-align: center; background: #f4f4f4;}
 			ul.stats li span {display: block; margin: 32px 0 0 0; font-size: 32px; color: #79a;}
+			ul.logs {list-style: none; margin: 0; padding: 0;}
+			ul.logs li {}
+			ul.logs li:hover .summary {background: #f4fff4;}
+			ul.logs li:nth-child(2n) {background: #f4f4f4;}
+			ul.logs li .summary {padding: 4px; cursor: pointer; font-family: Consolas, "Liberation Mono", Courier, monospace;}
+			ul.logs li .summary .count {display: inline-block; width: 32px;}
+			ul.logs li .summary .id {display: inline-block; width: 64px; margin: 0 12px -4px 0; overflow: hidden; text-overflow: ellipsis;}
+			ul.logs li .expanded {display: none; padding: 16px;}
+			ul.logs li.open .expanded {display: block;}
 		</style>
 	</head>
 	<body>
@@ -19,13 +37,40 @@
 			<header>
 				<h1>Turtl. <small>admin</small></h1>
 			</header>
-			<ul class="stats">
+			<ul class="stats clear">
 				<li>Users <span>{{stat:num-users}}</span></li>
 				<li>Personas <span>{{stat:num-personas}}</span></li>
 				<li>Personas no RSA <span>{{stat:num-personas-wo-rsa}}</span></li>
 				<li>Boards <span>{{stat:num-boards}}</span></li>
 				<li>Notes <span>{{stat:num-notes}}</span></li>
 			</ul>
+
+			<h2>Error log</h2>
+			<ul class="logs">
+				{{logs}}
+			</ul>
 		</div>
+		<script>
+			(function() {
+				var ul = document.getElementsByClassName('logs')[0];
+				var lis = ul.children;
+				for(var i = 0; i < lis.length; i++)
+				{
+					(function (li) {
+						var summary = li.children[0];
+						summary.addEventListener('click', function() {
+							if(li.className.match(/open/))
+							{
+								li.className = li.className.replace(/open/, '');
+							}
+							else
+							{
+								li.className += 'open';
+							}
+						}, false);
+					})(lis[i]);
+				}
+			})();
+		</script>
 	</body>
 </html>

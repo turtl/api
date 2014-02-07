@@ -52,6 +52,7 @@
      (:file "messages")
      (:file "invites")
      (:file "sync")
+     (:file "log")
      (:file "admin")
      (:file "analytics")
      (:file "feedback")))
@@ -71,7 +72,8 @@
      (:file "sync")
      (:file "users")
      (:file "keychain")
-     (:file "feedback")))
+     (:file "feedback")
+     (:file "log")))
    (:file "routes" :depends-on (lib "init" controllers "crypto" "errors"))
    (:file "init-thread" :depends-on (lib "init" "routes"))))
 

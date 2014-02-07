@@ -18,6 +18,33 @@
         ;; write stat to string
         (format nil "~a" stat)))))
 
+(defun populate-log (html logs)
+  "Push the given logs into the admin HTML."
+  (let ((log-html (with-output-to-string (s)
+                    (loop for entry across logs do
+                      (let* ((log-data (gethash "data" entry))
+                             (url (gethash "url" log-data)))
+                        (format s "
+<li>
+  <div class=\"summary\">
+    <span class=\"count\">~a</span>
+    <span class=\"id\">~a</span>
+    <span class=\"file\">~a:~a</span>
+  </div>
+  <div class=\"expanded\">
+    ~a
+  </div>
+</li>"
+                                (round (gethash "c" entry))
+                                (gethash "id" entry)
+                                url
+                                (gethash "line" log-data)
+                                (gethash "msg" log-data)))))))
+    (cl-ppcre:regex-replace
+      "{{logs}}"
+      html
+      log-html)))
+
 (defafun get-admin-stats (future) ()
   "Grab statistics for the admin page."
   (macrolet ((count-not-deleted (table)
