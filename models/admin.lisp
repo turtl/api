@@ -23,12 +23,16 @@
   (let ((log-html (with-output-to-string (s)
                     (loop for entry across logs do
                       (let* ((log-data (gethash "data" entry))
-                             (url (gethash "url" log-data)))
+                             (url (gethash "url" log-data))
+                             (url (if (string= url "")
+                                      "unknown"
+                                      url)))
                         (format s "
 <li>
   <div class=\"summary\">
     <span class=\"count\">~a</span>
     <span class=\"id\">~a</span>
+    <span class=\"version\">~a</span>
     <span class=\"file\">~a:~a</span>
   </div>
   <div class=\"expanded\">
@@ -37,6 +41,7 @@
 </li>"
                                 (round (gethash "c" entry))
                                 (gethash "id" entry)
+                                (gethash "version" log-data)
                                 url
                                 (gethash "line" log-data)
                                 (gethash "msg" log-data)))))))

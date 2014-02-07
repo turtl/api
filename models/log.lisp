@@ -2,7 +2,12 @@
 
 (defun hash-log (log-data)
   "Generate a hash for this log from its data. Used to de-dupe log records."
-  (md5 (concatenate 'string (gethash "msg" log-data) (gethash "url" log-data) (gethash "line" log-data))))
+  (md5 (concatenate
+         'string
+         (gethash "msg" log-data)
+         (gethash "url" log-data)
+         (gethash "line" log-data)
+         (gethash "version" log-data))))
 
 (defafun get-logs (future) (num-entries)
   "Get N log entries. Please never add a controller interface to this without
