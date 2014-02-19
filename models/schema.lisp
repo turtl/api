@@ -28,7 +28,7 @@
   "Apply the given indexes to the given table."
   (alet* ((table-name (schema-name-to-string table))
           (schema-index-names (loop for (name) on schema by #'cddr collect name))
-          (remove-version-fn (lambda (x) (cl-ppcre:regex-replace-all "\.v.*$" x "")))
+          (remove-version-fn (lambda (x) (cl-ppcre:regex-replace-all "\\.v.*$" x "")))
           (sock (db-sock))
           (query (r:r (:index-list (:table table-name))))
           (cursor (r:run sock query))
