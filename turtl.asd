@@ -1,6 +1,6 @@
 (asdf:defsystem turtl
   :author "Lyon Bros. Enterprises, LLC <info@lyonbros.com>"
-  :license "MIT"
+  :license "GPLv3"
   :version "0.1.0"
   :description "An encrypted note/bookmark/data organizer."
   :depends-on (#:cl-async-future
