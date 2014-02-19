@@ -23,16 +23,16 @@
                #:log4cl)
   :components
   ((:file "package")
+   (:file "config/config" :depends-on ("package"))
+   (:file "config/schema" :depends-on ("config/config"))
    (:module lib
-    :depends-on ("package")
+    :depends-on ("package" "config/config" "config/schema")
     :serial t
     :components
     ((:file "util")
      (:file "validation")
      (:file "crypto")
      (:file "s3")))
-   (:file "config/config" :depends-on (lib))
-   (:file "config/schema" :depends-on (lib))
    (:file "crypto" :depends-on (lib "config/config"))
    (:file "errors" :depends-on (lib "config/config" "crypto"))
    (:file "template" :depends-on (lib "crypto" "errors"))

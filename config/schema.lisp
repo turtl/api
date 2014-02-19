@@ -53,3 +53,7 @@
    will actually be stored as `user_id.1` which allows us to know whether or not
    the index has the correct version.")
 
+(defparameter *analytics-schema*
+  `(:events (:indexes (:event (:version 1))))
+  "Holds the schema for the analytics data.")
+

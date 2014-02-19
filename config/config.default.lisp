@@ -66,9 +66,8 @@
 (log:config '(turtl) :debug)
 ;(log:config :nofile)
 
-(defvar *mixpanel* '(:enabled nil
-                     :token "")
-  "Holds mixpanel config.")
+(defvar *analytics* '(:enabled t)
+  "Holds analytics config")
 
 (defvar *local-upload* nil
   "NIL disables local files storage (files are uploaded to S3). Set to a local
