@@ -46,5 +46,5 @@
                            `(("c" . ,(:+ (:attr x "c") 1)))))))))
           (res (r:run sock query)))
     (r:disconnect sock)
-    (finish future res)))
+    (finish future log-entry)))
 

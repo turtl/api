@@ -77,12 +77,15 @@
         (setf (gethash key hash) val)))
     hash))
 
-(defun convert-plist-hash (plist &key (test #'equal))
+(defun convert-plist-hash (plist &key (test #'equal) convert-nulls)
   "Convert an plist into a hash table. Only works on flat plists (nesting
    doesn't work)."
   (let ((hash (make-hash-table :test test)))
     (loop for (key val) on plist by #'cddr do
-      (setf (gethash (string-downcase (string key)) hash) val))
+      (setf (gethash (string-downcase (string key)) hash)
+            (if (and convert-nulls (null val))
+                (cl-rethinkdb-reql::create-datum nil :null-datum t)
+                val)))
     hash))
 
 (defun add-id (hash-object &key (id-key "id"))
