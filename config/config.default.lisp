@@ -63,6 +63,7 @@
   "A list of public resources/actions that do not require authentication.")
 
 ;; setup the logger
+(log4cl:make-logger :turtl)
 (log:config '(turtl) :debug)
 ;(log:config :nofile)
 
