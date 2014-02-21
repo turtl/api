@@ -4,6 +4,11 @@
   "Grab a user id from a request."
   (gethash "id" (request-data request)))
 
+(defun get-client (request)
+  "Grab the current client ID (desktop v0.4.1, chrome v0.5.6, etc)"
+  (let ((headers (request-headers request)))
+    (getf headers :x-turtl-client)))
+
 ;; this is responsible for checking user auth
 ;; TODO: if this ever does MORE than just check auth, be sure to split into
 ;;       multiple functions

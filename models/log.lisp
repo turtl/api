@@ -9,21 +9,6 @@
          (gethash "line" log-data)
          (gethash "version" log-data))))
 
-(defafun get-logs (future) (num-entries)
-  "Get N log entries. Please never add a controller interface to this without
-   resticting it."
-  (alet* ((sock (db-sock))
-          (query (r:r
-                   (:limit
-                     (:order-by
-                       (:table "log")
-                       (:desc "c"))
-                     num-entries)))
-          (cursor (r:run sock query))
-          (entries (r:to-array sock cursor)))
-    (r:stop/disconnect sock cursor)
-    (finish future entries)))
-
 (defafun add-log (future) (log-data)
   "Add a log entry to the DB."
   (alet* ((log-hash (hash-log log-data))

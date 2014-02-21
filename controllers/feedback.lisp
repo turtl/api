@@ -6,6 +6,6 @@
     (alet* ((user-id (user-id req))
             (feedback-data (post-var req "data"))
             (feedback (send-feedback user-id feedback-data)))
-      (track "feedback")
+      (track "feedback" nil req)
       (send-json res feedback))))
 

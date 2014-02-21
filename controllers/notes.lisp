@@ -23,7 +23,7 @@
                       (with-valid-persona (persona-id user-id)
                         (add-note user-id board-id note-data :persona-id persona-id))
                       (add-note user-id board-id note-data))))
-      (track "note-add" `(:shared ,(when persona-id t)))
+      (track "note-add" `(:shared ,(when persona-id t)) req)
       (send-json res note))))
 
 (defroute (:put "/api/notes/([0-9a-f-]+)") (req res args)
@@ -38,7 +38,7 @@
                       (with-valid-persona (persona-id user-id)
                         (edit-note persona-id note-id note-data))
                       (edit-note user-id note-id note-data))))
-      (track "note-edit" `(:shared ,(when persona-id t)))
+      (track "note-edit" `(:shared ,(when persona-id t)) req)
       (send-json res note))))
 
 (defroute (:delete "/api/notes/([0-9a-f-]+)") (req res args)
@@ -52,7 +52,7 @@
                           (with-valid-persona (persona-id user-id)
                             (delete-note persona-id note-id))
                           (delete-note user-id note-id))))
-      (track "note-delete" `(:shared ,(when persona-id t)))
+      (track "note-delete" `(:shared ,(when persona-id t)) req)
       (let ((hash (make-hash-table :test #'equal)))
         (setf (gethash "sync_ids" hash) sync-ids)
         (send-json res hash)))))
@@ -127,7 +127,7 @@
                            (setf (gethash "size" file) total-file-size)
                            (remhash "upload_id" file)
                            (alet* ((file (edit-note-file user-id file-id file :remove-upload-id t)))
-                             (track "file-upload" `(:shared ,(when persona-id t)))
+                             (track "file-upload" `(:shared ,(when persona-id t)) req)
                              (send-json res file))))))
       ;; create an uploader lambda, used to stream our file chunk by chunk to S3
       (log:debu1 "file: starting uploader with path: ~a" path)
@@ -207,7 +207,7 @@
                      (with-valid-persona (persona-id user-id)
                        (delete-note-file persona-id note-id))
                      (delete-note-file user-id note-id))))
-      (track "file-delete" `(:shared ,(when persona-id t)))
+      (track "file-delete" `(:shared ,(when persona-id t)) req)
       (send-json res t))))
 
 (defroute (:put "/api/notes/batch") (req res)
