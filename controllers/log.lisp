@@ -5,6 +5,6 @@
   (catch-errors (res)
     (alet* ((log-data (post-var req "data"))
             (data (add-log log-data)))
-      (track "error" `(("hash" . (gethash "id" data))) req)
+      (track "error" `(("hash" . ,(gethash "id" data))) req)
       (send-json res "logged."))))
 
