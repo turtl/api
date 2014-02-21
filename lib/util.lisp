@@ -37,11 +37,11 @@
       (load file))
     file-list))
 
-(defun db-sock ()
+(defun db-sock (&optional (db *db-name*))
   "Makes connecting to the database a smidgen easier."
-  (r:connect *db-host* *db-port* :db *db-name* :read-timeout 15))
+  (r:connect *db-host* *db-port* :db db :read-timeout 15))
 
-(defun db-index (table index)
+(defun db-index (table index &key (schema *db-schema*))
   "Grab the correct index name from the db schema."
   (let* ((table-key (if (keywordp table)
                         table
@@ -49,7 +49,7 @@
          (index-key (if (keywordp index)
                         index
                         (intern (string-upcase index) :keyword)))
-         (indexes (getf (getf *db-schema* table-key) :indexes))
+         (indexes (getf (getf schema table-key) :indexes))
          (index-entry (getf indexes index-key)))
     (unless index-entry
       (error (format nil "Bad index name passed to db-index: ~a" index)))
@@ -77,12 +77,15 @@
         (setf (gethash key hash) val)))
     hash))
 
-(defun convert-plist-hash (plist &key (test #'equal))
+(defun convert-plist-hash (plist &key (test #'equal) convert-nulls)
   "Convert an plist into a hash table. Only works on flat plists (nesting
    doesn't work)."
   (let ((hash (make-hash-table :test test)))
     (loop for (key val) on plist by #'cddr do
-      (setf (gethash (string-downcase (string key)) hash) val))
+      (setf (gethash (string-downcase (string key)) hash)
+            (if (and convert-nulls (null val))
+                (cl-rethinkdb-reql::create-datum nil :null-datum t)
+                val)))
     hash))
 
 (defun add-id (hash-object &key (id-key "id"))

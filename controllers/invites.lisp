@@ -19,7 +19,7 @@
                                          board-key
                                          question
                                          used-secret-p)))
-      (track "invite" `(:persona nil :used-secret ,used-secret-p))
+      (track "invite" `(:persona nil :used-secret ,used-secret-p) req)
       (send-json res invite))))
 
 (defroute (:get "/api/invites/codes/([0-9a-f-]+)") (req res args)
@@ -40,7 +40,7 @@
             (invite-code (post-var req "code"))
             (persona-id (post-var req "persona"))
             (success (accept-invite user-id invite-id invite-code persona-id)))
-      (track "invite-accept" `(:persona nil))
+      (track "invite-accept" `(:persona nil) req)
       (send-json res success))))
 
 (defroute (:post "/api/invites/denied/([0-9a-f-]+)") (req res args)
@@ -51,7 +51,7 @@
             (invite-code (post-var req "code"))
             (persona-id (post-var req "persona"))
             (sync-ids (deny-invite user-id invite-id invite-code persona-id)))
-      (track "invite-deny" `(:persona nil))
+      (track "invite-deny" `(:persona nil) req)
       (let ((hash (make-hash-table :test #'equal)))
         (setf (gethash "sync_ids" hash) sync-ids)
         (send-json res hash)))))
@@ -62,7 +62,7 @@
     (alet* ((invite-id (car args))
             (user-id (user-id req))
             (sync-ids (delete-invite user-id invite-id)))
-      (track "invite-delete" `(:persona nil))
+      (track "invite-delete" `(:persona nil) req)
       (let ((hash (make-hash-table :test #'equal)))
         (setf (gethash "sync_ids" hash) sync-ids)
         (send-json res hash)))))

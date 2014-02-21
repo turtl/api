@@ -53,7 +53,10 @@
       ;; set up the database schema
       (log:info "Applying DB schema...")
       (future-handler-case
-        (alet ((report (apply-db-schema *db-schema*)))
+        (alet* ((report-main (apply-db-schema *db-schema*))
+                (report-analytics (when (getf *analytics* :enabled)
+                                    (apply-db-schema *analytics-schema* :db-name "analytics")))
+                (report (append report-main report-analytics)))
           (log:info "Schema applied: ~s" report)
           (let* ((listener (make-instance 'listener :bind bind :port port))
                  (server (start-server listener)))
@@ -67,4 +70,4 @@
         (t (e) (log:error "Error initializing: ~a" e))))
     (when *pid-file*
       (delete-file *pid-file*))))
-  
+
