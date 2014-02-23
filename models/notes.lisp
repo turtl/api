@@ -271,3 +271,28 @@
       (edit-note user-id note-id note-edit)))
   (finish future t))
 
+(defun get-file-size-summary (bytes)
+  "Given a size in bytes, return a summary of how large the file is (used mainly
+   for analytics)."
+  (cond ((< bytes 1024)
+         "0 - 1kb")
+        ((< bytes (* 1024 10))
+         "1kb - 10kb")
+        ((< bytes (* 1024 100))
+         "10kb - 100kb")
+        ((< bytes (* 1024 1024))
+         "100kb - 1mb")
+        ((< bytes (* 1024 1024 10))
+         "1mb - 10mb")
+        ((< bytes (* 1024 1024 100))
+         "10mb - 100mb")
+        ((< bytes (* 1024 1024 1024))
+         "100mb - 1gb")
+        ((< bytes (* 1024 1024 1024 10))
+         "1gb - 10gb")
+        ((< bytes (* 1024 1024 1024 100))
+         "10gb - 100gb")
+        ((< bytes (* 1024 1024 1024 1024))
+         "100gb - 1tb")
+        (t "> 1tb")))
+
