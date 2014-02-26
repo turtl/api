@@ -96,7 +96,9 @@
           (entries (r:to-array sock cursor))
           (sync-records nil))
     (if (zerop (length entries))
-        (finish future 0)
+        (progn
+          (r:disconnect sock)
+          (finish future 0))
         (wait-for (adolist (entry (coerce entries 'list))
                     (push (make-sync-record user-id "keychain" (gethash "id" entry) "delete") sync-records))
           (wait-for (insert-sync-records sync-records)
