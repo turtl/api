@@ -2,7 +2,9 @@
 
 (defun user-id (request)
   "Grab a user id from a request."
-  (gethash "id" (request-data request)))
+  (let ((data (request-data request)))
+    (when (hash-table-p data)
+      (gethash "id" data))))
 
 (defun get-client (request)
   "Grab the current client ID (desktop v0.4.1, chrome v0.5.6, etc)"
