@@ -33,7 +33,7 @@
           (cursor (r:run sock query))
           (board-id (r:to-array sock cursor)))
     (r:stop/disconnect sock cursor)
-    (finish future (aref board-id 0))))
+    (finish future (when (< 0 (length board-id)) (aref board-id 0)))))
 
 (defafun get-board-notes (future) (board-id)
   "Get the notes for a board."
