@@ -120,7 +120,7 @@
                               (persona-email-available-p email persona-id))))
         (if availablep
             (alet* ((sock (db-sock))
-                    (query (r:r (:update
+                    (query (r:r (:replace
                                   (:get (:table "personas") persona-id)
                                   persona-data)))
                     (nil (r:run sock query))
