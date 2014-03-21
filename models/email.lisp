@@ -13,7 +13,7 @@ Hello.
 Turtl is an easy way to track, share, and collaborate on ideas and projects ~
 with friends or coworkers.
  
-To accept this invite, go here: {{site-url}}/invites/{{code}}/{{id}}/{{key}}
+To accept this invite, go here: {{invite-site-url}}/invites/{{code}}/{{id}}/{{key}}
   
 Otherwise, you can ignore this email entirely and things will just work ~
 themselves out.
@@ -27,7 +27,7 @@ The Turtl Team
 {{greeting}}.
 
 {{from}} has shared a board with you on Turtl. ~
-Log in to the Turtl browser extension to start sharing!
+Log in to the Turtl app to start sharing!
 
 You can disable these notifications by opening the Personas dialog in the Turtl ~
 menu and clicking the mail icon next to your persona.
@@ -119,6 +119,7 @@ Please respond in a timely manner!"))
          (email (gethash "email" from-persona))
          (from (get-persona-greeting from-persona))
          (tpl-vars `(:site-url ,*site-url*
+                     :invite-site-url ,*invite-site-url*
                      :from ,from
                      :id ,(gethash "id" invite)
                      :code ,(gethash "code" invite)

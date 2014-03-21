@@ -31,6 +31,9 @@
 (defvar *site-url* "http://turtl.dev:8181"
   "The main URL the site will load from.")
 
+(defvar *invite-site-url* "http://invites.turtl.dev:8182"
+  "The main URL used to generate invite links.")
+
 (defvar *site-assets* (namestring (truename (format nil "~a../js" *root*)))
   "Where the static files are.")
 
