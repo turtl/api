@@ -231,3 +231,11 @@
                      (run))
             :stop (lambda () (setf enabled nil))))))
 
+(defmacro with-test (&body body)
+  "Makes testing async functions easier by abstracting an extremely common
+   pattern."
+  `(as:with-event-loop (:catch-app-errors t)
+     (future-handler-case
+       (progn ,@body)
+       (t (e) (format t "err: ~a~%" e)))))
+
