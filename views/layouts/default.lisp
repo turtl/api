@@ -113,7 +113,8 @@
             showProcessingMessages: false,
             MathMenu: { showRenderer: false },
             'HTML-CSS': {
-              showMathMenu: false
+              showMathMenu: false,
+              scale: 115
             }
           });")
       (:script :src "/library/mathjax/MathJax.js")
