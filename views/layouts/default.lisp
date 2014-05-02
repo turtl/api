@@ -99,7 +99,24 @@
                         "/config/auth.js"
                         "/config/routes.js"))
       (make-scripts s (get-files (format nil "~alibrary" *site-assets*) ".js"
-                                 '("ignore" "mootools-" "composer" "bookmarklet" "cowcrypt" "tcrypt.thread")))
+                                 '("ignore" "mootools-" "composer" "bookmarklet" "cowcrypt" "tcrypt.thread" "mathjax")))
+      (:script :type "text/x-mathjax-config" "
+          MathJax.Hub.Config({
+            imageFont: null,
+            extensions: ['tex2jax.js'],
+            jax: ['input/TeX','output/HTML-CSS'],
+            tex2jax: {
+              processEscapes: true
+            },
+            showMathMenu: false,
+            showMathMenuMSIE: false,
+            showProcessingMessages: false,
+            MathMenu: { showRenderer: false },
+            'HTML-CSS': {
+              showMathMenu: false
+            }
+          });")
+      (:script :src "/library/mathjax/MathJax.js")
       (:script :src "/turtl.js")
       (make-scripts s (get-files (format nil "~aturtl" *site-assets*)))
       (make-scripts s (get-files (format nil "~ahandlers" *site-assets*)))
@@ -124,13 +141,9 @@
             (:h1 "<span>Turtl</span>")
             (:div :class "loading"
               (:img :src "/images/site/icons/load_42x11.gif")))
-          (:div :id "main" :class "maincontent")))
+          (:div :id "main" :class "maincontent tex2jax_ignore")))
 
       (:div :id "footer"
-        (:footer
-          (:div :class "gutter"
-            (str (conc "Copyright &copy; "
-                       (write-to-string (nth-value 5 (decode-universal-time (get-universal-time))))
-                       " ")))))
+        (:footer))
       (generate-templates s (format nil "~aviews" (namestring *site-assets*))))))
 
