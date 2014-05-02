@@ -86,6 +86,36 @@
                                                     :get-personas get-personas)))
       (finish future boards-populated))))
 
+(defafun get-all-user-board-ids (future) (user-id &key shared)
+  "Gets ALL a user's board IDs, with option to specify grabbing shared boards."
+  (alet* ((persona-ids (if shared
+                           (get-user-persona-ids user-id)
+                           #()))
+          (sock (db-sock)))
+    (flet ((get-user-board-ids (append)
+             (alet* ((query (r:r (:attr
+                                   (:get-all
+                                     (:table "boards")
+                                     user-id
+                                     :index (db-index "boards" "user_id"))
+                                   "id")))
+                     (cursor (r:run sock query))
+                     (board-ids (r:to-array sock cursor)))
+               (r:stop/disconnect sock cursor)
+               (finish future (cl-async-util::append-array board-ids append)))))
+      (if (zerop (length persona-ids))
+          (get-user-board-ids #())
+          (alet* ((query (r:r (:attr
+                                (:get-all
+                                  (:table "boards_personas_link")
+                                  (coerce persona-ids 'list)
+                                  :index (db-index "boards_personas_link" "to"))
+                                "board_id")))
+                  (cursor (r:run sock query))
+                  (board-ids (r:to-array sock cursor)))
+            (r:stop sock cursor)
+            (get-user-board-ids board-ids))))))
+
 (defafun get-persona-boards (future) (persona-id &key populate get-notes)
   "Get all boards for a persona."
   (alet* ((sock (db-sock))
@@ -109,38 +139,6 @@
         (alet ((boards-populated (populate-boards-data boards :get-notes get-notes)))
           (finish future boards-populated))
         (finish future boards))))
-
-(defafun get-all-user-board-ids (future) (user-id)
-  "Get all board IDs for a user (including the user's persona/shared boards)."
-  (alet* ((persona-ids (get-user-persona-ids user-id))
-          (sock (db-sock))
-          (query (r:r
-                   (:attr
-                     (:attr
-                       (:eq-join
-                         (:get-all
-                           (:table "boards_personas_link")
-                           (coerce persona-ids 'list)
-                           :index (db-index "boards_personas_link" "to"))
-                         "board_id"
-                         (:table "boards"))
-                       "right")
-                     "id")))
-          (cursor (r:run sock query))
-          (persona-board-ids (r:to-array sock cursor))
-          (nil (r:stop sock cursor))
-          (query (r:r (:attr
-                        (:get-all
-                          (:table "boards")
-                          user-id
-                          :index (db-index "boards" "user_id"))
-                        "id")))
-          (cursor (r:run sock query))
-          (board-ids (r:to-array sock cursor)))
-    (r:stop/disconnect sock cursor)
-    (finish future (cl-async-util:append-array
-                     board-ids
-                     persona-board-ids))))
 
 (defafun get-board-privs (future) (board-id &key (indexed t))
   "Get privilege entries for a board (board <--> persona links)."
