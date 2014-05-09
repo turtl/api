@@ -49,6 +49,7 @@
      (:file "personas")
      (:file "notes")
      (:file "boards")
+     (:file "profile")
      (:file "messages")
      (:file "invites")
      (:file "sync")
