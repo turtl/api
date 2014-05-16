@@ -10,14 +10,23 @@
       (track "user-join" nil req)
       (send-json res user))))
 
+(defroute (:get "/api/users/([0-9a-f]+)") (req res args)
+  "Get a user by ID."
+  (catch-errors (res)
+    (let ((user-id (car args))
+          (cur-user-id (user-id req)))
+      (if (string= user-id cur-user-id)
+          (alet ((user (get-user-by-id user-id)))
+            (send-json res user))
+          (error 'insufficient-privileges :msg "You are accessing a user record that doesn't belong to you.")))))
+
 (defroute (:post "/api/auth") (req res)
   "Used to test auth. Notice we don't actually do anything here. If the auth
    failed, the :pre-route hook will catch it. This just gives a place to play
    ping-pong once a user logs in."
   (catch-errors (res)
-    (alet* ((user-id (user-id req))
-            (user (get-user-by-id user-id)))
-      (send-json res (gethash "id" user)))))
+    (alet* ((user-id (user-id req)))
+      (send-json res user-id))))
 
 (defroute (:put "/api/users/([0-9a-f-]+)") (req res args)
   "Update a user's data. This generally means saving the settings in the user's

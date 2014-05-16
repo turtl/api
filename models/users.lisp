@@ -82,7 +82,7 @@
 (defafun get-user-by-id (future) (user-id)
   "Grab a user by ID."
   (alet* ((sock (db-sock))
-          (query (r:r (:get (:table "users") user-id)))
+          (query (r:r (:without (:get (:table "users") user-id) "a")))
           (user (r:run sock query)))
     (r:disconnect sock)
     (finish future user)))
