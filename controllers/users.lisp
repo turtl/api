@@ -17,6 +17,8 @@
           (cur-user-id (user-id req)))
       (if (string= user-id cur-user-id)
           (alet ((user (get-user-by-id user-id)))
+            (unless (gethash "storage" user)
+              (setf (gethash "storage" user) *default-storage-limit*))
             (send-json res user))
           (error 'insufficient-privileges :msg "You are accessing a user record that doesn't belong to you.")))))
 

@@ -9,6 +9,7 @@
 (defvalidator validate-user
   (("id" :type string :required t :length 24)
    ("a" :type string :required t)
+   ("storage" :type integer :required nil)
    ("invite_code" :type string :required t)
    ("body" :type cl-async-util:bytes-or-string)))
 
