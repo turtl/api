@@ -18,8 +18,8 @@
     (finish future (round size))))
 
 (defafun get-profile-size (future) (user-id)
-  "Grab a user's profile size (size of owned boards + shared boards)."
-  (alet* ((board-ids (get-all-user-board-ids user-id :shared t))
+  "Grab a user's profile size (only the boards they own)."
+  (alet* ((board-ids (get-all-user-board-ids user-id :shared nil))
           (board-ids (coerce board-ids 'list))
           (size 0))
     (wait-for (adolist (board-id board-ids future2)
