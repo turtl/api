@@ -15,7 +15,9 @@
    failed, the :pre-route hook will catch it. This just gives a place to play
    ping-pong once a user logs in."
   (catch-errors (res)
-    (send-json res (user-id req))))
+    (alet* ((user-id (user-id req))
+            (user (get-user-by-id user-id)))
+      (send-json res user))))
 
 (defroute (:put "/api/users/([0-9a-f-]+)") (req res args)
   "Update a user's data. This generally means saving the settings in the user's

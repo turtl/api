@@ -1,7 +1,10 @@
 (in-package :turtl)
 
 (defparameter *db-schema*
-  `(:users (:indexes (:a (:version 1)))
+  `(:users
+     (:indexes
+       (:a (:version 1)
+        :invite_code (:version 1)))
     :boards (:indexes (:user_id (:version 1)))
     :notes (:indexes (:board_id (:version 1)))
     :personas
