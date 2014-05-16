@@ -17,7 +17,7 @@
   (catch-errors (res)
     (alet* ((user-id (user-id req))
             (user (get-user-by-id user-id)))
-      (send-json res user))))
+      (send-json res (gethash "id" user)))))
 
 (defroute (:put "/api/users/([0-9a-f-]+)") (req res args)
   "Update a user's data. This generally means saving the settings in the user's
