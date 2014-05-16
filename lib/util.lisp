@@ -77,6 +77,7 @@
         (setf (gethash key hash) val)))
     hash))
 
+;; TODO: alexandria, anyone?? DERR
 (defun convert-plist-hash (plist &key (test #'equal) convert-nulls)
   "Convert an plist into a hash table. Only works on flat plists (nesting
    doesn't work)."
@@ -230,6 +231,11 @@
                      (setf enabled t)
                      (run))
             :stop (lambda () (setf enabled nil))))))
+
+
+(defun jprint (db-result)
+  "Pretty printer for JSON (mainly for database results)."
+  (yason:encode db-result (yason:make-json-output-stream *standard-output* :indent 2)))
 
 (defmacro with-test (&body body)
   "Makes testing async functions easier by abstracting an extremely common
