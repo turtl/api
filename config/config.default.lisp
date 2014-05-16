@@ -65,10 +65,12 @@
     (:get . ,(cl-ppcre:create-scanner "/api/invites/codes/([0-9a-f-]+)")))
   "A list of public resources/actions that do not require authentication.")
 
-(defparameter *default-storage-limit*
-  (* 100 1024 1024)
-  "The max amount of data a profile can hold (in bytes). Set to nil to allow
+(defparameter *default-storage-limit* 100
+  "The max amount of data a profile can hold (in megabytes). Set to nil to allow
    infinite size profiles.")
+
+(defparameter *storage-invite-credit* 25
+  "The amount of storage (in mb) to credit a user when they refer someone.")
 
 ;; setup the logger
 (log:config (log4cl:make-logger :turtl) :debug)

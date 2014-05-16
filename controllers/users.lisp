@@ -6,8 +6,16 @@
    spankin' new ID along with the rest of the posted data."
   (catch-errors (res)
     (alet* ((user-data (post-var req "data"))
+            (invited-by (post-var req "invited_by"))
+            (invited-by (when (and invited-by
+                                   (not (string= invited-by "")))
+                          invited-by))
             (user (add-user user-data)))
-      (track "user-join" nil req)
+      (when invited-by
+        (alet ((inviting-user-id (get-user-id-from-invite-code invited-by)))
+          (when inviting-user-id
+            (credit-signup invited-by))))
+      (track "user-join" (when invited-by `(:from-invite t)) req)
       (send-json res user))))
 
 (defroute (:get "/api/users/([0-9a-f]+)") (req res args)
@@ -16,9 +24,14 @@
     (let ((user-id (car args))
           (cur-user-id (user-id req)))
       (if (string= user-id cur-user-id)
-          (alet ((user (get-user-by-id user-id)))
-            (unless (gethash "storage" user)
-              (setf (gethash "storage" user) *default-storage-limit*))
+          (alet* ((user (get-user-by-id user-id))
+                  (storage (gethash "storage" user))
+                  ;; TODO: count invites in user record for storage!!
+                  (storage (* (if storage
+                                  storage
+                                  *default-storage-limit*)
+                              1024 1024)))
+            (setf (gethash "storage" user storage))
             (send-json res user))
           (error 'insufficient-privileges :msg "You are accessing a user record that doesn't belong to you.")))))
 

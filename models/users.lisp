@@ -136,3 +136,32 @@
     (r:disconnect sock)
     (finish future user)))
 
+(defafun get-user-id-from-invite-code (future) (invite-code)
+  "Grab a user's ID from the invite code."
+  (alet* ((sock (db-sock))
+          (query (r:r (:limit
+                        (:get-all
+                          (:table "users")
+                          invite-code
+                          :index (db-index "users" "invite_code"))
+                        1)))
+          (cursor (r:run sock query))
+          (users (r:to-array sock cursor)))
+    (r:stop/disconnect sock cursor)
+    (if (< 0 (length users))
+        (finish future (gethash "id" (aref users 0)))
+        (finish future nil))))
+
+(defafun credit-signup (future) (user-id)
+  "Give a user credit for referring someone."
+  (alet* ((sock (db-sock))
+          (iname (format nil "i~a" *storage-invite-credit*))
+          (query (r:r (:update
+                        (:get (:table "users") user-id)
+                        (r:fn (u)
+                          `(("invites" . ((,iname . ,(:+ (:default (:attr (:attr u "invites") iname) 0)
+                                                         1)))))))))
+          (nil (r:run sock query)))
+    (r:disconnect sock)
+    (finish future t)))
+
