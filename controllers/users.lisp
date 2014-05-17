@@ -14,7 +14,7 @@
       (when invited-by
         (alet ((inviting-user-id (get-user-id-from-invite-code invited-by)))
           (when inviting-user-id
-            (credit-signup invited-by))))
+            (credit-signup inviting-user-id))))
       (track "user-join" (when invited-by `(:from-invite t)) req)
       (send-json res user))))
 

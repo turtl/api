@@ -161,9 +161,13 @@
                         (r:fn (u)
                           `(("invites" . ((,iname . ,(:+ (:default (:attr (:attr u "invites") iname) 0)
                                                          1)))))))))
-          (nil (r:run sock query)))
+          (nil (r:run sock query))
+          (sync-ids (add-sync-record user-id
+                                     "user"
+                                     user-id
+                                     "edit")))
     (r:disconnect sock)
-    (finish future t)))
+    (finish future sync-ids)))
 
 (defun calculate-user-storage (user)
   "Calculate a user's allowed profile size (in bytes). This takes into account
@@ -179,7 +183,6 @@
                    (loop for k being the hash-keys of invites
                          for v being the hash-values of invites do
                      (let ((size-mb (ignore-errors (parse-integer k :junk-allowed t))))
-                       (format t "size? ~a ~a~%" size-mb v)
                        (when size-mb
                          (incf size (* size-mb (round v))))))
                    (+ *default-storage-limit* size)))

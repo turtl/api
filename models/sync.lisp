@@ -199,8 +199,10 @@
 
 (defafun sync-user (future) (user-id sync-id)
   "Grab any changed user data."
-  (alet* ((user (sync-user-items user-id sync-id "user" "users")))
-    (finish future user)))
+  (alet* ((users (sync-user-items user-id sync-id "user" "users")))
+    (loop for user across users do
+      (setf (gethash "storage" user) (calculate-user-storage user)))
+    (finish future users)))
 
 (defafun sync-user-keychain (future) (user-id sync-id)
   "Grab all changed keychain entries."
