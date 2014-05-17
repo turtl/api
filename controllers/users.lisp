@@ -25,13 +25,8 @@
           (cur-user-id (user-id req)))
       (if (string= user-id cur-user-id)
           (alet* ((user (get-user-by-id user-id))
-                  (storage (gethash "storage" user))
-                  ;; TODO: count invites in user record for storage!!
-                  (storage (* (if storage
-                                  storage
-                                  *default-storage-limit*)
-                              1024 1024)))
-            (setf (gethash "storage" user storage))
+                  (storage (calculate-user-storage user)))
+            (setf (gethash "storage" user) storage)
             (send-json res user))
           (error 'insufficient-privileges :msg "You are accessing a user record that doesn't belong to you.")))))
 

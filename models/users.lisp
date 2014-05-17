@@ -155,7 +155,7 @@
 (defafun credit-signup (future) (user-id)
   "Give a user credit for referring someone."
   (alet* ((sock (db-sock))
-          (iname (format nil "i~a" *storage-invite-credit*))
+          (iname (format nil "~a" *storage-invite-credit*))
           (query (r:r (:update
                         (:get (:table "users") user-id)
                         (r:fn (u)
@@ -164,4 +164,24 @@
           (nil (r:run sock query)))
     (r:disconnect sock)
     (finish future t)))
+
+(defun calculate-user-storage (user)
+  "Calculate a user's allowed profile size (in bytes). This takes into account
+   the number of successful invites the user has sent, but can also be
+   overridden by manually setting the `storage` field."
+  (let ((storage (gethash "storage" user))
+        (invites (gethash "invites" user)))
+    (round
+      (* 1024 1024
+         (cond (storage storage)
+               (invites
+                 (let ((size 0))
+                   (loop for k being the hash-keys of invites
+                         for v being the hash-values of invites do
+                     (let ((size-mb (ignore-errors (parse-integer k :junk-allowed t))))
+                       (format t "size? ~a ~a~%" size-mb v)
+                       (when size-mb
+                         (incf size (* size-mb (round v))))))
+                   (+ *default-storage-limit* size)))
+               (t *default-storage-limit*))))))
 
