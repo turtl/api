@@ -11,6 +11,14 @@
 
 (defafun add-log (future) (log-data)
   "Add a log entry to the DB."
+  ;; basically, filter out old firefox errors here (or any client that's too old
+  ;; to give us a value client version).
+  (let ((client-version (gethash "version" log-data)))
+    (when (or (not client-version)
+              (string= client-version ""))
+      (finish future nil)
+      (return-from add-log)))
+  (setf (gethash "url" log-data) (cl-ppcre:regex-replace "^.*/data/app" (gethash "url" log-data) "/data/app"))
   (alet* ((log-hash (hash-log log-data))
           (log-entry (let ((hash (make-hash-table :test #'equal)))
                        (setf (gethash "id" hash) log-hash
