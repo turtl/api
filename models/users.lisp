@@ -169,22 +169,22 @@
     (r:disconnect sock)
     (finish future sync-ids)))
 
-(defun calculate-user-storage (user)
+(defun calculate-user-storage (user &key (unit :bytes))
   "Calculate a user's allowed profile size (in bytes). This takes into account
    the number of successful invites the user has sent, but can also be
    overridden by manually setting the `storage` field."
-  (let ((storage (gethash "storage" user))
-        (invites (gethash "invites" user)))
-    (round
-      (* 1024 1024
-         (cond (storage storage)
-               (invites
-                 (let ((size 0))
-                   (loop for k being the hash-keys of invites
-                         for v being the hash-values of invites do
-                     (let ((size-mb (ignore-errors (parse-integer k :junk-allowed t))))
-                       (when size-mb
-                         (incf size (* size-mb (round v))))))
-                   (+ *default-storage-limit* size)))
-               (t *default-storage-limit*))))))
+  (let* ((storage (gethash "storage" user))
+         (invites (gethash "invites" user))
+         (amount (or storage 100))
+         (mul (case unit
+                (:bytes (* 1024 1024))
+                (:megabytes 1)
+                (:gigabytes (/ 1 1024)))))
+    (when invites
+      (loop for k being the hash-keys of invites
+            for v being the hash-values of invites do
+        (let ((size-mb (ignore-errors (parse-integer k :junk-allowed t))))
+          (when size-mb
+            (incf amount (* size-mb (round v)))))))
+    (round (* mul amount))))
 
