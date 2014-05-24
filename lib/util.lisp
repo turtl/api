@@ -139,7 +139,11 @@
                  (t (e)
                    ;; wrap the caught error in the error wrapper, which when
                    ;; printed out gives us the name of the function the error
-                   ;; occurred in. makes debugging, oh, about 1000000x easier.
+                   ;; occurred in. makes debugging, oh, about 6000x easier.
+                   ;;
+                   ;; also, log everything.
+                   (log:error "wrapping (~a): ~a" ',name e)
+                   (add-server-log e (format nil "defafun: ~a" ',name))
                    (signal-error ,future-var
                                  (make-instance 'turtl-error-wrapper
                                                 :error e
