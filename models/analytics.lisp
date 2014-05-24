@@ -14,6 +14,7 @@
               (sock (db-sock "analytics"))
               (query (r:r (:insert (:table "events") record)))
               (nil (r:run sock query)))
+        (r:disconnect sock)
         (finish future t))
       (finish future t)))
 
