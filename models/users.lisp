@@ -88,9 +88,16 @@
     (r:disconnect sock)
     (finish future user)))
 
-(defafun add-user (future) (user-data)
-  "Add a new user"
+(defafun add-user (future) (user-data &key promo)
+  "Add a new user. Optionally pass a promo object."
   (add-id user-data)
+  ;; apply the promo to user-object in-place destructively
+  (if (and promo
+           (apply-promo user-data promo :count-uses t))
+      ;; yes we used a promo
+      (setf promo t)
+      ;; no promo was used
+      (setf promo nil))
   (alet ((user (check-auth (gethash "a" user-data))))
     (if user
         (signal-error future (make-instance 'user-exists
@@ -107,7 +114,7 @@
                     (sync-ids (add-sync-record user-id "user" user-id "add")))
               (r:disconnect sock)
               (setf (gethash "sync_ids" user-data) sync-ids)
-              (finish future user-data)))))))
+              (finish future user-data promo)))))))
 
 (defafun edit-user (future) (user-id mod-user-id user-data)
   "Edit a user. Mainly used to update a user's private (encrypted) data and
