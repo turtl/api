@@ -84,12 +84,13 @@
   (with-valid-persona (persona-id user-id future)
     (alet* ((exists-invite-id (make-invite-id board-id to-email))
             (exists-invite (get-invite-by-id exists-invite-id))
-            (persona (get-persona-by-id persona-id)))
+            (persona (get-persona-by-id persona-id))
+            (invite-code (get-user-invite-code user-id)))
       (if (and exists-invite
                (not (gethash "deleted" exists-invite)))
           ;; this email/board-id invite already exists. just resend it
           (alet ((privs (get-board-privs-entry board-id (gethash "id" exists-invite)))
-                 (nil (email-board-invite persona exists-invite key)))
+                 (nil (email-board-invite persona exists-invite key invite-code)))
             (setf (gethash "priv" exists-invite) privs)
             (finish future exists-invite))
           ;; new invite, create/insert/send it
@@ -104,7 +105,7 @@
             (multiple-future-bind (nil priv-entry sync-ids)
                 (add-board-remote-invite user-id board-id persona-id invite-id 2 to-email)
               (alet* ((nil (insert-invite-record invite))
-                      (nil (email-board-invite persona invite key)))
+                      (nil (email-board-invite persona invite key invite-code)))
                 (setf (gethash "priv" invite) (convert-alist-hash priv-entry)
                       (gethash "sync_ids" invite) sync-ids)
                 (finish future invite))))))))

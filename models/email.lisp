@@ -13,7 +13,7 @@ Hello.
 Turtl is an easy way to track, share, and collaborate on ideas and projects ~
 with friends or coworkers.
  
-To accept this invite, go here: {{invite-site-url}}/invites/{{code}}/{{id}}/{{key}}
+To accept this invite, go here: {{invite-site-url}}/invites/{{code}}/{{id}}/{{key}}{{invite-code}}
   
 Otherwise, you can ignore this email entirely and things will just work ~
 themselves out.
@@ -111,7 +111,7 @@ Please respond in a timely manner!"))
                       email)))
     namestr))
      
-(defafun email-board-invite (future) (from-persona invite key)
+(defafun email-board-invite (future) (from-persona invite key invite-code)
   "Send a board invite email."
   (let* ((msg *emails-board-invite*)
          (name (gethash "name" from-persona))
@@ -124,6 +124,9 @@ Please respond in a timely manner!"))
                      :id ,(gethash "id" invite)
                      :code ,(gethash "code" invite)
                      :key ,key
+                     :invite-code ,(if invite-code
+                                       (concatenate 'string "/" invite-code)
+                                       "")
                      :used-secret ,(if (gethash "used_secret" (gethash "data" invite))
                                        1
                                        0)))

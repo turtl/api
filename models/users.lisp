@@ -91,6 +91,18 @@
     (r:disconnect sock)
     (finish future user)))
 
+(defafun get-user-invite-code (future) (user-id)
+  "Grab a user's invite code by their ID."
+  (alet* ((sock (db-sock))
+          (query (r:r (:default
+                        (:attr
+                          (:get (:table "users") user-id)
+                          "invite_code")
+                        nil)))
+          (invite-code (r:run sock query)))
+    (r:disconnect sock)
+    (finish future invite-code)))
+
 (defafun add-user (future) (user-data &key promo)
   "Add a new user. Optionally pass a promo object."
   (add-id user-data)
