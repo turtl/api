@@ -40,7 +40,7 @@
   (alet* ((sock (db-sock))
           (query (r:r (:insert
                         (:table "sync")
-                        sync-records)))
+                        (or sync-records #()))))
           (nil (r:run sock query)))
     (r:disconnect sock)
     (finish future t)))

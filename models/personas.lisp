@@ -161,7 +161,8 @@
     (wait-for (adolist (board-id board-ids)
                 (alet ((user-ids (get-affected-users-from-board-ids (list board-id))))
                   (push (make-sync-record user-id "board" board-id "edit" :rel-ids user-ids) sync-records)))
-      (alet* ((nil (insert-sync-records sync-records)))
+      (wait-for (when sync-records
+                  (insert-sync-records sync-records))
         (r:disconnect sock)
         (finish future t)))))
 

@@ -16,36 +16,39 @@
 (defafun check-auth (future) (auth-key)
   "Check if the given auth key exists. Finishes with the user id if so, nil
    otherwise."
-  (alet* ((auth-key (decode-key auth-key))
-          (sock (db-sock))
-          (query (r:r (:limit
-                        (:get-all
-                          (:table "users")
-                          auth-key
-                          :index (db-index "users" "a"))
-                        1)))
-          (cursor (r:run sock query))
-          (res (r:to-array sock cursor)))
-    (r:stop/disconnect sock cursor)
-    (if (and res (< 0 (length res)))
-        (let ((user (aref res 0)))
-          (cond ((gethash "invite_code" user)
-                 ;; user has an invite code. carry on.
-                 (finish future user))
-                (t
-                 ;; no invite code!!!!!!!11 retroactively generate one. this is
-                 ;; fine since an upgrade requires logging out anyway.
-                 (alet* ((sock (db-sock))
-                         (user-id (gethash "id" user))
-                         (invite-code (generate-unique-invite-code user-id))
-                         (query (r:r (:update
-                                       (:get (:table "users") user-id)
-                                       `(("invite_code" . ,invite-code)))))
-                         (nil (r:run sock query)))
-                   (r:disconnect sock)
-                   (setf (gethash "invite_code" user) invite-code)
-                   (finish future user)))))
-        (finish future nil))))
+  (future-handler-case
+    (alet* ((auth-key (decode-key auth-key))
+            (sock (db-sock))
+            (query (r:r (:limit
+                          (:get-all
+                            (:table "users")
+                            auth-key
+                            :index (db-index "users" "a"))
+                          1)))
+            (cursor (r:run sock query))
+            (res (r:to-array sock cursor)))
+      (r:stop/disconnect sock cursor)
+      (if (and res (< 0 (length res)))
+          (let ((user (aref res 0)))
+            (cond ((gethash "invite_code" user)
+                   ;; user has an invite code. carry on.
+                   (finish future user))
+                  (t
+                   ;; no invite code!!!!!!!11 retroactively generate one. this is
+                   ;; fine since an upgrade requires logging out anyway.
+                   (alet* ((sock (db-sock))
+                           (user-id (gethash "id" user))
+                           (invite-code (generate-unique-invite-code user-id))
+                           (query (r:r (:update
+                                         (:get (:table "users") user-id)
+                                         `(("invite_code" . ,invite-code)))))
+                           (nil (r:run sock query)))
+                     (r:disconnect sock)
+                     (setf (gethash "invite_code" user) invite-code)
+                     (finish future user)))))
+          (finish future nil)))
+    (t (e)
+      (log:error "check-auth: ~a" e))))
 
 (defafun generate-unique-invite-code (future) (user-id)
   "Given a user ID, generate a unique invite code they can send to others for

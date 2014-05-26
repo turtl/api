@@ -31,25 +31,28 @@
       (finish future nil)
       (return-from add-log)))
   (setf (gethash "url" log-data) (cl-ppcre:regex-replace "^.*/data/app" (gethash "url" log-data) "/data/app"))
-  (alet* ((log-hash (hash-log log-data))
-          (log-entry (let ((hash (make-hash-table :test #'equal)))
-                       (setf (gethash "id" hash) log-hash
-                             (gethash "data" hash) log-data
-                             (gethash "created" hash) (get-timestamp)
-                             (gethash "c" hash) 1)
-                       hash))
-          (sock (db-sock))
-          (query (r:r
-                   (:replace
-                     (:get (:table "log") log-hash)
-                     (r:fn (x)
-                       (:branch
-                         (:== (:default x 0) 0)
-                         log-entry
-                         (:merge
-                           x
-                           `(("c" . ,(:+ (:attr x "c") 1)))))))))
-          (res (r:run sock query)))
-    (r:disconnect sock)
-    (finish future log-entry)))
+  (future-handler-case
+    (alet* ((log-hash (hash-log log-data))
+            (log-entry (let ((hash (make-hash-table :test #'equal)))
+                         (setf (gethash "id" hash) log-hash
+                               (gethash "data" hash) log-data
+                               (gethash "created" hash) (get-timestamp)
+                               (gethash "c" hash) 1)
+                         hash))
+            (sock (db-sock))
+            (query (r:r
+                     (:replace
+                       (:get (:table "log") log-hash)
+                       (r:fn (x)
+                         (:branch
+                           (:== (:default x 0) 0)
+                           log-entry
+                           (:merge
+                             x
+                             `(("c" . ,(:+ (:attr x "c") 1)))))))))
+            (nil (r:run sock query)))
+      (r:disconnect sock)
+      (finish future log-entry))
+    (t (e)
+      (log:error "add-log: ~a" e))))
 
