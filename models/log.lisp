@@ -28,12 +28,12 @@
     (finish future nil)
     (return-from add-log future))
   ;; basically, filter out old firefox errors here (or any client that's too old
-  ;; to give us a value client version).
+  ;; to give us a valid client version).
   (let ((client-version (gethash "version" log-data)))
     (when (or (not client-version)
               (string= client-version ""))
       (finish future nil)
-      (return-from add-log)))
+      (return-from add-log future)))
   (setf (gethash "url" log-data) (cl-ppcre:regex-replace "^.*/data/app" (gethash "url" log-data) "/data/app"))
   (future-handler-case
     (alet* ((log-hash (hash-log log-data))
