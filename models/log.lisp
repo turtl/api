@@ -30,7 +30,9 @@
               (string= client-version ""))
       (finish future nil)
       (return-from add-log)))
-  (setf (gethash "url" log-data) (cl-ppcre:regex-replace "^.*/data/app" (gethash "url" log-data) "/data/app"))
+  ;; filter out OS paths
+  (let ((log-data (or log-data (make-hash-table :test #'equal))))
+    (setf (gethash "url" log-data) (cl-ppcre:regex-replace "^.*/data/app" (or (gethash "url" log-data) "") "/data/app")))
   (future-handler-case
     (alet* ((log-hash (hash-log log-data))
             (log-entry (let ((hash (make-hash-table :test #'equal)))
