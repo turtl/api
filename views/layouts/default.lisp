@@ -92,8 +92,8 @@
       (:script :src "/library/mootools-core-1.4.5.js")
       (:script :src "/library/mootools-more-1.4.0.1.js")
       (:script :src "/library/composer/composer.js")
-      (:script :src "/library/composer/composer.relational.js")
-      (:script :src "/library/composer/composer.filtercollection.js")
+      ;(:script :src "/library/composer/composer.relational.js")
+      ;(:script :src "/library/composer/composer.filtercollection.js")
       (:script :src "/library/composer/composer.keyboard.js")
 
       (make-scripts s '("/config/config.js"
