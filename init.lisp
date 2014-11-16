@@ -35,10 +35,6 @@
   "Start the Turtl app."
   (setf *error-handler* 'error-handler)
 
-  ;; load/cache all the views
-  (when *enable-webapp*
-    (load-views))
-
   ;; write our PID file (if *pid-file* is set)
   (when *pid-file*
     (with-open-file (s *pid-file*

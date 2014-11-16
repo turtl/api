@@ -15,9 +15,6 @@
 (defvar *db-port* 28015
   "The database port number.")
 
-(defvar *enable-webapp* t
-  "If t will load/serve the Turtl webapp at /. Use only for testing!")
-
 (defvar *enable-hsts-header* nil
   "If NIL, Turtl won't pass back an HSTS security header. If this is set, it
    should be set to a integer value, which will be passed to the max-age value

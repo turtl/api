@@ -36,18 +36,6 @@
   (defroute (:get "/files/.+") (req res)
     (send-response res :status 404 :body "\"File not found\"")))
 
-;; only turn these on if the webapp is enabled
-(when *enable-webapp*
-  ;; set up a general file-serving route (hint: if you're in production and you
-  ;; get here, you're doing it wrong)
-  (def-directory-route "/" *site-assets* :disable-directory-listing t)
-  
-  ;; TODO: remove this at some point, or password it or something.
-  (defroute (:get ".+") (req res)
-    "This is our catch-all route which loads the Turtl web app."
-    (let ((body (layout :default '(:content "" :title "Turtl"))))
-      (send-response res :headers '(:content-type "text/html") :body body))))
-
 (defroute (:* ".+") (req res)
   "- What you doing mister?
    - Nothing.
