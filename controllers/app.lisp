@@ -60,15 +60,17 @@
   (lambda (res req &rest _)
     (declare (ignore _))
     (when *enable-hsts-header*
-      (setf (get-header (response-headers res) :strict-transport-security)
+      (setf (getf (response-headers res) :strict-transport-security)
             (format nil "max-age=~a" *enable-hsts-header*)))
     ;; set up CORS junk. generally, we only allow it if it comes from the FF
     ;; extension, which uses resource:// URLs
     (let* ((req-headers (request-headers req))
            (origin (get-header req-headers :origin)))
-      (when (and origin (< 11 (length origin)) (string= (subseq origin 0 11) "resource://"))
-        (setf (get-header (response-headers res) :access-control-allow-origin) *enabled-cors-resources*
-              (get-header (response-headers res) :access-control-allow-methods) "GET, POST"
-              (get-header (response-headers res) :access-control-allow-headers) (get-header (request-headers req) :access-control-request-headers)))))
+      ;; TODO: figure out a better CORS policy
+      (when (or t
+                (and origin (< 11 (length origin)) (string= (subseq origin 0 11) "resource://")))
+        (setf (getf (response-headers res) :access-control-allow-origin) *enabled-cors-resources*
+              (getf (response-headers res) :access-control-allow-methods) "GET, POST"
+              (getf (response-headers res) :access-control-allow-headers) (get-header (request-headers req) :access-control-request-headers)))))
   :post-headers)
 
