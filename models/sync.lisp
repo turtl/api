@@ -12,10 +12,9 @@
                          (:desc "id"))
                        1)
                      "id")))
-          (cursor (r:run sock query))
-          (sync-item (r:to-array sock cursor))
+          (sync-item  (r:run sock query))
           (sync-item (coerce sync-item 'list)))
-    (r:stop/disconnect sock cursor)
+    (r:disconnect sock)
     (finish future (car sync-item))))
 
 (defun make-sync-record (user-id item-type item-id action &key client-id rel-ids fields)
@@ -162,7 +161,7 @@
           (query (r:r
                    (:between
                      (:table "sync")
-                     (list user-id item-type sync-id)
+                     (list user-id item-type (or sync-id ""))
                      (list user-id item-type "z")
                      :index (db-index "sync" "user_search")
                      :left-bound "open")))
