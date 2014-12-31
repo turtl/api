@@ -90,20 +90,20 @@
            (finish-fn (lambda ()
                         (catch-errors (res)
                           (close fd)
-                          (log:debu1 "file: close fd, sending final response to client")
+                          (vom:debug1 "file: close fd, sending final response to client")
                           (setf (gethash "size" file) total-file-size)
                           (remhash "upload_id" file)
                           (alet* ((file (edit-note-file user-id file-id file :remove-upload-id t))
                                   (size (get-file-size-summary total-file-size)))
                                  (track "file-upload" `(:shared ,(when persona-id t) :size ,size) req)
                             (send-json res file))))))
-      (log:debu1 "local: calling with-chunking")
+      (vom:debug1 "local: calling with-chunking")
       (when (string= (getf (request-headers req) :expect) "100-continue")
         (send-100-continue res))
       (with-chunking req (data lastp)
-        (log:debu2 "local: got chunk: ~a ~a" (length data) lastp)
+        (vom:debug2 "local: got chunk: ~a ~a" (length data) lastp)
         (unless fd
-          (log:debu1 "file: opening local fd: ~a" path)
+          (vom:debug1 "file: opening local fd: ~a" path)
           (setf fd (open path :direction :output :if-exists :supersede :element-type '(unsigned-byte 8))))
         (incf total-file-size (length data))
         (write-sequence data fd)
@@ -126,7 +126,7 @@
             (total-file-size 0)
             (finish-fn (lambda ()
                          (catch-errors (res)
-                           (log:debu1 "file: sending final response to client")
+                           (vom:debug1 "file: sending final response to client")
                            (setf (gethash "size" file) total-file-size)
                            (remhash "upload_id" file)
                            (alet* ((file (edit-note-file user-id file-id file :remove-upload-id t))
@@ -134,15 +134,15 @@
                              (track "file-upload" `(:shared ,(when persona-id t) :size ,size) req)
                              (send-json res file))))))
       ;; create an uploader lambda, used to stream our file chunk by chunk to S3
-      (log:debu1 "file: starting uploader with path: ~a" path)
-      (multiple-future-bind (uploader upload-id)
+      (vom:debug1 "file: starting uploader with path: ~a" path)
+      (multiple-promise-bind (uploader upload-id)
           (s3-upload path)
         ;; save our file record
         (setf (gethash "upload_id" file) upload-id)
-        (wait-for (edit-note-file user-id note-id file :skip-sync t)
-          (log:debu1 "file: saved file ~a" file))
+        (wait (edit-note-file user-id note-id file :skip-sync t)
+          (vom:debug1 "file: saved file ~a" file))
         ;; save our uploader so the chunking brahs can use it
-        (log:debu1 "- file: uploader created: ~a" upload-id)
+        (vom:debug1 "- file: uploader created: ~a" upload-id)
         (setf s3-uploader uploader)
         ;; if we haven't started getting the body yet, let the client know it's
         ;; ok to send
@@ -168,7 +168,7 @@
               last-chunk-sent (or last-chunk-sent last-chunk-p))
         (cond ((eq s3-uploader :starting)
                (unless buffered-chunks
-                 (log:debu1 "- file: uploader not ready, buffering chunks")
+                 (vom:debug1 "- file: uploader not ready, buffering chunks")
                  (setf buffered-chunks (flexi-streams:make-in-memory-output-stream :element-type '(unsigned-byte 8))))
                (write-sequence chunk-data buffered-chunks))
               (t
@@ -181,7 +181,7 @@
                    (funcall finish-fn)))
                (setf buffered-chunks nil)))))))
 
-(defroute (:put "/api/notes/([0-9a-f-]+)/file" :chunk t :suppress-100 t :force-chunking t) (req res args)
+(defroute (:put "/api/notes/([0-9a-f-]+)/file" :chunk t :suppress-100 t) (req res args)
   "Attach file contents to a note. The HTTP content body must be the raw,
    unencoded (encrypted) file data."
   (catch-errors (res)

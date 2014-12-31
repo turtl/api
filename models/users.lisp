@@ -16,7 +16,7 @@
 (defafun check-auth (future) (auth-key)
   "Check if the given auth key exists. Finishes with the user id if so, nil
    otherwise."
-  (future-handler-case
+  (catcher
     (alet* ((auth-key (decode-key auth-key))
             (sock (db-sock))
             (query (r:r (:limit
@@ -47,8 +47,8 @@
                      (setf (gethash "invite_code" user) invite-code)
                      (finish future user)))))
           (finish future nil)))
-    (t (e)
-      (log:error "check-auth: ~a" e))))
+    (error (e)
+      (vom:error "check-auth: ~a" e))))
 
 (defafun generate-unique-invite-code (future) (user-id)
   "Given a user ID, generate a unique invite code they can send to others for

@@ -222,14 +222,14 @@
 (defafun delete-note-file (future) (user-id note-id &key perms)
   "Delete the file attachment for a note (also removes the file itself from the
    storage system, wiping the file out forever)."
-  (future-handler-case
+  (catcher
     (alet* ((perms (or perms (get-user-note-permissions user-id note-id))))
       (if (<= 2 perms)
           (alet* ((note (get-note-by-id note-id))
                   (board-id (gethash "board_id" note)))
             (if (and (gethash "file" note)
                      (gethash "hash" (gethash "file" note)))
-                (multiple-future-bind (nil res)
+                (multiple-promise-bind (nil res)
                     (if *local-upload*
                         (let ((file-path (get-file-path note-id)))
                           (values (and (probe-file file-path) (delete-file file-path)) 200))

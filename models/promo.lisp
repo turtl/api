@@ -42,7 +42,7 @@
   (if count-uses
       ;; do our own error handline here since this isn't your normal async
       ;; function
-      (future-handler-case
+      (catcher
         (alet* ((sock (db-sock))
                 (query (r:r (:update
                               (:get (:table "promo") (gethash "id" promo))
@@ -50,9 +50,9 @@
                                 `(("uses" . ,(:+ (:attr p "uses") 1)))))))
                 (nil (r:run sock query)))
           (1+ (gethash "uses" promo)))
-        (t (e)
+        (error (e)
           ;; just log it
-          (log:error "apply-promo: count uses: ~a" e)
+          (vom:error "apply-promo: count uses: ~a" e)
           (add-server-log e (format nil "apply-promo/count-uses"))))
       user))
 

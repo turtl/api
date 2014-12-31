@@ -102,7 +102,7 @@
                                  hash))
                   (invite (create-invite "b" board-id persona-id to-email invite-data expire))
                   (invite-id (gethash "id" invite)))
-            (multiple-future-bind (nil priv-entry sync-ids)
+            (multiple-promise-bind (nil priv-entry sync-ids)
                 (add-board-remote-invite user-id board-id persona-id invite-id 2 to-email)
               (alet* ((nil (insert-invite-record invite))
                       (nil (email-board-invite persona invite key invite-code)))
@@ -112,7 +112,7 @@
 
 (defafun invite-persona-to-board (future) (user-id board-id from-persona-id to-persona-id permissions)
   "Invites a persona to join a board, setting all applicable permissions."
-  (multiple-future-bind (nil priv-entry sync-ids)
+  (multiple-promise-bind (nil priv-entry sync-ids)
       (set-board-persona-permissions user-id board-id from-persona-id to-persona-id permissions :invite t)
     (alet* ((from-persona (get-persona-by-id from-persona-id :without-keys t))
             (to-persona (get-persona-by-id to-persona-id :without-keys t))
@@ -153,7 +153,7 @@
   "Delete a board invite."
   (alet* ((invite-id (gethash "id" invite))
           (board-id (gethash "item_id" invite)))
-    (multiple-future-bind (nil nil sync-ids)
+    (multiple-promise-bind (nil nil sync-ids)
         (set-board-persona-permissions user-id board-id nil invite-id 0)
       (finish future sync-ids))))
 
@@ -166,7 +166,7 @@
                 (invite-type (gethash "type" invite))
                 (item-id (gethash "item_id" invite))
                 (invite-type-keyword (intern (string-upcase invite-type) :keyword))
-                (res (let ((subfuture (make-future)))
+                (res (let ((subfuture (make-promise)))
                        (case invite-type-keyword
                          (:b (alet* ((sync-ids (accept-board-invite user-id item-id persona-id :invite-id invite-id))
                                      (board (get-board-by-id item-id :get-notes t)))

@@ -16,7 +16,7 @@
 ;;       multiple functions
 (add-hook :pre-route
   (lambda (req res)
-    (let ((future (make-future)))
+    (with-promise (res rej)
       (let* ((auth (getf (request-headers req) :authorization))
              (path (puri:uri-path (request-uri req)))
              (method (request-method req))
@@ -30,14 +30,14 @@
                                                   :status (error-code err)
                                                   :headers '(:content-type "application/json")
                                                   :body (error-json err))
-                                   (signal-error future err))
+                                   (rej err))
                                  :time rand-wait)))))
         (if (or (< (length path) 5)
                 (not (string= (subseq path 0 5) "/api/"))
                 (is-public-action method path)
                 (eq (request-method req) :options))
             ;; this is a signup or file serve. let it fly with no auth
-            (finish future)
+            (res)
             ;; not a signup, test the auth...
             (if auth
                 (let* ((auth (subseq auth 6))
@@ -51,10 +51,9 @@
                       (if user
                           (progn 
                             (setf (request-data req) user)
-                            (finish future))
+                            (res))
                           (funcall auth-fail-fn)))))
-                (funcall auth-fail-fn))))
-      future))
+                (funcall auth-fail-fn))))))
   :turtl-auth)
 
 (add-hook :response-started

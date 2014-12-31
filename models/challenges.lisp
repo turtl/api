@@ -73,7 +73,7 @@
                         :index (db-index "challenges" "search"))))
           (cursor (r:run sock query))
           (challenges (r:to-array sock cursor)))
-    (wait-for (r:stop sock cursor)
+    (wait (r:stop sock cursor)
       (r:disconnect sock))
     (let ((found nil))
       (loop for challenge across challenges do
@@ -141,7 +141,7 @@
             (cursor (r:run sock query))
             (challenges (r:to-array sock cursor)))
       (if (r:cursorp cursor)
-          (wait-for (r:stop sock cursor)
+          (wait (r:stop sock cursor)
             (r:disconnect sock))
           (r:disconnect sock))
       (flet ((make-fail (code msg)

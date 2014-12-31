@@ -78,7 +78,7 @@ Please respond in a timely manner!"))
                   ("text" . ,body))))
     (when from-name (push `("fromname" . ,from-name) params))
     (when reply-to (push `("replyto" . ,reply-to) params))
-    (multiple-future-bind (res status)
+    (multiple-promise-bind (res status)
         (das:http-request "https://sendgrid.com/api/mail.send.json"
                           :read-timeout 5
                           :method :post

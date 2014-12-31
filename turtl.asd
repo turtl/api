@@ -3,7 +3,7 @@
   :license "GPLv3"
   :version "0.1.0"
   :description "An encrypted note/bookmark/data organizer."
-  :depends-on (#:cl-async-future
+  :depends-on (#:blackbird
                #:cl-async
                #:wookie
                #:cl-rethinkdb
@@ -20,7 +20,7 @@
                #:secure-random
                #:bordeaux-threads
                #:xmls
-               #:log4cl)
+               #:vom)
   :components
   ((:file "package")
    (:file "config/config" :depends-on ("package"))

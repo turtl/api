@@ -22,7 +22,7 @@
   (alet* ((board-ids (get-all-user-board-ids user-id :shared nil))
           (board-ids (coerce board-ids 'list))
           (size 0))
-    (wait-for (adolist (board-id board-ids future2)
+    (wait (adolist (board-id board-ids future2)
                 (alet ((board-size (get-board-size board-id)))
                   (incf size board-size)
                   (finish future2)))

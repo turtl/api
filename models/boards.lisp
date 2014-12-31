@@ -289,7 +289,7 @@
          (permission-value (min (max permission-value 0) 2)))
     (if (<= 3 perms)
         (if (zerop permission-value)
-            (multiple-future-bind (clear-perms sync-ids)
+            (multiple-promise-bind (clear-perms sync-ids)
                 (clear-board-persona-permissions user-id board-id from-persona-id to-persona-id)
               (finish future clear-perms nil sync-ids))
             (alet* ((sock (db-sock))
@@ -392,7 +392,7 @@
    recipient of an invite can join the board without knowing what their account
    will be in advance."
   (alet* ((email (obscure-email to-email)))
-    (multiple-future-bind (perm priv-entry sync-ids)
+    (multiple-promise-bind (perm priv-entry sync-ids)
         (set-board-persona-permissions user-id board-id from-persona-id invite-id permission-value :invite-remote email)
       (finish future perm priv-entry sync-ids))))
 
@@ -432,7 +432,7 @@
    an invite-id is specified, it will replace the persona-id (after persona
    verification, of course) when referencing which privs entry to lear out."
   (with-valid-persona (persona-id user-id future)
-    (multiple-future-bind (nil sync-ids)
+    (multiple-promise-bind (nil sync-ids)
         (clear-board-persona-permissions user-id board-id nil (or invite-id persona-id))
       (finish future sync-ids))))
 

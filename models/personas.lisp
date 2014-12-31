@@ -158,10 +158,10 @@
           (nil (r:run sock query-to))
           (nil (r:run sock query-from))
           (sync-records nil))
-    (wait-for (adolist (board-id board-ids)
+    (wait (adolist (board-id board-ids)
                 (alet ((user-ids (get-affected-users-from-board-ids (list board-id))))
                   (push (make-sync-record user-id "board" board-id "edit" :rel-ids user-ids) sync-records)))
-      (wait-for (when sync-records
+      (wait (when sync-records
                   (insert-sync-records sync-records))
         (r:disconnect sock)
         (finish future t)))))

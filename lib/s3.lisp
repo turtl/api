@@ -183,35 +183,34 @@
 
 (defun s3-upload-abort (resource upload-id)
   "Cancel an S3 upload."
-  (let ((future (make-future)))
-    (multiple-future-bind (res status)
+  (with-promise (res rej)
+    (multiple-promise-bind (res status)
         (s3-op :delete (concatenate 'string resource "?uploadId=" upload-id))
       (let* ((res (if (stringp res)
                       res
                       (babel:octets-to-string res))))
         (if (<= 200 status 299)
-            (finish future t)
-            (signal-error future (make-instance 's3-upload-error :upload-id upload-id :msg (get-s3-error res))))))
-    future))
+            (res t)
+            (rej (make-instance 's3-upload-error :upload-id upload-id :msg (get-s3-error res))))))))
 
 (defun s3-upload (resource &key (content-type "application/octet-stream") headers)
-  "Makes an uploader that allows sending data to S3 in chunks. Returns a future
+  "Makes an uploader that allows sending data to S3 in chunks. Returns a promise
    that finishes with a function. The function is the same API as drakma's
    `:content :continuation` lambda: two args the first is `data` and the second
    is `continuep` (T if more data on the way, nil if finished).
    
    Once the last chunk is sent (`continuep` == nil) it automatically finishes
    the upload with S3."
-  ;; make a future that will be finished with our continuation function (or an
+  ;; make a promise that will be finished with our continuation function (or an
   ;; error if things go awry)
-  (let ((future (make-future)))
-    (log:debu1 "s3: creating upload")
-    (future-handler-case
+  (with-promise (res rej)
+    (vom:debug1 "s3: creating upload")
+    (catcher
       ;; make our initial request, humbly groveling at S3's feet for the
       ;; privilege of using their proprietary multi-part upload system when HTTP
       ;; already has a great chunking protocol built-in that everybody has used
       ;; for years.
-      (multiple-future-bind (res status)
+      (multiple-promise-bind (res status)
           (s3-op :post
                  (concatenate 'string resource "?uploads")
                  :content-type content-type
@@ -226,96 +225,93 @@
                (last-chunk-sent nil))
           (if (and res (<= 200 status 299) upload-id)
               ;; wow, THANK YOU S3, your wisdom is exceeded only by your
-              ;; kindness. let's finish our future with a function that when
+              ;; kindness. let's finish our promise with a function that when
               ;; called will upload our parts for us
-              (future-handler-case
+              (catcher
                 (let ((part-num 1)
                       (part (flexi-streams:make-in-memory-output-stream :element-type '(unsigned-byte 8)))
                       (finished-parts nil))
-                  (log:debu1 "s3: upload started: ~a" upload-id)
-                  (log:debu1 "s3: returning continuation lambda")
-                  (finish future
+                  (vom:debug1 "s3: upload started: ~a" upload-id)
+                  (vom:debug1 "s3: returning continuation lambda")
+                  (res
                     (lambda (data &optional continuep)
                       ;; append the data we got onto our current part. we keep
                       ;; doing this until either we have the last chunk or the
                       ;; part length is greater than the min part size (5MB in our
                       ;; case)
-                      ;(log:debu1 "s3: appending data to part: ~a" (stream-length part))
+                      ;(vom:debug1 "s3: appending data to part: ~a" (stream-length part))
                       (setf last-chunk-sent (or (not continuep) last-chunk-sent))
                       (write-sequence data part)
                       (when (or (not continuep)
                                 (<= min-part-size (stream-length part)))
-                        (log:debu1 "s3: chunk overflow size hit (or last chunk): ~a" (stream-length part))
+                        (vom:debug1 "s3: chunk overflow size hit (or last chunk): ~a" (stream-length part))
                         ;; ok, we're either done uploading or at the 5MB mark. run
                         ;; the upload of this part
-                        (let* ((future (make-future))
-                               (local-part-num part-num)
-                               (part-data (flexi-streams:get-output-stream-sequence part))
-                               (part-md5 (md5 part-data :base64 t))
-                               (resource-part
-                                 (concatenate 'string
-                                              resource
-                                              "?partNumber=" (format nil "~a" local-part-num)
-                                              "&uploadId=" upload-id)))
-                          ;; abort the upload on any error
-                          (attach-errback
-                            future
-                            (lambda (&rest _)
-                              (declare (ignore _))
-                              (log:warn "s3: aborting upload ~a" upload-id)
-                              (s3-upload-abort resource upload-id)))
-                          (incf part-num)
-                          ;; send the actual request, using our handy s3-op 
-                          ;; unction
-                          (log:debu1 "s3: sending part ~a to S3: ~a" local-part-num (length part-data))
-                          (multiple-future-bind (res status headers)
-                              (s3-op :put resource-part
-                                     :content part-data
-                                     :content-md5 part-md5
-                                     :read-timeout nil
-                                     :write-timeout 30)
-                            (setf part-data nil)
-                            ;; OH NO!! now we have to parse XML to pull out an
-                            ;; error string!! where did my life go so wrong?
-                            (log:debu1 "s3: part ~a ret: ~a" local-part-num status)
-                            (unless (<= 200 status 299)
-                              (error 's3-upload-error :upload-id upload-id :msg (get-s3-error res)))
-                            ;; make sure we save our etags! god forbid we don't
-                            ;; keep meticulous track of the data we're already
-                            ;; uploading using S3's proprietary chunking API
-                            (let ((etag (cdr (assoc :etag headers))))
-                              (log:debu1 "s3: saving part ~a etag: ~a" local-part-num etag)
-                              (push (cons local-part-num etag) finished-parts))
-                            (log:debu1 "s3: num finished/parts (~a): ~a ~a" last-chunk-sent (length finished-parts) (1- part-num))
-                            (if (or (not last-chunk-sent)
-                                    (< (length finished-parts) (1- part-num)))
-                                ;; T is "ALL DONE" nil is "still have chunks to process"
-                                (finish future nil)
-                                ;; looks like we're done. finish the upload
-                                (let* ((body (build-upload-completion finished-parts))
-                                       (resource-final
-                                         (concatenate 'string
-                                                      resource
-                                                      "?uploadId=" upload-id)))
-                                  (log:debu1 "s3: upload chunking done, finalize upload")
-                                  (multiple-future-bind (res)
-                                      (s3-op :post resource-final
-                                             :content body)
-                                    ;; need to test for errors manually since S3
-                                    ;; breaks HTTP yet again by passing 200 OK
-                                    ;; even if there's a problem
-                                    (let ((err-str (get-s3-error res)))
-                                      (log:debu1 "s3: finalize response err (nil is good): ~a" err-str)
-                                      (if err-str
-                                          (signal-error future (make-instance 's3-upload-error :upload-id upload-id :msg err-str))
-                                          (finish future t)))))))
-                          future)))
+                        (catcher
+                          (with-promise (res rej)
+                            (let* ((local-part-num part-num)
+                                   (part-data (flexi-streams:get-output-stream-sequence part))
+                                   (part-md5 (md5 part-data :base64 t))
+                                   (resource-part
+                                     (concatenate 'string
+                                                  resource
+                                                  "?partNumber=" (format nil "~a" local-part-num)
+                                                  "&uploadId=" upload-id)))
+                              (incf part-num)
+                              ;; send the actual request, using our handy s3-op 
+                              ;; unction
+                              (vom:debug1 "s3: sending part ~a to S3: ~a" local-part-num (length part-data))
+                              (multiple-promise-bind (res status headers)
+                                  (s3-op :put resource-part
+                                         :content part-data
+                                         :content-md5 part-md5
+                                         :read-timeout nil
+                                         :write-timeout 30)
+                                (setf part-data nil)
+                                ;; OH NO!! now we have to parse XML to pull out an
+                                ;; error string!! where did my life go so wrong?
+                                (vom:debug1 "s3: part ~a ret: ~a" local-part-num status)
+                                (unless (<= 200 status 299)
+                                  (error 's3-upload-error :upload-id upload-id :msg (get-s3-error res)))
+                                ;; make sure we save our etags! god forbid we don't
+                                ;; keep meticulous track of the data we're already
+                                ;; uploading using S3's proprietary chunking API
+                                (let ((etag (cdr (assoc :etag headers))))
+                                  (vom:debug1 "s3: saving part ~a etag: ~a" local-part-num etag)
+                                  (push (cons local-part-num etag) finished-parts))
+                                (vom:debug1 "s3: num finished/parts (~a): ~a ~a" last-chunk-sent (length finished-parts) (1- part-num))
+                                (if (or (not last-chunk-sent)
+                                        (< (length finished-parts) (1- part-num)))
+                                    ;; T is "ALL DONE" nil is "still have chunks to process"
+                                    (res nil)
+                                    ;; looks like we're done. finish the upload
+                                    (let* ((body (build-upload-completion finished-parts))
+                                           (resource-final
+                                             (concatenate 'string
+                                                          resource
+                                                          "?uploadId=" upload-id)))
+                                      (vom:debug1 "s3: upload chunking done, finalize upload")
+                                      (multiple-promise-bind (res)
+                                          (s3-op :post resource-final
+                                                 :content body)
+                                        ;; need to test for errors manually since S3
+                                        ;; breaks HTTP yet again by passing 200 OK
+                                        ;; even if there's a problem
+                                        (let ((err-str (get-s3-error res)))
+                                          (vom:debug1 "s3: finalize response err (nil is good): ~a" err-str)
+                                          (if err-str
+                                              (rej (make-instance 's3-upload-error :upload-id upload-id :msg err-str))
+                                              (res t)))))))))
+                          (error (e)
+                            ;; abort the upload on any error
+                            (declare (ignore e))
+                            (vom:warn "s3: aborting upload ~a" upload-id)
+                            (s3-upload-abort resource upload-id)))))
                     upload-id))
-                (t (e)
-                  (log:warn "s3: aborting upload ~a" upload-id)
+                (error (e)
+                  (vom:warn "s3: aborting upload ~a" upload-id)
                   (s3-upload-abort resource upload-id)
-                  (signal-error future e)))
-              (signal-error future (make-instance 's3-upload-error :msg (format nil "Error starting upload: ~s" (list status res)))))))
-      (t (e) (signal-error future e)))
-    future))
+                  (rej e)))
+              (rej (make-instance 's3-upload-error :msg (format nil "Error starting upload: ~s" (list status res)))))))
+      (error (e) (rej e)))))
 

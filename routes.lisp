@@ -4,7 +4,7 @@
 ;; TODO: send a real options response for each URL by reading the routing table.
 (add-hook :pre-route
   (lambda (req res)
-    (let ((future (make-future)))
+    (let ((future (make-promise)))
       (if (eq (request-method req) :options)
           (progn
             (send-response res

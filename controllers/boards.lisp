@@ -40,7 +40,7 @@
             (to-persona-id (cadr args))
             (from-persona-id (post-var req "from_persona"))
             (permissions (varint (post-var req "permissions") nil)))
-      (multiple-future-bind (priv-entry sync-ids)
+      (multiple-promise-bind (priv-entry sync-ids)
           (invite-persona-to-board user-id board-id from-persona-id to-persona-id permissions)
         (track "invite" `(:persona t) req)
         (let ((hash (convert-alist-hash priv-entry)))

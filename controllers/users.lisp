@@ -14,7 +14,7 @@
                           promo-code))
             (promo (when promo-code
                      (get-promo-by-code promo-code))))
-      (multiple-future-bind (user used-promo)
+      (multiple-promise-bind (user used-promo)
           (add-user user-data :promo promo)
         ;; if invited by another user, accredit the inviter. note that we don't
         ;; wait for the call to finish before returning since

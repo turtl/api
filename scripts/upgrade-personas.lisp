@@ -9,7 +9,7 @@
 
 (defun run ()
   (as:with-event-loop (:catch-app-errors t)
-    (future-handler-case
+    (catcher
       (alet* ((sync-recs nil)
               (sock (r:connect *db-host* *db-port* :db "turtl" :read-timeout 15))
               (qry (r:r (:table "personas")))
@@ -25,7 +25,7 @@
                              persona-id
                              "edit")))
             (push sync-rec sync-recs)))
-        (wait-for (turtl::insert-sync-records sync-recs)
+        (wait (turtl::insert-sync-records sync-recs)
           (format t "Added ~a sync records" (length sync-recs))))
-      (t (e) (format t "error: ~a~%" e)))))
+      (error (e) (format t "error: ~a~%" e)))))
 

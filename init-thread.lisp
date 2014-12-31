@@ -13,12 +13,12 @@
 
 (defun start (&key bind port)
   (when *proc*
-    (log:error "Turtl process exists. Try stopping with (turtl-thread:stop)")
+    (vom:error "Turtl process exists. Try stopping with (turtl-thread:stop)")
     (return-from start nil))
   (setf *proc* (bt:make-thread
                  (lambda ()
                    (turtl:start :bind bind :port port)
-                   (log:info "Turtl background thread finished.")
+                   (vom:info "Turtl background thread finished.")
                    (setf *proc* nil))
                  :name "turtl"))
   *proc*)

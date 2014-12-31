@@ -12,7 +12,7 @@
 (defafun add-server-log (future) (err location)
   "Add a server log entry (when we catch errors that shouldn't necessarily
    be returned to he user). This is a simple wrapper around add-log."
-  (log:error "server caught error: (~a): ~a" location err)
+  (vom:error "server caught error: (~a): ~a" location err)
   (let ((log-data (make-hash-table :test #'equal)))
     (setf (gethash "msg" log-data) (format nil "~a" err)
           (gethash "url" log-data) location
@@ -35,7 +35,7 @@
       (finish future nil)
       (return-from add-log future)))
   (setf (gethash "url" log-data) (cl-ppcre:regex-replace "^.*/data/app" (gethash "url" log-data) "/data/app"))
-  (future-handler-case
+  (catcher
     (alet* ((log-hash (hash-log log-data))
             (log-entry (let ((hash (make-hash-table :test #'equal)))
                          (setf (gethash "id" hash) log-hash
@@ -57,6 +57,6 @@
             (nil (r:run sock query)))
       (r:disconnect sock)
       (finish future log-entry))
-    (t (e)
-      (log:error "add-log: ~a" e))))
+    (error (e)
+      (vom:error "add-log: ~a" e))))
 

@@ -77,17 +77,11 @@
         (setf (gethash key hash) val)))
     hash))
 
-;; TODO: alexandria, anyone?? DERR
 (defun convert-plist-hash (plist &key (test #'equal) convert-nulls)
   "Convert an plist into a hash table. Only works on flat plists (nesting
    doesn't work)."
-  (let ((hash (make-hash-table :test test)))
-    (loop for (key val) on plist by #'cddr do
-      (setf (gethash (string-downcase (string key)) hash)
-            (if (and convert-nulls (null val))
-                (cl-rethinkdb-reql::create-datum nil :null-datum t)
-                val)))
-    hash))
+  (declare (ignore convert-nulls))
+  (alexandria:plist-hash-table plist :test test))
 
 (defun add-id (hash-object &key (id-key "id"))
   "Add a mongo id to a hash table object."
@@ -124,30 +118,29 @@
     (length vector)))
 
 (defmacro defafun (name (future-var &key (forward-errors t)) args &body body)
-  "Define an asynchronous function with a returned future that will be finished
-   when the funciton completes. Also has the option to forward all async errors
-   encountered during excution (in this lexical scope) to the returned future."
+  "Define an asynchronous function with a returned promise that will be finished
+   when the function completes. Also has the option to forward all async errors
+   encountered during excution (in this lexical scope) to the returned promise"
   (let* ((docstring (car body)))
     (when (stringp docstring)
       (setf body (cdr body)))
     `(defun ,name ,args
        ,(if (stringp docstring) docstring "")
-       (let ((,future-var (make-future)))
+       (let ((,future-var (make-promise)))
          ,(if forward-errors
-              `(future-handler-case
+              `(catcher
                  (progn ,@body)
-                 (t (e)
+                 (error (e)
                    ;; wrap the caught error in the error wrapper, which when
                    ;; printed out gives us the name of the function the error
                    ;; occurred in. makes debugging, oh, about 6000x easier.
                    ;;
                    ;; also, log everything.
-                   (log:error "wrapping (~a): ~a" ',name e)
+                   (vom:error "wrapping (~a): ~a" ',name e)
                    (add-server-log e (format nil "defafun: ~a" ',name))
-                   (signal-error ,future-var
-                                 (make-instance 'turtl-error-wrapper
-                                                :error e
-                                                :function ',name))))
+                   (signal-error ,future-var (make-instance 'turtl-error-wrapper
+                                                            :error e
+                                                            :function ',name))))
               `(progn ,@body))
          ,future-var))))
 
@@ -158,7 +151,7 @@
 
 (defmacro catch-errors ((response) &body body)
   "Define a macro that catches errors and responds via HTTP to them."
-  `(future-handler-case
+  `(catcher
      (progn ,@body)
      ;; catch errors that can be easily transformed to HTTP
      (turtl-error (e)
@@ -167,10 +160,10 @@
                      :headers '(:content-type "application/json")
                      :body (error-json e)))
      ;; catch anything else and send a response out for it
-     (t (e)
-      (log:error "Caught error: ~a" e)
+     (error (e)
+      (vom:error "Caught error: ~a" e)
       (if (wookie:response-finished-p ,response)
-          (log:error "(turtl) ...double error: ~a" e)
+          (vom:error "(turtl) ...double error: ~a" e)
           (unless (as:socket-closed-p (get-socket ,response))
             (send-response ,response
                            :status 500
@@ -245,7 +238,7 @@
   "Makes testing async functions easier by abstracting an extremely common
    pattern."
   `(as:with-event-loop (:catch-app-errors t)
-     (future-handler-case
+     (catcher
        (progn ,@body)
-       (t (e) (format t "err: ~a~%" e)))))
+       (error (e) (format t "err: ~a~%" e)))))
 

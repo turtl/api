@@ -70,7 +70,7 @@
   "The amount of storage (in mb) to credit a user when they refer someone.")
 
 ;; setup the logger
-(log:config (log4cl:make-logger :turtl) :debug)
+(vom:config (log4cl:make-logger :turtl) :debug)
 
 (defvar *analytics* '(:enabled t)
   "Holds analytics config")
