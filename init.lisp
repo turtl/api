@@ -12,12 +12,14 @@
                (not (typep err 'as:event-error)))
     (when (and socket (typep socket 'as:socket))
       (let* ((socket-data (as:socket-data socket))
-           (response (getf socket-data :response)))
+             (request (getf socket-data :request))
+             (response (getf socket-data :response)))
         ;; if we've got a response object and an error hasn't been sent yet, send
         ;; one. this will fix 99.99% of client hanging. the other 0.01% has yet to
         ;; be discovered.
         (when (and response
                    (not (response-finished-p response))
+                   (not (as:socket-closed-p (request-socket request)))
                    (not (typep err 'auth-failed)))
           (let ((body (format nil "There was an error processing your request~a"
                               (if *display-errors*
@@ -25,7 +27,8 @@
                                   "."))))
             (send-response response :status 500 :body body)))))
     ;; let the guy looking at the logs see.
-    (vom:error "listener: ~a" err)))
+    (unless (subtypep (type-of err) 'as:streamish-eof)
+      (vom:error "listener: ~a" err))))
 
 ;; load all enabled wookie plugins
 (load-plugins :use-quicklisp t)
