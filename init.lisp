@@ -1,9 +1,7 @@
 (in-package :turtl)
 
 ;; do some general third-party lib setup
-(setf cl-who:*attribute-quote-char* #\"
-      (cl-who:html-mode) :html5
-      cl-rethinkdb:*sequence-type* :list
+(setf cl-rethinkdb:*sequence-type* :list
       cl-rethinkdb:*object-type* :hash)
 
 (defun error-handler (err socket)

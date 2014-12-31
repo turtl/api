@@ -98,7 +98,7 @@
                                  (track "file-upload" `(:shared ,(when persona-id t) :size ,size) req)
                             (send-json res file))))))
       (vom:debug1 "local: calling with-chunking")
-      (when (string= (getf (request-headers req) :expect) "100-continue")
+      (when (string= (get-header (request-headers req) :expect) "100-continue")
         (send-100-continue res))
       (with-chunking req (data lastp)
         (vom:debug2 "local: got chunk: ~a ~a" (length data) lastp)
@@ -147,7 +147,7 @@
         ;; if we haven't started getting the body yet, let the client know it's
         ;; ok to send
         (unless chunking-started
-          (when (string= (getf (request-headers req) :expect) "100-continue")
+          (when (string= (get-header (request-headers req) :expect) "100-continue")
             (send-100-continue res)))
         (when last-chunk-sent
           (alet* ((body (flexi-streams:get-output-stream-sequence buffered-chunks))

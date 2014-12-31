@@ -9,7 +9,6 @@
                #:cl-rethinkdb
                #:cl-ppcre
                #:flexi-streams
-               #:cl-who
                #:cl-fad
                #:yason
                #:cl-mongo-id
@@ -35,7 +34,6 @@
      (:file "s3")))
    (:file "crypto" :depends-on (lib "config/config"))
    (:file "errors" :depends-on (lib "config/config" "crypto"))
-   (:file "template" :depends-on (lib "crypto" "errors"))
    (:file "cron" :depends-on (lib "config/config"))
    (:module models
     :depends-on (lib "errors" "crypto" "package" "config/schema")
@@ -58,7 +56,7 @@
      (:file "analytics")
      (:file "feedback")
      (:file "promo")))
-   (:file "init" :depends-on (lib "template" "crypto" "errors" "cron" "config/schema" models))
+   (:file "init" :depends-on (lib "crypto" "errors" "cron" "config/schema" models))
    (:module controllers
     :depends-on ("init" "errors" lib models "package")
     :serial t

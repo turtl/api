@@ -9,7 +9,7 @@
 (defun get-client (request)
   "Grab the current client ID (desktop v0.4.1, chrome v0.5.6, etc)"
   (let ((headers (request-headers request)))
-    (getf headers :x-turtl-client)))
+    (get-header headers :x-turtl-client)))
 
 ;; this is responsible for checking user auth
 ;; TODO: if this ever does MORE than just check auth, be sure to split into
@@ -17,8 +17,8 @@
 (add-hook :pre-route
   (lambda (req res)
     (with-promise (res rej)
-      (let* ((auth (getf (request-headers req) :authorization))
-             (path (puri:uri-path (request-uri req)))
+      (let* ((auth (get-header (request-headers req) :authorization))
+             (path (quri:uri-path (request-uri req)))
              (method (request-method req))
              (auth-fail-fn (lambda ()
                              (let ((err (make-instance 'auth-failed :msg "Authentication failed."))
@@ -60,15 +60,15 @@
   (lambda (res req &rest _)
     (declare (ignore _))
     (when *enable-hsts-header*
-      (setf (getf (response-headers res) :strict-transport-security)
+      (setf (get-header (response-headers res) :strict-transport-security)
             (format nil "max-age=~a" *enable-hsts-header*)))
     ;; set up CORS junk. generally, we only allow it if it comes from the FF
     ;; extension, which uses resource:// URLs
     (let* ((req-headers (request-headers req))
-           (origin (getf req-headers :origin)))
+           (origin (get-header req-headers :origin)))
       (when (and origin (< 11 (length origin)) (string= (subseq origin 0 11) "resource://"))
-        (setf (getf (response-headers res) :access-control-allow-origin) *enabled-cors-resources*
-              (getf (response-headers res) :access-control-allow-methods) "GET, POST"
-              (getf (response-headers res) :access-control-allow-headers) (getf (request-headers req) :access-control-request-headers)))))
+        (setf (get-header (response-headers res) :access-control-allow-origin) *enabled-cors-resources*
+              (get-header (response-headers res) :access-control-allow-methods) "GET, POST"
+              (get-header (response-headers res) :access-control-allow-headers) (get-header (request-headers req) :access-control-request-headers)))))
   :post-headers)
 
