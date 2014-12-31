@@ -25,7 +25,7 @@
                                   "."))))
             (send-response response :status 500 :body body)))))
     ;; let the guy looking at the logs see.
-    (vom:error "UNcaught error: ~a" err)))
+    (vom:error "listener: ~a" err)))
 
 ;; load all enabled wookie plugins
 (load-plugins :use-quicklisp t)

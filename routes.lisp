@@ -24,10 +24,6 @@
                  :headers '(:content-type "application/json")
                  :body (to-json "Unknown resource.")))
 
-(defroute (:get "/favicon.ico") (req res)
-  "Who uses .ico??"
-  (send-response res :status 301 :headers '(:location "/favicon.png") :body ""))
-
 ;; if we're handling local file uploads, define a route to the upload dir.
 (when *local-upload*
   (def-directory-route "/files" *local-upload* :disable-directory-listing t)
