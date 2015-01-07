@@ -4,7 +4,7 @@
 (setf cl-rethinkdb:*sequence-type* :list
       cl-rethinkdb:*object-type* :hash)
 
-(defun error-handler (err socket)
+(defun error-handler (err &optional socket)
   "Main app error handler. Shouldn't be called all that often since every inch
    of our models/controllers are covered in catchers, but accidents do happen."
   (vom:debug "turtl error: ~a" err)
