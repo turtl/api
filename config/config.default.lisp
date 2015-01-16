@@ -15,6 +15,10 @@
 (defvar *db-port* 28015
   "The database port number.")
 
+(defvar *production-error-handling* nil
+  "If t, will attempt to catch all errors that make it to top-level and not let
+   the parent process enter the debugger.")
+
 (defvar *enable-hsts-header* nil
   "If NIL, Turtl won't pass back an HSTS security header. If this is set, it
    should be set to a integer value, which will be passed to the max-age value

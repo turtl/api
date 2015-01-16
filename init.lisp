@@ -45,8 +45,8 @@
 
   ;; start the server
   (unwind-protect
-    (as:with-event-loop (:catch-app-errors nil
-                         :caught-errors 'error-handler)
+    (as:with-event-loop (:catch-app-errors (and *production-error-handling*
+                                                'error-handler))
       ;; set up the database schema
       (vom:info "Applying DB schema...")
       (catcher
