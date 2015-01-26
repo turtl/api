@@ -1,8 +1,8 @@
 (in-package :turtl)
 
 (defvalidator validate-board
-  (("id" :type string :required t :length 24)
-   ("user_id" :type string :required t :length 24)
+  (("id" :type id :required t)
+   ("user_id" :type id :required t)
    ("keys" :type sequence :required t :coerce simple-vector)
    ("body" :type cl-async-util:bytes-or-string)))
 

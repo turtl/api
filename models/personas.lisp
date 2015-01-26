@@ -4,8 +4,8 @@
   ((code :initform 403)))
   
 (defvalidator validate-persona
-  (("id" :type string :required t :length 24)
-   ("user_id" :type string :required t :length 24)
+  (("id" :type id :required t)
+   ("user_id" :type id :required t)
    ("pubkey" :type string :required t)
    ("email" :type string :required t :transform string-downcase)
    ("name" :type string)

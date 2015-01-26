@@ -1,5 +1,8 @@
 (in-package :turtl)
 
+(defun idp (id) (cl-ppcre:scan "^[0-9a-f]{24,80}" id))
+(deftype id () '(satisfies idp))
+
 (defvar *validation-forms* nil
   "Holds name -> form mappings for validation forms.")
 
@@ -99,14 +102,30 @@
   "Makes defining a validation function for a data type simpler."
   `(progn
      (setf (getf *validation-forms* ',name) ',validation-form)
-     (defun ,name (object &key edit)
+     (defmacro ,name ((object future &key edit) &body body)
        (let ((validation (gensym "validation"))
-             (validation-form-var (gensym "validation-form")))
-         (with-promise (res rej)
-           (let* ((validation-form (getf *validation-forms* ',name))
-                  (validation (do-validate object validation-form :edit edit)))
-             (if validation
-                 (rej (make-instance 'validation-failed
-                                     :msg (format nil "Validation failed: ~s~%" validation)))
-                 (res))))))))
+             (validation-form-var (gensym "validation-form"))
+             (future-var (gensym "future")))
+         `(let* ((,future-var ,future)
+                 (,validation-form-var (getf *validation-forms* ,'',name))
+                 (,validation (do-validate ,object ,validation-form-var :edit ,edit)))
+            (if ,validation
+                (signal-error ,future-var (make-instance 'validation-failed
+                                                         :msg (format nil "Validation failed: ~s~%" ,validation)))
+                (progn ,@body)))))))
+
+;(defmacro defvalidator (name validation-form)
+;  "Makes defining a validation function for a data type simpler."
+;  `(progn
+;     (setf (getf *validation-forms* ',name) ',validation-form)
+;     (defun ,name (object &key edit)
+;       (let ((validation (gensym "validation"))
+;             (validation-form-var (gensym "validation-form")))
+;         (with-promise (res rej)
+;           (let* ((validation-form (getf *validation-forms* ',name))
+;                  (validation (do-validate object validation-form :edit edit)))
+;             (if validation
+;                 (rej (make-instance 'validation-failed
+;                                     :msg (format nil "Validation failed: ~s~%" validation)))
+;                 (res))))))))
 

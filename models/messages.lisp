@@ -1,9 +1,9 @@
 (in-package :turtl)
 
 (defvalidator validate-message
-  (("id" :type string :required t :length 24)
-   ("from" :type string :required t :length 24)
-   ("to" :type string :required t :length 24)
+  (("id" :type id :required t)
+   ("from" :type id :required t)
+   ("to" :type id :required t)
    ("keys" :type sequence :required t :coerce simple-vector)
    ("data" :type cl-async-util:bytes-or-string)))
 

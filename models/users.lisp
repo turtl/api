@@ -7,7 +7,7 @@
   ((code :initform 403)))
 
 (defvalidator validate-user
-  (("id" :type string :required t :length 24)
+  (("id" :type id :required t)
    ("a" :type string :required t)
    ("storage" :type integer :required nil)
    ("invite_code" :type string :required t)

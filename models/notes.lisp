@@ -7,9 +7,9 @@
    ("upload_id" :type string)))
 
 (defvalidator validate-note
-  (("id" :type string :required t :length 24)
-   ("user_id" :type string :required t :length 24)
-   ("board_id" :type string :required t :length 24)
+  (("id" :type id :required t)
+   ("user_id" :type id :required t)
+   ("board_id" :type id :required t)
    ("file" :validator validate-note-file)
    ("keys" :type sequence :required t :coerce simple-vector)
    ("body" :type cl-async-util:bytes-or-string)

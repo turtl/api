@@ -1,8 +1,8 @@
 (in-package :turtl)
 
 (defvalidator validate-keychain-entry
-  (("id" :type string :required t :length 24)
-   ("user_id" :type string :required t :length 24)
+  (("id" :type id :required t)
+   ("user_id" :type id :required t)
    ("type" :type string :required t :max-length 24)
    ("item_id" :type string :required t)
    ("body" :type string :required t)))

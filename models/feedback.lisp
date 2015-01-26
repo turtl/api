@@ -1,7 +1,7 @@
 (in-package :turtl)
 
 (defvalidator validate-feedback
-  (("user_id" :type string :required t)
+  (("user_id" :type id :required t)
    ("email" :type string :required t)
    ("body" :type string :required t)))
 
