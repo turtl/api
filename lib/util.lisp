@@ -80,8 +80,10 @@
 (defun convert-plist-hash (plist &key (test #'equal) convert-nulls)
   "Convert an plist into a hash table. Only works on flat plists (nesting
    doesn't work)."
-  (declare (ignore convert-nulls))
-  (alexandria:plist-hash-table plist :test test))
+  (let ((hash (make-hash-table :test test)))
+    (loop for (x y) on plist by #'cddr do
+      (setf (gethash (string-downcase (string x)) hash) y))
+    hash))
 
 (defun add-id (hash-object &key (id-key "id"))
   "Add a mongo id to a hash table object."
