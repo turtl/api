@@ -2,7 +2,7 @@
 
 (defroute (:post "/api/users") (req res)
   "Signup a new user! Takes only an auth token (ie no plaintext data about the
-   user) and optionally encryption user options. Returns the user's brand
+   user) and optionally encrypted user options. Returns the user's brand
    spankin' new ID along with the rest of the posted data."
   (catch-errors (res)
     (alet* ((user-data (post-var req "data"))
