@@ -7,6 +7,7 @@
                #:cl-async
                #:wookie
                #:cl-rethinkdb
+               #:cl-hash-util
                #:cl-ppcre
                #:flexi-streams
                #:cl-fad
@@ -42,7 +43,6 @@
     ((:file "schema")
      (:file "users")
      (:file "keychain")
-     (:file "challenges")
      (:file "email")
      (:file "personas")
      (:file "notes")

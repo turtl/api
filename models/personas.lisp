@@ -241,17 +241,3 @@
     (r:disconnect sock)
     (finish future validp)))
 
-;; NOTE: this function is not used and won't be until personas offer account
-;; obscuration again.
-(defafun persona-challenge-response-valid-p (future) (persona-id response)
-  "Determine if the given response if valid for the persona specified by
-   persona-id."
-  (alet* ((sock (db-sock))
-          (query (r:r (:pluck
-                        (:default (:get (:table "personas") persona-id) (make-hash-table))
-                        "secret")))
-          (persona (r:run sock query))
-          (validp (verify-challenge :persona persona-id (gethash "secret" persona) response)))
-    (r:disconnect sock)
-    (finish future validp)))
-

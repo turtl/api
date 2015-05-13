@@ -4,16 +4,15 @@
 ;; TODO: send a real options response for each URL by reading the routing table.
 (add-hook :pre-route
   (lambda (req res)
-    (let ((future (make-promise)))
+    (with-promise (resolve reject)
       (if (eq (request-method req) :options)
           (progn
             (send-response res
                            :status 200
                            :headers '(:content-length 0
                                       :allow "OPTIONS, GET, POST, PUT, DELETE"))
-            (signal-error future (make-instance 'as:tcp-info)))
-          (finish future))
-      future))
+            (reject (make-instance 'as:tcp-info)))
+          (resolve))))
   :options-support)
 
 (defroute (:* "/api/.+") (req res)
