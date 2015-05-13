@@ -238,7 +238,7 @@
                    (:delete
                      (:between
                        (:table "sync")
-                       nil
+                       (:minval)
                        sync-id))))
           (nil (r:run sock query)))
     (r:disconnect sock)
