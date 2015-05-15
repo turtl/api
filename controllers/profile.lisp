@@ -31,16 +31,3 @@
                 (gethash "sync_id" response) (or sync-id (string-downcase (mongoid:oid-str (mongoid:oid)))))
           (send-json res response))))))
 
-;; NOTE: this route is unused and will remain so until personas have obscurity
-;; again
-;(defroute (:get "/api/profiles/personas/([0-9a-f-]+)") (req res args)
-;  (catch-errors (res)
-;    (alet ((persona-id (car args))
-;           (challenge (get-var req "challenge")))
-;      (with-valid-persona (persona-id challenge)
-;        (alet* ((boards (get-persona-boards persona-id :get-notes t))
-;                (response (make-hash-table :test #'equal)))
-;          (setf (gethash "boards" response) boards
-;                (gethash "time" response) (get-timestamp))
-;          (send-json res response))))))
-

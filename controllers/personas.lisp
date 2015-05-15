@@ -51,19 +51,3 @@
           (send-json res persona)
           (send-json res "Persona not found ='[" :status 404)))))
 
-;(defroute (:post "/api/personas/([0-9a-f-]+)/challenge") (req res args)
-;  (catch-errors (res)
-;    (alet* ((persona-id (car args))
-;            (expire (min (varint (post-var req "expire") 10) 3600))
-;            (persist (if (zerop (varint (post-var req "persist") 0))
-;                         nil
-;                         t))
-;            (challenge (generate-challenge :persona persona-id :expire expire :persist persist)))
-;      (send-json res challenge))))
-
-;(defroute (:post "/api/personas/challenges") (req res)
-;  (catch-errors (res)
-;    (alet* ((persona-ids (yason:parse (post-var req "personas")))
-;            (challenges (generate-multiple-challenges :persona persona-ids :expire 1800)))
-;      (send-json res challenges))))
-
