@@ -11,7 +11,7 @@
               (record `(("id" . ,(string-downcase (mongoid:oid-str (mongoid:oid))))
                         ("event" . ,event)
                         ("data" . ,(convert-plist-hash data :convert-nulls t))))
-              (sock (db-sock "analytics"))
+              (sock (db-sock :db "analytics"))
               (query (r:r (:insert (:table "events") record)))
               (nil (r:run sock query)))
         (r:disconnect sock)

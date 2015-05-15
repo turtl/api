@@ -11,7 +11,7 @@
   "Create the given databse, if it doesn't exist. Returns the REQL db object for
    the given db either way."
   (vom:debug1 "schema: create/verify table ~a" name)
-  (alet* ((sock (db-sock name))
+  (alet* ((sock (db-sock :db name))
           (query (r:r (:db-list)))
           (dbs (r:run sock query))
           (dbs (coerce dbs 'list)))
@@ -32,7 +32,7 @@
   (alet* ((table-name (schema-name-to-string table))
           (schema-index-names (loop for (name) on schema by #'cddr collect name))
           (remove-version-fn (lambda (x) (cl-ppcre:regex-replace-all "\\.v.*$" x "")))
-          (sock (db-sock db))
+          (sock (db-sock :db db))
           (query (r:r (:index-list (:table table-name))))
           (indexes (r:run sock query))
           (indexes (coerce indexes 'list))
@@ -124,7 +124,7 @@
   (alet* ((db (create-turtl-db db-name))
           (tables-add nil)
           (indexes nil)
-          (sock (db-sock db-name))
+          (sock (db-sock :db db-name))
           (query (r:r (:table-list db)))
           (tables (r:run sock query))
           (tables (coerce tables 'list)))
@@ -139,7 +139,7 @@
             (push table-name to-add))))
       ;; add the tables, in sequence
       (wait (adolist (table to-add)
-                  (alet* ((sock (db-sock db-name))
+                  (alet* ((sock (db-sock :db db-name))
                           (query (r:r (:table-create db table)))
                           (nil (r:run sock query)))
                     (r:disconnect sock)

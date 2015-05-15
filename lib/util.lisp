@@ -37,9 +37,9 @@
       (load file))
     file-list))
 
-(defun db-sock (&optional (db *db-name*))
+(defun db-sock (&key (db *db-name*) (timeout 15))
   "Makes connecting to the database a smidgen easier."
-  (r:connect *db-host* *db-port* :db db :read-timeout 15))
+  (r:connect *db-host* *db-port* :db db :read-timeout timeout))
 
 (defun db-index (table index &key (schema *db-schema*))
   "Grab the correct index name from the db schema."
@@ -55,10 +55,11 @@
       (error (format nil "Bad index name passed to db-index: ~a" index)))
     (format nil "~a.v~a" (string-downcase (string index-key)) (getf index-entry :version))))
 
-(defun to-json (object)
+(defun to-json (object &key indent)
   "Convert an object to JSON."
   (with-output-to-string (s)
-    (yason:encode object s)))
+    (let ((js (yason:make-json-output-stream s :indent indent)))
+      (yason:encode object js))))
 
 (defun send-json (response object &key (status 200))
   "Wraps sending of JSON back to the client."
