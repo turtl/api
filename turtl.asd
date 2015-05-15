@@ -68,7 +68,6 @@
      (:file "messages")
      (:file "notes")
      (:file "personas")
-     (:file "ping")
      (:file "profile")
      (:file "sync")
      (:file "users")
