@@ -152,6 +152,113 @@
             (r:stop/disconnect sock cursor)
             (finish items))))))
 
+(adefun sync-scan (user-id from-sync-id &key poll)
+  "Given a user id, sync id, and item type, pull out all sync records *after*
+   the given sync-id, where the `rel` field contains the given user-id, and the
+   sync type matches the passed type. Links grabbed sync items against the given
+   link-table.
+   
+   This is useful for boards/notes, because whenever they change (ie add a sync
+   record) they also record (in the `rel` field) which users are affected by the
+   change."
+  (alet* ((sock (db-sock))
+          (poll-timeout 30)
+          (sock-poll (db-sock :timeout poll-timeout))
+          (query (r:r
+                   (:between
+                     (:table "sync")
+                     (list user-id from-sync-id)
+                     (list user-id (:maxval))
+                     :index (db-index "sync" "scan_user"))))
+          ;; wrap changes around the above query
+          (query-poll (r:r (:changes query :squash 3))))
+    ;; run the changes query, saving the return promise
+    (let ((poll-promise (when poll (r:run sock-poll query-poll))))
+      ;; run the non-changes query and grab the results
+      (alet* ((cursor (r:run sock query))
+              (sync-items (r:to-array sock cursor)))
+        (r:stop/disconnect sock cursor)
+        (if (zerop (length sync-items))
+            ;; we got no items returned from the instant query, run the changes
+            ;; query (aka wait on the above promise) and save the results as
+            ;; they come in
+            (alet* ((cursor-poll poll-promise)
+                    (results nil)
+                    (timer nil))
+              (as:with-delay ((+ poll-timeout 1))
+                (r:stop/disconnect sock-poll cursor-poll))
+              (chain
+                (r:each sock-poll cursor-poll
+                  (lambda (rec)
+                    (unless timer
+                      (setf timer (as:with-delay (.1) (r:stop/disconnect sock-poll cursor-poll))))
+                    (push rec results)))
+                (:catch (err)
+                  (unless (typep err 'r:cursor-stopped)
+                    (error err)))
+                (:finally
+                  (r:stop/disconnect sock-poll cursor-poll)
+                  (coerce (nreverse results) 'list))))
+            (progn
+              (r:disconnect sock-poll)
+              sync-items))))))
+
+(defun test ()
+  (let ((blackbird:*debug-on-error* t))
+    (as:with-event-loop ()
+      (chain (sync-scan "517c06912b13753915000001" "5556fa972b137507650025c5" :poll t)
+        (:then (items)
+          (format t "---json---~%~a~%" (to-json items :indent 2)))
+        (:catch (e)
+          (format t "test err: ~a~%" e))))))
+
+(defafun sync-all (future) (user-id last-sync-id &key poll)
+  "Grab all of the sync records for the given user-id since last-sync-id, link
+   them tot heir respective objects, and hand back the sorted (ASC) list of sync
+   items."
+  (alet* ((types (hash))
+          (records (sync-scan user-id last-sync-id :poll poll)))
+    ;; group our sync records by type so we can pull them out en-mass
+    (loop for record across records
+          for type = (gethash "type" record) do
+      (push record (gethash type types)))
+    ;; loop through our groups records and link the corresponding objects
+    (let ((actions nil))
+      (loop for type being the hash-keys of types
+            for collection being the hash-values of types
+            for collection-arr = (coerce collection 'vector)
+            for table = (case (intern (string-upcase type) :keyword)
+                          (:user "users")
+                          (:keychain "keychain")
+                          (:board "boards")
+                          (:note "notes")
+                          (:file "notes")) do
+        (push (link-sync-items collection-arr table) actions))
+      ;; once our objects finish linking, flatten our groups and sort by sync id
+      ;; ascending
+      (chain (all actions)
+        (:then (completed)
+          (let ((ungrouped nil))
+            (dolist (collection completed)
+              (loop for record across collection do
+                (push record ungrouped)))
+            (let* ((latest-sync-id "")
+                   (sorted (sort ungrouped (lambda (a b)
+                                             (let ((a-sid (hget a '("_sync" "id")))
+                                                   (b-sid (hget b '("_sync" "id"))))
+                                               (when (string< latest-sync-id a-sid)
+                                                 (setf latest-sync-id a-sid))
+                                               (when (string< latest-sync-id b-sid)
+                                                 (setf latest-sync-id b-sid))
+                                               (string< a-sid b-sid))))))
+              (finish future sorted latest-sync-id))))
+        (:catch (e)
+          (signal-error future e))))))
+
+;;; ----------------------------------------------------------------------------
+;;; some more deprecated stuff
+;;; ----------------------------------------------------------------------------
+
 (defafun sync-user-items (future) (user-id sync-id item-type link-table)
   "Generic query function to grab a user's sync items of a specific type. It
    grabs the items themselves from link-table, and injects the sync_id of the
@@ -165,31 +272,6 @@
                      (list user-id item-type "z")
                      :index (db-index "sync" "user_search")
                      :left-bound "open")))
-          (cursor (r:run sock query))
-          (sync-items (r:to-array sock cursor)))
-    (r:stop/disconnect sock cursor)
-    (alet ((sync (link-sync-items sync-items link-table)))
-      (finish future sync))))
-
-(defafun sync-id-user-scan (future) (user-id sync-id item-type link-table)
-  "Given a user id, sync id, and item type, pull out all sync records *after*
-   the given sync-id, where the `rel` field contains the given user-id, and the
-   sync type matches the passed type. Links grabbed sync items against the given
-   link-table.
-   
-   This is useful for boards/notes, because whenever they change (ie add a sync
-   record) they also record (in the `rel` field) which users are affected by the
-   change."
-  (alet* ((sock (db-sock))
-          (query (r:r
-                   (:filter
-                     (:get-all
-                       (:table "sync")
-                       user-id
-                       :index (db-index "sync" "rel"))
-                     (r:fn (s)
-                       (:&& (:== (:attr s "type") item-type)
-                            (:< sync-id (:attr s "id")))))))
           (cursor (r:run sock query))
           (sync-items (r:to-array sock cursor)))
     (r:stop/disconnect sock cursor)
@@ -243,4 +325,29 @@
           (nil (r:run sock query)))
     (r:disconnect sock)
     (finish future t)))
+
+(defafun sync-id-user-scan (future) (user-id sync-id item-type link-table)
+  "Given a user id, sync id, and item type, pull out all sync records *after*
+   the given sync-id, where the `rel` field contains the given user-id, and the
+   sync type matches the passed type. Links grabbed sync items against the given
+   link-table.
+   
+   This is useful for boards/notes, because whenever they change (ie add a sync
+   record) they also record (in the `rel` field) which users are affected by the
+   change."
+  (alet* ((sock (db-sock))
+          (query (r:r
+                   (:filter
+                     (:get-all
+                       (:table "sync")
+                       user-id
+                       :index (db-index "sync" "rel"))
+                     (r:fn (s)
+                       (:&& (:== (:attr s "type") item-type)
+                            (:< sync-id (:attr s "id")))))))
+          (cursor (r:run sock query))
+          (sync-items (r:to-array sock cursor)))
+    (r:stop/disconnect sock cursor)
+    (alet ((sync (link-sync-items sync-items link-table)))
+      (finish future sync))))
 

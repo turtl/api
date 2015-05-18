@@ -120,6 +120,24 @@
       stream
     (length vector)))
 
+(defmacro adefun (name args &body body)
+  "Define a function that wraps things in some convenient error handling."
+  (let* ((docstring (car body)))
+    (when (stringp docstring)
+      (setf body (cdr body)))
+    `(defun ,name ,args
+       ,(if (stringp docstring) docstring "")
+       (catcher
+         (progn ,@body)
+         (error (e)
+           (vom:error "wrapping (~a): ~a" ',name e)
+           ;; wrap the caught error in the error wrapper, which when
+           ;; printed out gives us the name of the function the error
+           ;; occurred in. makes debugging, oh, about 6000x easier.
+           (error (make-instance 'turtl-error-wrapper
+                                 :error e
+                                 :function ',name)))))))
+
 (defmacro defafun (name (future-var &key (forward-errors t)) args &body body)
   "Define an asynchronous function with a returned promise that will be finished
    when the function completes. Also has the option to forward all async errors

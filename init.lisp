@@ -45,29 +45,31 @@
 
   ;; start the server
   (unwind-protect
-    (as:with-event-loop (:catch-app-errors (and *production-error-handling*
-                                                'error-handler))
-      ;; set up the database schema
-      (vom:info "Applying DB schema...")
-      (catcher
-        (alet* ((report-main (apply-db-schema *db-schema*))
-                (report-analytics (when (getf *analytics* :enabled)
-                                    (apply-db-schema *analytics-schema* :db-name "analytics")))
-                (report (append report-main report-analytics)))
-          (vom:info "Schema applied: ~s" report)
-          (let* ((listener (make-instance 'listener
-                                          :bind bind
-                                          :port port
-                                          :event-cb 'error-handler))
-                 (server (start-server listener)))
-            (cleanup)
-            (as:signal-handler 2
-              (lambda (sig)
-                (declare (ignore sig))
-                (as:free-signal-handler 2)
-                (as:close-tcp-server server)
-                (as:exit-event-loop)))))
-        (error (e) (vom:error "Error initializing: ~a" e))))
+    (let ((blackbird:*debug-on-error* t)
+          (wookie-config:*debug-on-error* t))
+      (as:with-event-loop (:catch-app-errors (and *production-error-handling*
+                                                  'error-handler))
+        ;; set up the database schema
+        (vom:info "Applying DB schema...")
+        (catcher
+          (alet* ((report-main (apply-db-schema *db-schema*))
+                  (report-analytics (when (getf *analytics* :enabled)
+                                      (apply-db-schema *analytics-schema* :db-name "analytics")))
+                  (report (append report-main report-analytics)))
+            (vom:info "Schema applied: ~s" report)
+            (let* ((listener (make-instance 'listener
+                                            :bind bind
+                                            :port port
+                                            :event-cb 'error-handler))
+                   (server (start-server listener)))
+              (cleanup)
+              (as:signal-handler 2
+                (lambda (sig)
+                  (declare (ignore sig))
+                  (as:free-signal-handler 2)
+                  (as:close-tcp-server server)
+                  (as:exit-event-loop)))))
+          (error (e) (vom:error "Error initializing: ~a" e)))))
     (when *pid-file*
       (delete-file *pid-file*))))
 

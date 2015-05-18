@@ -42,13 +42,13 @@
         :item_id (:version 1)))
     :sync
      (:indexes
-       (:user_search
+       (:scan_user
          (:version 1
           :function ,(r:fn (s)
-                       (list (:attr s "user_id")
-                             (:attr s "type")
-                             (:attr s "id") )))
-        :rel (:version 1 :multi t)))
+                       (:map (:attr s "rel")
+                             (r:fn (user)
+                               (list user (:attr s "id")))))
+          :multi t)))
     :log (:indexes (:hash (:version 1)))
     :promo (:indexes (:code (:version 1))))
   "Holds our entire db/table/index schema. Tables are are created if they don't

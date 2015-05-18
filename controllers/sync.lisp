@@ -1,5 +1,63 @@
 (in-package :turtl)
 
+(defroute (:get "/api/v2/sync") (req res)
+  "Given the current user and a sync-id, spits out all data that has changes in
+   the user's profile since that sync id. Used by various clients to stay in
+   sync with the canonical profile (hosted on the server)."
+  (catch-errors (res)
+    (alet* ((user-id (user-id req))
+            (sync-id (get-var req "sync_id")))
+      (multiple-promise-bind (sync latest-sync-id)
+          (sync-all user-id sync-id :poll t)
+        ;; grab the highest global sync-id. if we have no sync items, we'll
+        ;; send this back. this not only keeps the client more up-to-date
+        ;; on the sync process, it cuts back on the amount of items we have
+        ;; to filter through when syncing since a lot of times we filter on
+        ;; the id index.
+        (if sync
+            (send-json res (hash ("sync_id" latest-sync-id)
+                                 ("records" sync)))
+            (alet* ((global-sync-id (get-latest-sync-id)))
+              (send-json res nil)))))))
+
+(defroute (:get "/api/v2/sync/full") (req res)
+  "Called by the client if a user has no local profile data. Returns the profile
+   data in the same format as a sync call, allowing the client to process it the
+   same way as regular syncing."
+  (catch-errors (res)
+    (let ((user-id (user-id req)))
+      ;; note we load everything in parallel here to speed up loading
+      (alet ((user (get-user-by-id user-id))
+             (keychain (get-user-keychain user-id))
+             (personas (get-user-personas user-id))
+             (boards (get-user-boards user-id :get-persona-boards t :get-personas t))
+             (global-sync-id (get-latest-sync-id)))
+        ;; notes require all our board ids, so load them here
+        (alet ((notes (get-notes-from-board-ids (map 'list (lambda (b) (gethash "id" b)) boards)))
+               (sync nil))
+          (flet ((convert-to-sync (item type)
+                   (let ((rec (make-sync-record (gethash "user_id" item)
+                                                type 
+                                                (gethash "id" item)
+                                                "add")))
+                     (setf (gethash "_sync" item) rec)
+                     item)))
+            ;; package it all up
+            (push (convert-to-sync user "user") sync)
+            (format nil "synccc: ~a~%" global-sync-id)
+            (loop for (collection . type) in (list (cons keychain "keychain")
+                                                   (cons personas "persona")
+                                                   (cons boards "board")
+                                                   (cons notes "note")) do
+              (loop for item across collection do
+                (push (convert-to-sync item type) sync))))
+          (send-json res (hash ("sync_id" global-sync-id)
+                               ("records" (nreverse sync)))))))))
+
+;;; ----------------------------------------------------------------------------
+;;; deprecated stuff
+;;; ----------------------------------------------------------------------------
+
 (defroute (:post "/api/sync") (req res)
   "Given the current user and a sync-id, spits out all data that has changes in
    the user's profile since that sync id. Used by various clients to stay in
@@ -43,20 +101,4 @@
                                                  greatest-sync-id
                                                  global-sync-id))
           (send-json res response))))))
-
-;; NOTE: this route is unused and will remain so until personas have obscurity
-;; again
-;(defroute (:post "/api/sync/personas/([0-9a-f-]+)") (req res args)
-;  (catch-errors (res)
-;    (alet* ((persona-id (car args))
-;            (challenge (post-var req "challenge")))
-;      (with-valid-persona (persona-id challenge)
-;        (alet* ((sync-time (varint (post-var req "time") 999999999))
-;                (board-sync (sync-persona-boards persona-id sync-time))
-;                (note-sync (sync-persona-notes persona-id sync-time))
-;                (response (make-hash-table :test #'equal)))
-;          (setf (gethash "time" response) (get-timestamp)
-;                (gethash "notes" response) note-sync
-;                (gethash "boards" response) board-sync)
-;          (send-json res response))))))
 
