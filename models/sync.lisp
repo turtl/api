@@ -214,9 +214,10 @@
 
 (defafun sync-all (future) (user-id last-sync-id &key poll)
   "Grab all of the sync records for the given user-id since last-sync-id, link
-   them tot heir respective objects, and hand back the sorted (ASC) list of sync
+   them to their respective objects, and hand back the sorted (ASC) list of sync
    items."
   (alet* ((types (hash))
+          (last-sync-id (or last-sync-id (r:r (:maxval))))
           (records (sync-scan user-id last-sync-id :poll poll)))
     ;; group our sync records by type so we can pull them out en-mass
     (loop for record across records

@@ -6,9 +6,10 @@
    sync with the canonical profile (hosted on the server)."
   (catch-errors (res)
     (alet* ((user-id (user-id req))
+            (immediate (not (zerop (varint (get-var req "immediate") 0))))
             (sync-id (get-var req "sync_id")))
       (multiple-promise-bind (sync latest-sync-id)
-          (sync-all user-id sync-id :poll t)
+          (sync-all user-id sync-id :poll (not immediate))
         ;; grab the highest global sync-id. if we have no sync items, we'll
         ;; send this back. this not only keeps the client more up-to-date
         ;; on the sync process, it cuts back on the amount of items we have
