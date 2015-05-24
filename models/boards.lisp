@@ -64,7 +64,7 @@
           (board-user-ids (r:to-array sock cursor))
           (nil (r:stop sock cursor)))
     (r:disconnect sock)
-    (finish future (cl-async-util:append-array shared-user-ids board-user-ids))))
+    (finish future (concatenate 'vector shared-user-ids board-user-ids))))
 
 (defafun get-user-boards (future) (user-id &key get-persona-boards get-notes get-personas)
   "Get all boards for a user."
@@ -80,7 +80,7 @@
     (alet* ((persona-boards (if get-persona-boards
                                 (user-personas-map user-id 'get-persona-boards :flatten t)
                                 #()))
-            (all-boards (cl-async-util:append-array boards persona-boards))
+            (all-boards (concatenate 'vector boards persona-boards))
             (boards-populated (populate-boards-data all-boards
                                                     :get-notes get-notes
                                                     :get-personas get-personas)))
@@ -102,7 +102,7 @@
                      (cursor (r:run sock query))
                      (board-ids (r:to-array sock cursor)))
                (r:stop/disconnect sock cursor)
-               (finish future (cl-async-util::append-array board-ids append)))))
+               (finish future (concatenate 'vector board-ids append)))))
       (if (zerop (length persona-ids))
           (get-user-board-ids #())
           (alet* ((query (r:r (:attr
