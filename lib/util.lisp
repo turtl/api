@@ -63,10 +63,17 @@
 
 (defun send-json (response object &key (status 200))
   "Wraps sending of JSON back to the client."
-  (send-response response
-                 :status status
-                 :headers '(:content-type "application/json")
-                 :body (to-json object)))
+  (let* ((request (response-request response))
+         (http (request-http request))
+         (sock (request-socket request)))
+    (if (as:socket-closed-p sock)
+        (vom:notice "sending response to closed socket (~a ~a)"
+                    (request-method request)
+                    (request-resource request))
+        (send-response response
+                       :status status
+                       :headers '(:content-type "application/json")
+                       :body (to-json object)))))
 
 (defun convert-alist-hash (alist &key (test #'equal))
   "Convert an alist into a hash table. Only works on flat alists (nesting
