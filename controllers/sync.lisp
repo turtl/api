@@ -34,8 +34,12 @@
              (boards (get-user-boards user-id :get-persona-boards t :get-personas t))
              (global-sync-id (get-latest-sync-id)))
         ;; notes require all our board ids, so load them here
-        (alet ((notes (get-notes-from-board-ids (map 'list (lambda (b) (gethash "id" b)) boards)))
-               (sync nil))
+        (alet* ((notes (get-notes-from-board-ids (map 'list (lambda (b) (gethash "id" b)) boards)))
+                (files (remove-if-not (lambda (note)
+                                        (and (hget note '("file"))
+                                             (hget note '("file" "hash"))))
+                                      notes))
+                (sync nil))
           (flet ((convert-to-sync (item type)
                    (let ((rec (make-sync-record (gethash "user_id" item)
                                                 type 
@@ -45,11 +49,11 @@
                      item)))
             ;; package it all up
             (push (convert-to-sync user "user") sync)
-            (format nil "synccc: ~a~%" global-sync-id)
             (loop for (collection . type) in (list (cons keychain "keychain")
                                                    (cons personas "persona")
                                                    (cons boards "board")
-                                                   (cons notes "note")) do
+                                                   (cons notes "note")
+                                                   (cons files "file")) do
               (loop for item across collection do
                 (push (convert-to-sync item type) sync))))
           (send-json res (hash ("sync_id" global-sync-id)
