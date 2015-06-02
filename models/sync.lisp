@@ -78,22 +78,13 @@
       ;; test if the item was deleted
       (if (string= (gethash "action" sync-item) "delete")
           ;; create a return-ready "deleted" record, complete with sync metadata
-          (let ((hash (make-hash-table :test #'equal))
-                (sync-hash (make-hash-table :test #'equal)))
-            (setf (gethash "id" sync-hash) (gethash "id" sync-item)
-                  (gethash "action" sync-hash) (gethash "action" sync-item))
-            (setf (gethash "id" hash) (gethash "item_id" sync-item)
-                  (gethash "deleted" hash) t
-                  (gethash "_sync" hash) sync-hash)
-            (push hash deleted-items))
+          (let ((item (hash ("id" (gethash "item_id" sync-item))
+                            ("deleted" t))))
+            (setf (gethash "data" sync-item) item)
+            (push sync-item deleted-items))
           ;; item is present, so save it (and its sync-id to pull out of the db
-          ;; later). also, save the CID so in the case of an add, the object can
-          ;; be matched up on sync if it's orphaned.
-          (push (list :item-id (gethash "item_id" sync-item)
-                      :sync-id (gethash "id" sync-item)
-                      :cid (gethash "cid" sync-item)
-                      :action (gethash "action" sync-item))
-                present-items)))
+          ;; later).
+          (push sync-item present-items)))
     ;; define our finalizing function. this is needed because sometimes we'll
     ;; call out to the DB to pull out present items, sometimes we won't, and
     ;; since we're dealing with async, we define a function to handle both
@@ -106,37 +97,23 @@
                  (setf (gethash (gethash "id" item) index) item))
                ;; for each item we believe to be present, create a new hash
                ;; record for it with the sync_id present
-               (dolist (present present-items)
-                 (let* ((item-id (getf present :item-id))
-                        (sync-id (getf present :sync-id))
-                        (action (getf present :action))
-                        (cid (getf present :cid))
-                        (sync (gethash item-id index))
-                        (sync-copy (make-hash-table :test #'equal)))
+               (dolist (rec present-items)
+                 (let* ((item (gethash (gethash "item_id" rec) index)))
                    ;; sync could possibly be nil (if an item is edited and then
                    ;; deleted in the same sync call, then although the edit
                    ;; fools us into thinking the item is present, the delete
                    ;; actually removed it. in this case, it will also be in
                    ;; deleted-items and we don't need to bother tracking it).
-                   (when sync
-                     ;; shallow-copy the sync entrya (so we can have the same data with a
-                     ;; different sync-id)
-                     (loop for k being the hash-keys of sync
-                           for v being the hash-values of sync do
-                       (setf (gethash k sync-copy) v))
-                     ;; save some sync info user the object's "_sync" key
-                     (let ((sync-hash (make-hash-table :test #'equal)))
-                       (setf (gethash "id" sync-hash) sync-id
-                             (gethash "action" sync-hash) action)
-                       (when cid (setf (gethash "cid" sync-hash) cid))
-                       (setf (gethash "_sync" sync-copy) sync-hash))
-                     (push sync-copy synced-items))))
+                   (when item
+                     ;; create a sync record and save the object into it
+                     (setf (gethash "data" rec) item))
+                     (push rec synced-items)))
                ;; return the array of items, sorted by sync_id DESC
                (finish future
                        (coerce (sort (append synced-items deleted-items)
                                      (lambda (a b)
-                                       (string> (gethash "id" (gethash "_sync" a))
-                                                (gethash "id" (gethash "_sync" b)))))
+                                       (string> (gethash "id" a)
+                                                (gethash "id" b))))
                                'vector)))))
       ;; if we have no items to link, just finish with a blank array, otherwise
       ;; pull out our items and finish with the list
@@ -146,7 +123,7 @@
                   (query (r:r
                            (:get-all
                              (:table link-table)
-                             (mapcar (lambda (x) (getf x :item-id)) present-items))))
+                             (mapcar (lambda (x) (gethash "item_id" x)) present-items))))
                   (cursor (r:run sock query))
                   (items (r:to-array sock cursor)))
             (r:stop/disconnect sock cursor)
@@ -163,7 +140,7 @@
    change."
   (alet* ((sock (db-sock))
           (poll-timeout 30)
-          (sock-poll (db-sock :timeout poll-timeout))
+          (sock-poll (when poll (db-sock :timeout poll-timeout)))
           (query (r:r
                    (:between
                      (:table "sync")
@@ -176,41 +153,35 @@
     (let ((poll-promise (when poll (r:run sock-poll query-poll))))
       ;; run the non-changes query and grab the results
       (alet* ((cursor (r:run sock query))
-              (sync-items (r:to-array sock cursor)))
+              (sync-items (r:to-array sock cursor))
+              (sync-size (length sync-items)))
         (r:stop/disconnect sock cursor)
-        (if (zerop (length sync-items))
-            ;; we got no items returned from the instant query, run the changes
-            ;; query (aka wait on the above promise) and save the results as
-            ;; they come in
-            (alet* ((cursor-poll poll-promise)
-                    (results nil)
-                    (timer nil))
-              (as:with-delay ((+ poll-timeout 1))
-                (r:stop/disconnect sock-poll cursor-poll))
-              (chain
-                (r:each sock-poll cursor-poll
-                  (lambda (rec)
-                    (unless timer
-                      (setf timer (as:with-delay (.1) (r:stop/disconnect sock-poll cursor-poll))))
-                    (push rec results)))
-                (:catch (err)
-                  (unless (typep err 'r:cursor-stopped)
-                    (error err)))
-                (:finally
-                  (r:stop/disconnect sock-poll cursor-poll)
-                  (coerce (nreverse results) 'list))))
-            (progn
-              (r:disconnect sock-poll)
-              sync-items))))))
-
-(defun test ()
-  (let ((blackbird:*debug-on-error* t))
-    (as:with-event-loop ()
-      (chain (sync-scan "517c06912b13753915000001" "5556fa972b137507650025c5" :poll t)
-        (:then (items)
-          (format t "---json---~%~a~%" (to-json items :indent 2)))
-        (:catch (e)
-          (format t "test err: ~a~%" e))))))
+        (cond ((and poll (zerop sync-size))
+               ;; we got no items returned from the instant query, run the changes
+               ;; query (aka wait on the above promise) and save the results as
+               ;; they come in
+               (alet* ((cursor-poll poll-promise)
+                       (results nil)
+                       (timer nil))
+                 (as:with-delay ((+ poll-timeout 1))
+                   (r:stop/disconnect sock-poll cursor-poll))
+                 (chain
+                   (r:each sock-poll cursor-poll
+                     (lambda (rec)
+                       (unless timer
+                         (setf timer (as:with-delay (.1) (r:stop/disconnect sock-poll cursor-poll))))
+                       (push rec results)))
+                   (:catch (err)
+                     (unless (typep err 'r:cursor-stopped)
+                       (error err)))
+                   (:finally
+                     (r:stop/disconnect sock-poll cursor-poll)
+                     (coerce (nreverse results) 'list)))))
+              ((zerop sync-size)
+               #())
+              (t
+               (when poll (r:disconnect sock-poll))
+               sync-items))))))
 
 (defafun sync-all (future) (user-id last-sync-id &key poll)
   "Grab all of the sync records for the given user-id since last-sync-id, link
@@ -242,11 +213,13 @@
           (let ((ungrouped nil))
             (dolist (collection completed)
               (loop for record across collection do
+                (remhash "rel" record)
+                (remhash "item_id" record)
                 (push record ungrouped)))
             (let* ((latest-sync-id "")
                    (sorted (sort ungrouped (lambda (a b)
-                                             (let ((a-sid (hget a '("_sync" "id")))
-                                                   (b-sid (hget b '("_sync" "id"))))
+                                             (let ((a-sid (hget a '("id")))
+                                                   (b-sid (hget b '("id"))))
                                                (when (string< latest-sync-id a-sid)
                                                  (setf latest-sync-id a-sid))
                                                (when (string< latest-sync-id b-sid)
@@ -255,6 +228,15 @@
               (finish future sorted latest-sync-id))))
         (:catch (e)
           (signal-error future e))))))
+
+(defun test ()
+  (let ((blackbird:*debug-on-error* t))
+    (as:with-event-loop ()
+      (chain (sync-all "517c06912b13753915000001" "5552c8962b1375076500258a" :poll nil)
+        (:then (items)
+          (format t "---json---~%~a~%" (to-json items :indent 2)))
+        (:catch (e)
+          (format t "test err: ~a~%" e))))))
 
 ;;; ----------------------------------------------------------------------------
 ;;; some more deprecated stuff

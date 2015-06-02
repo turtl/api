@@ -39,14 +39,15 @@
                                         (and (hget note '("file"))
                                              (hget note '("file" "hash"))))
                                       notes))
+                (files (map 'vector (lambda (x) (copy-hash x)) files))
                 (sync nil))
           (flet ((convert-to-sync (item type)
                    (let ((rec (make-sync-record (gethash "user_id" item)
                                                 type 
                                                 (gethash "id" item)
                                                 "add")))
-                     (setf (gethash "_sync" item) rec)
-                     item)))
+                     (setf (gethash "data" rec) item)
+                     rec)))
             ;; package it all up
             (push (convert-to-sync user "user") sync)
             (loop for (collection . type) in (list (cons keychain "keychain")
@@ -58,6 +59,11 @@
                 (push (convert-to-sync item type) sync))))
           (send-json res (hash ("sync_id" global-sync-id)
                                ("records" (nreverse sync)))))))))
+
+(defroute (:post "/api/v2/sync") (req res)
+  "Bulk sync API. Accepts any number of sync items and applies the updates to
+   the profile of the authed user."
+  )
 
 ;;; ----------------------------------------------------------------------------
 ;;; deprecated stuff
