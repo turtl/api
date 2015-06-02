@@ -93,6 +93,12 @@
       (setf (gethash (string-downcase (string x)) hash) y))
     hash))
 
+(defun copy-hash (hash)
+  "Deep copy a hash table."
+  ;; lazy way
+  (yason:parse (with-output-to-string (s)
+                 (yason:encode hash s))))
+
 (defun add-id (hash-object &key (id-key "id"))
   "Add a mongo id to a hash table object."
   (setf (gethash id-key hash-object) (string-downcase (mongoid:oid-str (mongoid:oid))))
