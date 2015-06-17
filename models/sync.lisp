@@ -146,7 +146,8 @@
                      (:table "sync")
                      (list user-id from-sync-id)
                      (list user-id (:maxval))
-                     :index (db-index "sync" "scan_user"))))
+                     :index (db-index "sync" "scan_user")
+                     :left-bound "open")))
           ;; wrap changes around the above query
           (query-poll (r:r (:changes query :squash 3))))
     ;; run the changes query, saving the return promise
@@ -183,7 +184,7 @@
                (when poll (r:disconnect sock-poll))
                sync-items))))))
 
-(defafun sync-all (future) (user-id last-sync-id &key poll)
+(adefun sync-all (user-id last-sync-id &key poll)
   "Grab all of the sync records for the given user-id since last-sync-id, link
    them to their respective objects, and hand back the sorted (ASC) list of sync
    items."
@@ -216,7 +217,9 @@
                 (remhash "rel" record)
                 (remhash "item_id" record)
                 (push record ungrouped)))
-            (let* ((latest-sync-id "")
+            (let* ((latest-sync-id (if (zerop (length ungrouped))
+                                       ""
+                                       (gethash "id" (car ungrouped))))
                    (sorted (sort ungrouped (lambda (a b)
                                              (let ((a-sid (hget a '("id")))
                                                    (b-sid (hget b '("id"))))
@@ -225,18 +228,88 @@
                                                (when (string< latest-sync-id b-sid)
                                                  (setf latest-sync-id b-sid))
                                                (string< a-sid b-sid))))))
-              (finish future sorted latest-sync-id))))
-        (:catch (e)
-          (signal-error future e))))))
+              (values sorted latest-sync-id))))))))
 
-(defun test ()
-  (let ((blackbird:*debug-on-error* t))
-    (as:with-event-loop ()
-      (chain (sync-all "517c06912b13753915000001" "5552c8962b1375076500258a" :poll nil)
-        (:then (items)
-          (format t "---json---~%~a~%" (to-json items :indent 2)))
-        (:catch (e)
-          (format t "test err: ~a~%" e))))))
+(adefun process-incoming-sync (user-id sync)
+  "Applies a single sync item against a user's profile."
+  (let* ((type (intern (string-upcase (string (gethash "type" sync))) :keyword))
+         (action (intern (string-upcase (string (gethash "action" sync))) :keyword))
+         (item (gethash "data" sync))
+         (item-id (gethash "id" item)))
+    (unless (find action '(:add :edit :delete))
+      (error (format nil "Bad action given while syncing (~a)" action)))
+    (flet ((standard-delete (del-promise)
+             (alet* ((sync-ids del-promise))
+               (hash ("id" item-id)
+                     ("sync_ids" sync-ids)))))
+      (case type
+        (:user
+          (case action
+            (:edit
+              (edit-user item-id user-id item))
+            ;; only allow edit of user via sync
+            (t (error "Only the `edit` action is allowed when syncing user data"))))
+        (:keychain
+          (case action
+            (:add
+              (add-keychain-entry user-id item))
+            (:edit
+              (edit-keychain-entry user-id item-id item))
+            (:delete
+              (standard-delete (delete-keychain-entry user-id item-id)))))
+        (:persona
+          (case action
+            (:add
+              (add-persona user-id item))
+            (:edit
+              (edit-persona user-id item-id item))
+            (:delete
+              (standard-delete (delete-persona user-id item-id)))))
+        (:board
+          (case action
+            (:add
+              (add-board user-id item))
+            (:edit
+              (edit-board user-id item-id item))
+            (:delete
+              (standard-delete (delete-board user-id item-id)))))
+        (:note
+          (case action
+            (:add
+              (add-note user-id item))
+            (:edit
+              (edit-note user-id item-id item))
+            (:delete
+              (standard-delete (delete-note user-id item-id)))))
+        (t
+          (error (format nil "Unknown sync record given (~a)" type)))))))
+
+(adefun bulk-sync (user-id sync-items)
+  "Given a set of bulk items to sync to a user's profile, run them each. This is
+   done sequentially in order to catch errors (and preserve order in the case of
+   errors)."
+  (let ((successes nil)
+        (track-failed sync-items)
+        (error nil))
+    (chain (aeach (lambda (sync)
+                    (alet* ((item (process-incoming-sync user-id sync)))
+                      ;; pop the failure that corresponds to this item off the
+                      ;; head of the fails list
+                      (setf track-failed (cdr track-failed))
+                      (let ((sync-ids (gethash "sync_ids" item)))
+                        (remhash "sync_ids" item)
+                        (push (hash ("id" (gethash "id" sync))
+                                    ("type" (gethash "type" sync))
+                                    ("action" (gethash "action" sync))
+                                    ("sync_ids" sync-ids)
+                                    ("data" item))
+                              successes))))
+                  sync-items)
+      (:catch (err) (setf error err))
+      (:then ()
+        (hash ("success" (nreverse successes))
+              ("fail" (mapcar (lambda (x) (gethash "id" x)) track-failed))
+              ("error" error))))))
 
 ;;; ----------------------------------------------------------------------------
 ;;; some more deprecated stuff

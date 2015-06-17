@@ -5,7 +5,8 @@
    ("from" :type id :required t)
    ("to" :type id :required t)
    ("keys" :type sequence :required t :coerce simple-vector)
-   ("data" :type cl-async-util:bytes-or-string)))
+   ("data" :type cl-async-util:bytes-or-string))
+  :old t)
 
 (defafun get-messages-by-persona (future) (persona-id &key (after "") (index "get_messages_to"))
   "Gets messages for a persona. If a message ID is specified for :after, will

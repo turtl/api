@@ -55,11 +55,13 @@
       (error (format nil "Bad index name passed to db-index: ~a" index)))
     (format nil "~a.v~a" (string-downcase (string index-key)) (getf index-entry :version))))
 
+(defmethod jonathan:%to-json ((_ (eql nil)))
+  (jonathan:%write-string "null"))
+
 (defun to-json (object &key indent)
   "Convert an object to JSON."
-  (with-output-to-string (s)
-    (let ((js (yason:make-json-output-stream s :indent indent)))
-      (yason:encode object js))))
+  (declare (ignore indent))
+  (jonathan:to-json object))
 
 (defun send-json (response object &key (status 200))
   "Wraps sending of JSON back to the client."
@@ -96,8 +98,7 @@
 (defun copy-hash (hash)
   "Deep copy a hash table."
   ;; lazy way
-  (yason:parse (with-output-to-string (s)
-                 (yason:encode hash s))))
+  (jonathan:parse (jonathan:to-json hash) :as :hash-table))
 
 (defun add-id (hash-object &key (id-key "id"))
   "Add a mongo id to a hash table object."
@@ -140,6 +141,9 @@
       (setf body (cdr body)))
     `(defun ,name ,args
        ,(if (stringp docstring) docstring "")
+       ,(when (eq (caar body) 'declare)
+          (prog1 (car body)
+            (setf body (cdr body))))
        (catcher
          (progn ,@body)
          (error (e)
@@ -151,6 +155,10 @@
                                  :error e
                                  :function ',name)))))))
 
+;; !!!!!!!!!!!!!!!!!!
+;; !!! DEPRECATED !!!
+;; !!!!!!!!!!!!!!!!!!
+;; do not build new functions that use this macro. use adefun instead!
 (defmacro defafun (name (future-var &key (forward-errors t)) args &body body)
   "Define an asynchronous function with a returned promise that will be finished
    when the function completes. Also has the option to forward all async errors
@@ -266,7 +274,7 @@
 
 (defun jprint (db-result)
   "Pretty printer for JSON (mainly for database results)."
-  (yason:encode db-result (yason:make-json-output-stream *standard-output* :indent 2)))
+  (to-json db-result :indent 2))
 
 (defmacro with-test (&body body)
   "Makes testing async functions easier by abstracting an extremely common

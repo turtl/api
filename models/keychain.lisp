@@ -5,7 +5,8 @@
    ("user_id" :type id :required t)
    ("type" :type string :required t :max-length 24)
    ("item_id" :type string :required t)
-   ("body" :type string :required t)))
+   ("body" :type string :required t))
+  :old t)
 
 (defafun get-keychain-entry-by-id (future) (key-id)
   "Get a keychain entry by its id."
@@ -34,7 +35,6 @@
 (defafun add-keychain-entry (future) (user-id key-data)
   "Add a new keychain entry for the given user."
   (setf (gethash "user_id" key-data) user-id)
-  (add-id key-data)
   (validate-keychain-entry (key-data future)
     (alet* ((sock (db-sock))
             (query (r:r (:insert

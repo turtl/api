@@ -214,16 +214,3 @@
       (track "file-delete" `(:shared ,(when persona-id t)) req)
       (send-json res t))))
 
-(defroute (:put "/api/notes/batch") (req res)
-  "Batch edit. Allows passing in a persona ID, which will be used in place of
-   the current user ID when validating permissions."
-  (catch-errors (res)
-    (alet* ((user-id (user-id req))
-            (persona-id (post-var req "persona"))
-            (batch-edit-data (post-var req "data"))
-            (nil (if persona-id
-                     (with-valid-persona (persona-id user-id)
-                       (batch-note-edit persona-id batch-edit-data))
-                     (batch-note-edit user-id batch-edit-data))))
-      (send-json res t))))
-

@@ -3,8 +3,10 @@
 (defvalidator validate-board
   (("id" :type id :required t)
    ("user_id" :type id :required t)
+   ("parent_id" :type id)
    ("keys" :type sequence :required t :coerce simple-vector)
-   ("body" :type cl-async-util:bytes-or-string)))
+   ("body" :type cl-async-util:bytes-or-string))
+  :old t)
 
 (defafun populate-boards-data (future) (boards &key (get-privs t) get-notes get-personas)
   "Populate certain information given a list of boards."
@@ -32,9 +34,19 @@
             (finish future boards))))
       (finish future boards)))
 
-(defafun get-affected-users-from-board-ids (future) (board-ids)
+(adefun get-all-boards (user-id persona-ids)
+  "Given a user id and list of persona ids, get all boards this user has access
+   to."
+  (declare (ignore persona-ids))
+  ;; TODO: actually build this function out and make it useful. until then, we
+  ;; rely on old (and slow) tricks
+  (get-user-boards user-id :get-persona-boards t :get-personas t))
+
+(adefun get-affected-users-from-board-ids (board-ids)
   "For all given board-ids (list), find users that will be affected by changes
    to those boards or items in those boards. Returns a list of user-ids."
+  (unless board-ids
+    (return-from get-affected-users-from-board-ids))
   (alet* ((sock (db-sock))
           (query (r:r
                    (:attr
@@ -64,9 +76,9 @@
           (board-user-ids (r:to-array sock cursor))
           (nil (r:stop sock cursor)))
     (r:disconnect sock)
-    (finish future (concatenate 'vector shared-user-ids board-user-ids))))
+    (concatenate 'vector shared-user-ids board-user-ids)))
 
-(defafun get-user-boards (future) (user-id &key get-persona-boards get-notes get-personas)
+(adefun get-user-boards (user-id &key get-persona-boards get-notes get-personas)
   "Get all boards for a user."
   (alet* ((sock (db-sock))
           (query (r:r (:get-all
@@ -84,13 +96,15 @@
             (boards-populated (populate-boards-data all-boards
                                                     :get-notes get-notes
                                                     :get-personas get-personas)))
-      (finish future boards-populated))))
+      boards-populated)))
 
-(defafun get-all-user-board-ids (future) (user-id &key shared)
+(defafun get-all-user-board-ids (future) (user-id &key shared persona-ids)
   "Gets ALL a user's board IDs, with option to specify grabbing shared boards."
-  (alet* ((persona-ids (if shared
-                           (get-user-persona-ids user-id)
-                           #()))
+  (alet* ((persona-ids (if persona-ids
+                           persona-ids
+                           (if shared
+                               (get-user-persona-ids user-id)
+                               #())))
           (sock (db-sock)))
     (flet ((get-user-board-ids (append)
              (alet* ((query (r:r (:attr
@@ -115,6 +129,44 @@
                   (board-ids (r:to-array sock cursor)))
             (r:stop sock cursor)
             (get-user-board-ids board-ids))))))
+
+(adefun get-user-board-perms (user-id &key min-perms)
+  "Grab all a users boards, including shared, with permissions."
+  (alet* ((persona-ids (get-user-persona-ids user-id))
+          (user-board-ids (get-all-user-board-ids user-id))
+          (sock (db-sock))
+          (qry (r:r (:pluck
+                      (:zip
+                        (:eq-join
+                          (:get-all
+                            (:table "boards_personas_link")
+                            (coerce persona-ids 'list)
+                            :index (db-index "boards_personas_link" "to"))
+                          "board_id"
+                          (:table "boards")))
+                      (list "user_id" "board_id" "perms"))))
+          (cursor (r:run sock qry))
+          (shared (r:to-array sock cursor))
+          (index (hash)))
+    (r:stop/disconnect sock cursor)
+    ;; set permissions for shared boards
+    (loop for entry across shared
+          for id = (gethash "board_id" entry)
+          for perms = (gethash "perms" entry) do
+      (when (or (not min-perms)
+                (<= min-perms perms))
+        (setf (gethash id index) (hash ("id" id)
+                                       ("owner" (gethash "user_id" entry))
+                                       ("perms" perms)))))
+    ;; set user-owned to the "owned" permission (3) in the index
+    (loop for id across user-board-ids
+          for perms = 3 do
+      (when (or (not min-perms)
+                (<= min-perms perms))
+        (setf (gethash id index) (hash ("id" id)
+                                       ("owner" user-id)
+                                       ("perms" perms)))))
+    index))
 
 (defafun get-persona-boards (future) (persona-id &key populate get-notes)
   "Get all boards for a persona."
@@ -177,7 +229,6 @@
 (defafun add-board (future) (user-id board-data)
   "Save a board with a user."
   (setf (gethash "user_id" board-data) user-id)
-  (add-id board-data)
   (let ((cid (gethash "cid" board-data)))
     (validate-board (board-data future)
       (alet* ((sock (db-sock))
@@ -260,7 +311,7 @@
 (defafun get-user-board-permissions (future) (user/persona-id board-id)
   "Returns an integer used to determine a user/persona's permissions for the
    given board.
-   
+
    0 == no permissions
    1 == read permissions
    2 == update permissions
@@ -388,7 +439,7 @@
     (finish future entry)))
 
 (defafun add-board-remote-invite (future) (user-id board-id from-persona-id invite-id permission-value to-email)
-  "Creates a remote (ie email) invite permission record on a board so the 
+  "Creates a remote (ie email) invite permission record on a board so the
    recipient of an invite can join the board without knowing what their account
    will be in advance."
   (alet* ((email (obscure-email to-email)))

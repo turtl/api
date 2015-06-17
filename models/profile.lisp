@@ -9,7 +9,7 @@
                        (:get-all
                          (:table "notes")
                          board-id
-                         :index (db-index "notes" "board_id"))
+                         :index (db-index "notes" "boards"))
                        (:js "(function(note) { return ((note.body && note.body.length) || 0) + ((note.file && note.file.size) || 0); })"))
                      (r:fn (a b) (:+ a b))
                      :base 0)))
@@ -22,9 +22,8 @@
   (alet* ((board-ids (get-all-user-board-ids user-id :shared nil))
           (board-ids (coerce board-ids 'list))
           (size 0))
-    (wait (adolist (board-id board-ids future2)
-                (alet ((board-size (get-board-size board-id)))
-                  (incf size board-size)
-                  (finish future2)))
+    (wait (adolist (board-id board-ids)
+            (alet ((board-size (get-board-size board-id)))
+              (incf size board-size)))
       (finish future size))))
 

@@ -10,7 +10,8 @@
    ("email" :type string :required t :transform string-downcase)
    ("name" :type string)
    ("body" :type cl-async-util:bytes-or-string :required t)
-   ("settings" :type hash-table)))
+   ("settings" :type hash-table))
+  :old t)
 
 (defafun get-persona-by-id (future) (persona-id &key without-keys)
   "Get a persona by id."
@@ -75,7 +76,6 @@
 ;; TODO: limit number of personas a user can have
 (defafun add-persona (future) (user-id persona-data)
   "Add a persona to the system."
-  (add-id persona-data)
   (setf (gethash "user_id" persona-data) user-id)
   (let ((cid (gethash "cid" persona-data)))
     (validate-persona (persona-data future)

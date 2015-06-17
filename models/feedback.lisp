@@ -3,7 +3,8 @@
 (defvalidator validate-feedback
   (("user_id" :type id :required t)
    ("email" :type string :required t)
-   ("body" :type string :required t)))
+   ("body" :type string :required t))
+  :old t)
 
 (defafun send-feedback (future) (user-id feedback-data)
   "Send feedback posted by a user to the proper channels (email, most likely)."

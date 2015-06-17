@@ -11,7 +11,8 @@
    ("a" :type string :required t)
    ("storage" :type integer :required nil)
    ("invite_code" :type string :required t)
-   ("body" :type cl-async-util:bytes-or-string)))
+   ("body" :type cl-async-util:bytes-or-string))
+  :old t)
 
 (defafun check-auth (future) (auth-key)
   "Check if the given auth key exists. Finishes with the user id if so, nil

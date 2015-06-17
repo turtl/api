@@ -89,7 +89,7 @@ Please respond in a timely manner!"))
           (finish future t)
           ;; error. grab the message and signal
           (let* ((res (babel:octets-to-string res))
-                 (hash (yason:parse res))
+                 (hash (jonathan:parse res :as :hash-table))
                  (msg (gethash "error" hash))
                  (msg (if (hash-table-p msg)
                           (gethash "message" msg)

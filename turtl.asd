@@ -11,7 +11,7 @@
                #:cl-ppcre
                #:flexi-streams
                #:cl-fad
-               #:yason
+               #:jonathan
                #:cl-mongo-id
                #:cl-base64
                #:drakma-async

@@ -31,10 +31,11 @@
       (alet ((user (get-user-by-id user-id))
              (keychain (get-user-keychain user-id))
              (personas (get-user-personas user-id))
-             (boards (get-user-boards user-id :get-persona-boards t :get-personas t))
              (global-sync-id (get-latest-sync-id)))
         ;; notes require all our board ids, so load them here
-        (alet* ((notes (get-notes-from-board-ids (map 'list (lambda (b) (gethash "id" b)) boards)))
+        (alet* ((boards (get-all-boards user-id (map 'list (lambda (p) (gethash "id" p)) personas)))
+                (board-ids (map 'list (lambda (b) (gethash "id" b)) boards))
+                (notes (get-all-notes user-id board-ids))
                 (files (remove-if-not (lambda (note)
                                         (and (hget note '("file"))
                                              (hget note '("file" "hash"))))
@@ -62,8 +63,21 @@
 
 (defroute (:post "/api/v2/sync") (req res)
   "Bulk sync API. Accepts any number of sync items and applies the updates to
-   the profile of the authed user."
-  )
+   the profile of the authed user.
+   
+   Note that the items are added in sequence and if any one in the sequence
+   fails, we abort and send back the successes and failures. This is because
+   many of the items need to be added in a specific sequence in order to work
+   correctly (for instance, a keychain entry for a board needs to be synced
+   before the board itself). Catching a failure in the sequence allows the
+   client to try again whilst still preserving the original order of the sync
+   items."
+  (catch-errors (res)
+    (alet* ((user-id (user-id req))
+            (sync-items (jonathan:parse (babel:octets-to-string (request-body req)) :as :hash-table))
+            (synced (bulk-sync user-id sync-items)))
+      (send-json res synced))))
+
 
 ;;; ----------------------------------------------------------------------------
 ;;; deprecated stuff

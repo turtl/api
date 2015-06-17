@@ -33,7 +33,7 @@
           ;; check required fields
           (when (and (getf entry :required)
                      (not edit)
-                     (not obj-val))
+                     (not exists))
             (cond ((and default-val (symbolp default-val))
                    (setf obj-val (funcall default-val)))
                   (default-val
@@ -98,22 +98,27 @@
         (remhash key object))))
   nil)
 
-(defmacro defvalidator (name validation-form)
+(defmacro defvalidator (name validation-form &key old)
   "Makes defining a validation function for a data type simpler."
   `(progn
      (setf (getf *validation-forms* ',name) ',validation-form)
-     (defmacro ,name ((object future &key edit) &body body)
+     (defmacro ,name (,(append '(object)
+                               (when old '(future))
+                               '(&key edit))
+                       &body body)
        (let ((validation (gensym "validation"))
              (validation-form-var (gensym "validation-form"))
              (future-var (gensym "future")))
-         `(let* ((,future-var ,future)
+         `(let* ((,future-var ,(when ,old future))
                  (,validation-form-var (getf *validation-forms* ,'',name))
                  (,validation (do-validate ,object ,validation-form-var :edit ,edit)))
+            (declare (ignorable ,future-var))
             (if ,validation
-                (signal-error ,future-var (make-instance 'validation-failed
-                                                         :msg (format nil "Validation failed: ~s~%" ,validation)))
+                ,(if ,old
+                     `(signal-error ,future-var (make-instance 'validation-failed
+                                                              :msg (format nil "Validation failed: ~s~%" ,validation)))
+                     `(error 'validation-failed :msg (format nil "Validation failed: ~s~%" ,validation)))
                 (progn ,@body)))))))
-
 ;(defmacro defvalidator (name validation-form)
 ;  "Makes defining a validation function for a data type simpler."
 ;  `(progn

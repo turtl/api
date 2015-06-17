@@ -4,12 +4,13 @@
   (("hash" :type string :required t)
    ("size" :type integer)
    ("body" :type cl-async-util:bytes-or-string)
-   ("upload_id" :type string)))
+   ("upload_id" :type string))
+  :old t)
 
 (defvalidator validate-note
   (("id" :type id :required t)
    ("user_id" :type id :required t)
-   ("board_id" :type id :required t)
+   ("boards" :type array :required t :coerce simple-vector)
    ("file" :validator validate-note-file)
    ("keys" :type sequence :required t :coerce simple-vector)
    ("body" :type cl-async-util:bytes-or-string)
@@ -23,17 +24,13 @@
     (r:disconnect sock)
     (finish future note)))
 
-(defafun get-note-board-id (future) (note-id)
-  "Get a note's board id."
+(adefun note-exists-p (note-id)
+  "Does this note exist?"
   (alet* ((sock (db-sock))
-          (query (r:r
-                   (:attr
-                     (:get-all (:table "notes") note-id)
-                     "board_id")))
-          (cursor (r:run sock query))
-          (board-id (r:to-array sock cursor)))
-    (r:stop/disconnect sock cursor)
-    (finish future (when (< 0 (length board-id)) (aref board-id 0)))))
+          (query (r:r (:pluck (:get (:table "notes") note-id) "id")))
+          (note (r:run sock query)))
+    (r:disconnect sock)
+    note))
 
 (defafun get-board-notes (future) (board-id)
   "Get the notes for a board."
@@ -41,28 +38,56 @@
           (query (r:r (:get-all
                         (:table "notes")
                         board-id
-                        :index (db-index "notes" "board_id"))))
+                        :index (db-index "notes" "boards"))))
           (cursor (r:run sock query))
           (results (r:to-array sock cursor)))
     (r:stop/disconnect sock cursor)
     (finish future results)))
 
-(defafun get-notes-from-board-ids (future) (board-ids)
+(adefun get-notes-from-board-ids (board-ids)
   "Given a list (not vector!) of board_ids, get all notes in those boards. This
    function does no validation, so be sure you only pass it board_ids you know
    the user owns or has been shared with."
   (unless board-ids
-    (finish future #())
-    (return-from get-notes-from-board-ids))
+    (return-from get-notes-from-board-ids #()))
   (alet* ((sock (db-sock))
           (query (r:r (:get-all
                         (:table "notes")
                         board-ids
-                        :index (db-index "notes" "board_id"))))
+                        :index (db-index "notes" "boards"))))
           (cursor (r:run sock query))
           (results (r:to-array sock cursor)))
     (r:stop/disconnect sock cursor)
-    (finish future results)))
+    results))
+
+(adefun get-notes-for-user (user-id)
+  "Get all notes directly owned by a user."
+  (alet* ((sock (db-sock))
+          (query (r:r (:get-all
+                        (:table "notes")
+                        user-id
+                        :index (db-index "notes" "user_id"))))
+          (cursor (r:run sock query))
+          (results (r:to-array sock cursor)))
+    (r:stop/disconnect sock cursor)
+    results))
+
+(adefun get-all-notes (user-id board-ids)
+  "Given a user ID and a set of board ids, grab all notes."
+  (alet ((board-notes (get-notes-from-board-ids board-ids))
+         (user-notes (get-notes-for-user user-id))
+         (idx (hash))
+         (final nil))
+    (flet ((do-index (notes)
+             (loop for note across notes
+                   for id = (gethash "id" note) do
+               ;; remove dupes
+               (unless (gethash id idx)
+                 (setf (gethash id idx) t)
+                 (push note final)))))
+      (do-index user-notes)
+      (do-index board-notes))
+    (coerce (reverse final) 'simple-vector)))
 
 (defafun get-user-note-permissions (future) (user-id note-id)
   "'Returns' an integer used to determine a user's permissions for the given
@@ -85,75 +110,157 @@
         (signal-error future (make-instance 'not-found
                                             :msg "That note wasn't found.")))))
 
-(defafun add-note (future) (user-id board-id note-data &key persona-id)
+(defun note-boards-diff (old-boards new-boards)
+  "Given an old set of board IDs, a new set of board IDs, and a collection of
+   board permissions a user has access to, determine the diff of the old -> new
+   board ids based on the given permissions."
+  (let ((old-boards (sort (copy-list old-boards) 'string<))
+        (new-boards (sort (copy-list new-boards) 'string<))
+        (diff nil))
+    (loop
+      (let ((old (car old-boards))
+            (new (car new-boards)))
+        (cond ((and old new)
+               (cond ((string< old new)
+                      (push (cons :remove old) diff)
+                      (setf old-boards (cdr old-boards)))
+                     ((string> old new)
+                      (push (cons :add new) diff)
+                      (setf new-boards (cdr new-boards)))
+                     (t
+                      (setf old-boards (cdr old-boards))
+                      (setf new-boards (cdr new-boards)))))
+              (old
+               (push (cons :remove old) diff)
+               (setf old-boards (cdr old-boards)))
+              (new
+               (push (cons :add new) diff)
+               (setf new-boards (cdr new-boards)))
+              (t (return)))))
+    (reverse diff)))
+
+(defun validate-diff (user-id note-owner-id diff board-perms)
+  "Given a diff list and a set of permissions, make sure the diff entries are
+   legit."
+  ;; remove diff entries for boards we don't have access to
+  (remove-if-not
+    (lambda (entry)
+      (let* ((board-id (cdr entry))
+             (action (car entry))
+             (board-perm (gethash board-id board-perms))
+             ;; set up our permissions
+             (has-board-write-perms-p (<= 2 (gethash "perms" board-perm)))
+             (user-owns-note-p (string= user-id note-owner-id))
+             (user-owns-board-p (string= user-id (gethash "owner" board-perm))))
+        (declare (ignore action))
+        ;(or (and user-owns-note-p
+        ;         user-owns-board-p)
+        ;    (and user-owns-note-p
+        ;         (or (eq action :remove)
+        ;             has-board-write-perms-p))
+        ;    (and (eq action :remove)
+        ;         user-owns-board-p))
+
+        ;; let's make this simple for now.
+        (or user-owns-note-p
+            user-owns-board-p
+            has-board-write-perms-p)))
+    diff))
+
+(defun apply-diff (items diff)
+  "Given a set of items, apply a diff to them and return the result."
+  (let ((removes (mapcar (lambda (entry) (cdr entry))
+                         (remove-if-not (lambda (entry) (eq (car entry) :remove))
+                                        diff)))
+        (adds (mapcar (lambda (entry) (cdr entry))
+                      (remove-if-not (lambda (entry) (eq (car entry) :add))
+                                     diff))))
+    (append
+      (remove-if (lambda (id) (find id removes :test 'string=))
+                 items)
+      adds)))
+
+(defun user-can-edit-note-p (user-id note-data board-perms)
+  "Given a set of ownership/permissions values, dtermine if a user has access to
+   edit a note."
+  (or
+    ;; the user owns the note. no brainer
+    (string= user-id (gethash "user_id" note-data))
+    ;; the user has write access to a board the note is in
+    (not (zerop (length (remove-if (lambda (board-id)
+                                     (let ((perm (gethash board-id board-perms)))
+                                       (or (not perm)
+                                           (< (gethash "perms" perm) 2))))
+                                   (gethash "boards" note-data)))))))
+
+(adefun add-note (user-id note-data)
   "Add a new note."
-  (setf (gethash "user_id" note-data) user-id
-        (gethash "board_id" note-data) board-id)
-  (add-id note-data)
+  (setf (gethash "user_id" note-data) user-id)
   (add-mod note-data)
   ;; first, check that the user/persona is a member of this board
-  (alet ((perms (get-user-board-permissions (if persona-id persona-id user-id) board-id)))
-    (if (<= 2 perms)
-        (let ((cid (gethash "cid" note-data)))
-          (validate-note (note-data future)
-            (when (and (gethash "file" note-data)
-                       (gethash "hash" (gethash "file" note-data)))
-              (setf (gethash "upload_id" (gethash "file" note-data)) -1))
-            (alet* ((sock (db-sock))
-                    (query (r:r (:insert
-                                  (:table "notes")
-                                  note-data)))
-                    (nil (r:run sock query))
-                    (user-ids (get-affected-users-from-board-ids (list (gethash "board_id" note-data))))
-                    (sync-ids (add-sync-record user-id
-                                               "note"
-                                               (gethash "id" note-data)
-                                               "add"
-                                               :client-id cid
-                                               :rel-ids user-ids)))
-              (r:disconnect sock)
-              (setf (gethash "sync_ids" note-data) sync-ids)
-              (finish future note-data))))
-        (signal-error future (make-instance 'insufficient-privileges
-                                            :msg "Sorry, you aren't a member of that board.")))))
+  (alet* ((board-ids (gethash "boards" note-data))
+          (board-perms (get-user-board-perms user-id :min-perms 2))
+          (diff (map 'list (lambda (id) (list :add id)) board-ids))
+          ;; silently remove boards we don't have access to
+          (board-ids (validate-diff user-id user-id diff board-perms)))
+    (setf (gethash "boards" note-data) (coerce board-ids 'simple-array))
+    (validate-note (note-data)
+      (when (and (gethash "file" note-data)
+                 (gethash "hash" (gethash "file" note-data)))
+        (setf (gethash "upload_id" (gethash "file" note-data)) -1))
+      (alet* ((sock (db-sock))
+              (query (r:r (:insert
+                            (:table "notes")
+                            note-data)))
+              (nil (r:run sock query))
+              (user-ids (get-affected-users-from-board-ids (list (gethash "boards" note-data))))
+              (user-ids (concatenate 'vector (vector user-id) user-ids))
+              (sync-ids (add-sync-record user-id
+                                         "note"
+                                         (gethash "id" note-data)
+                                         "add"
+                                         :rel-ids user-ids)))
+        (r:disconnect sock)
+        (setf (gethash "sync_ids" note-data) sync-ids)
+        note-data))))
 
-(defafun edit-note (future) (user-id note-id note-data)
+(adefun edit-note (user-id note-id note-data)
   "Edit an existing note."
   ;; first, check if the user owns the note, or at least has write access to the
   ;; board the note belongs to. we also check that, if moving the note to a new
   ;; board, that the user has access tot he new board as well.
-  (alet* ((cur-board-id (get-note-board-id note-id))
-          (new-board-id (gethash "board_id" note-data))
-          (perms-cur (get-user-note-permissions user-id note-id))
-          (perms-new (if (string= cur-board-id new-board-id)
-                         perms-cur
-                         (get-user-board-permissions user-id new-board-id))))
-    (if (and (<= 2 perms-cur)
-             (<= 2 perms-new))
-        ;; TODO: validate if changing board_id that user is member of new board
-        (validate-note (note-data future :edit t)
-          (add-mod note-data)
-          (remhash "user_id" note-data)
-          ;; don't let a regular note edit mess with file hashes, since it will
-          ;; throw syncing off.
-          (alet* ((cur-board-id (get-note-board-id note-id))
-                  (new-board-id (or (gethash "board_id" note-data) cur-board-id))
-                  (sock (db-sock))
-                  (query (r:r (:update
-                                (:get (:table "notes") note-id)
-                                note-data)))
-                  (nil (r:run sock query))
-                  ;; return the latest, full version of the note data
-                  (note-data (get-note-by-id note-id))
-                  (user-ids (get-affected-users-from-board-ids (list cur-board-id new-board-id)))
-                  (sync-ids (add-sync-record user-id "note" note-id "edit" :rel-ids user-ids)))
-            (r:disconnect sock)
-            (setf (gethash "sync_ids" note-data) sync-ids)
-            (finish future note-data)))
-        (signal-error future (make-instance 'insufficient-privileges
-                                            :msg (if (< perms-cur 2)
-                                                     "Sorry, you are editing a note you don't have access to."
-                                                     "You do not have access to the board you're moving this note to."))))))
+  (alet* ((cur-note-data (get-note-by-id note-id))
+          (note-user-id (gethash "user_id" cur-note-data))
+          (old-board-ids (gethash "boards" cur-note-data))
+          (new-board-ids (gethash "boards" note-data))
+          (board-perms (get-user-board-perms user-id :min-perms 2))
+          (diff (note-boards-diff old-board-ids new-board-ids))
+          ;; silently remove boards we don't have access to
+          (diff (validate-diff user-id note-user-id diff board-perms))
+          (board-ids (apply-diff old-board-ids diff)))
+    (unless (user-can-edit-note-p user-id cur-note-data board-perms)
+      (error 'insufficient-privileges
+             :msg "Sorry, you are editing a note you don't have access to."))
+    (setf (gethash "boards" note-data) (coerce board-ids 'simple-array))
+    (validate-note (note-data :edit t)
+      (add-mod note-data)
+      ;; don't allow changing the note user
+      (remhash "user_id" note-data)
+      ;; don't let a regular note edit mess with file hashes, since it will
+      ;; throw syncing off.
+      (alet* ((sock (db-sock))
+              (query (r:r (:update
+                            (:get (:table "notes") note-id)
+                            note-data)))
+              (nil (r:run sock query))
+              ;; return the latest, full version of the note data
+              (note-data (get-note-by-id note-id))
+              (user-ids (get-affected-users-from-board-ids (append old-board-ids new-board-ids)))
+              (sync-ids (add-sync-record user-id "note" note-id "edit" :rel-ids user-ids)))
+        (r:disconnect sock)
+        (format t "data: ~a ~a~%" note-id note-data)
+        (setf (gethash "sync_ids" note-data) sync-ids)
+        note-data))))
 
 (defun make-note-file (&key hash)
   "Make a file descriptor hash object."
@@ -193,7 +300,7 @@
     (if (<= 2 perms)
         (validate-note-file (file-data future)
           (alet* ((note (get-note-by-id note-id))
-                  (board-id (gethash "board_id" note))
+                  (board-ids (gethash "boards" note))
                   (sock (db-sock))
                   (query (r:r (:replace
                                 (:get (:table "notes") note-id)
@@ -207,7 +314,7 @@
                                                          (:attr note "file"))
                                                      file-data)))))))))
                   (nil (r:run sock query))
-                  (user-ids (unless skip-sync (get-affected-users-from-board-ids (list board-id))))
+                  (user-ids (unless skip-sync (get-affected-users-from-board-ids board-ids)))
                   (action (if (and (gethash "file" note)
                                    (gethash "hash" (gethash "file" note)))
                               "edit"
@@ -219,63 +326,56 @@
         (signal-error future (make-instance 'insufficient-privileges
                                             :msg "Sorry, you are editing a note you don't have access to.")))))
 
-(defafun delete-note-file (future) (user-id note-id &key perms)
+(adefun do-delete-note-file (user-id note-id &key note)
+  "Do the legwork of note file deletion."
+  (catcher
+    (alet* ((note (or note (get-note-by-id note-id)))
+            (board-ids (gethash "boards" note)))
+      (when (and (gethash "file" note)
+               (gethash "hash" (gethash "file" note)))
+        (multiple-promise-bind (nil res)
+            (if *local-upload*
+                (let ((file-path (get-file-path note-id)))
+                  (values (and (probe-file file-path) (delete-file file-path)) 200))
+                (s3-op :delete (format nil "/files/~a" note-id)))
+          (if (<= 200 res 299)
+              (alet* ((sock (db-sock))
+                      (query (r:r (:replace
+                                    (:get (:table "notes") note-id)
+                                    (r:fn (note)
+                                      (:without note "file")))))
+                      (nil (r:run sock query))
+                      (user-ids (get-affected-users-from-board-ids board-ids))
+                      (sync-ids (add-sync-record user-id "file" note-id "delete" :rel-ids user-ids)))
+                (r:disconnect sock)
+                sync-ids)
+              (error 'server-error :msg "There was a problem removing that note's attachment.")))))
+    ;; silently fail when we're deleting a note file that doesn't exist
+    (not-found () nil)))
+
+(adefun delete-note-file (user-id note-id)
   "Delete the file attachment for a note (also removes the file itself from the
    storage system, wiping the file out forever)."
-  (catcher
-    (alet* ((perms (or perms (get-user-note-permissions user-id note-id))))
-      (if (<= 2 perms)
-          (alet* ((note (get-note-by-id note-id))
-                  (board-id (gethash "board_id" note)))
-            (if (and (gethash "file" note)
-                     (gethash "hash" (gethash "file" note)))
-                (multiple-promise-bind (nil res)
-                    (if *local-upload*
-                        (let ((file-path (get-file-path note-id)))
-                          (values (and (probe-file file-path) (delete-file file-path)) 200))
-                        (s3-op :delete (format nil "/files/~a" note-id)))
-                  (if (<= 200 res 299)
-                      (alet* ((sock (db-sock))
-                              (query (r:r (:replace
-                                            (:get (:table "notes") note-id)
-                                            (r:fn (note)
-                                              (:without note "file")))))
-                              (nil (r:run sock query))
-                              (user-ids (get-affected-users-from-board-ids (list board-id)))
-                              (sync-ids (add-sync-record user-id "file" note-id "delete" :rel-ids user-ids)))
-                        (r:disconnect sock)
-                        (finish future sync-ids))
-                      (signal-error future (make-instance 'server-error
-                                                          :msg "There was a problem removing that note's attachment."))))
-                (finish future nil)))
-          (signal-error future (make-instance 'insufficient-privileges
-                                              :msg "Sorry, you are editing a note you don't have access to."))))
-    ;; silently fail when we're deleting a note file that doesn't exist
-    (not-found (e) (finish future nil))))
+  (alet* ((note-data (get-note-by-id note-id))
+          (board-perms (get-user-board-perms user-id :min-perms 2)))
+    (unless (user-can-edit-note-p user-id note-data board-perms)
+      (error 'insufficient-privileges :msg "Sorry, you are editing a note you don't have access to."))
+    (do-delete-note-file user-id note-id :note note-data)))
 
-(defafun delete-note (future) (user-id note-id)
+(adefun delete-note (user-id note-id)
   "Delete a note."
-  (alet ((perms (get-user-note-permissions user-id note-id)))
-    (if (<= 2 perms)
-        (alet* ((file-sync-ids (delete-note-file user-id note-id :perms perms))
-                (board-id (get-note-board-id note-id))
-                (user-ids (get-affected-users-from-board-ids (list board-id)))
-                (sock (db-sock))
-                (query (r:r (:delete (:get (:table "notes") note-id))))
-                (nil (r:run sock query))
-                (sync-ids (add-sync-record user-id "note" note-id "delete" :rel-ids user-ids)))
-          (r:disconnect sock)
-          (finish future (append sync-ids file-sync-ids)))
-        (signal-error future (make-instance 'insufficient-privileges
-                                            :msg "Sorry, you are deleting a note you don't have access to.")))))
-
-(defafun batch-note-edit (future) (user-id batch-edit-data)
-  "Takes an array of note edits and invidually calls edit-note on each edit.
-   Stops in its tracks if an error occurs...good thing it's idempotent."
-  (loop for note-edit across batch-edit-data do
-    (let ((note-id (gethash "id" note-edit)))
-      (edit-note user-id note-id note-edit)))
-  (finish future t))
+  (alet* ((note-data (get-note-by-id note-id))
+          (board-perms (get-user-board-perms user-id :min-perms 2)))
+    (unless (user-can-edit-note-p user-id note-data board-perms)
+      (error 'insufficient-privileges :msg "Sorry, you are deleting a note you don't have access to."))
+    (alet* ((file-sync-ids (do-delete-note-file user-id note-id :note note-data))
+            (user-ids (get-affected-users-from-board-ids (gethash "boards" note-data)))
+            (sock (db-sock))
+            (query (r:r (:delete (:get (:table "notes") note-id))))
+            (nil (r:run sock query))
+            (sync-ids (add-sync-record user-id "note" note-id "delete" :rel-ids user-ids)))
+      (r:disconnect sock)
+      (append sync-ids file-sync-ids))))
 
 (defun get-file-size-summary (bytes)
   "Given a size in bytes, return a summary of how large the file is (used mainly
