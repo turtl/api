@@ -25,8 +25,9 @@
           (gethash "type" sync-record) item-type
           (gethash "item_id" sync-record) item-id
           (gethash "action" sync-record) action)
-    ;; set our relation, if specified
-    (when rel-ids (setf (gethash "rel" sync-record) (remove-duplicates rel-ids :test #'string=)))
+    ;; the originating user should always be in the relations
+    (push user-id rel-ids)
+    (setf (gethash "rel" sync-record) (remove-duplicates rel-ids :test #'string=))
     ;; can store the client id (cid) of a newly-created object
     (when client-id (setf (gethash "cid" sync-record) client-id))
     ;; can be used to specify the public fields changed in an edit
