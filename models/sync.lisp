@@ -26,7 +26,9 @@
           (gethash "item_id" sync-record) item-id
           (gethash "action" sync-record) action)
     ;; the originating user should always be in the relations
-    (push user-id rel-ids)
+    (if (listp rel-ids)
+        (push user-id rel-ids)
+        (setf rel-ids (concatenate 'vector rel-ids (vector user-id))))
     (setf (gethash "rel" sync-record) (remove-duplicates rel-ids :test #'string=))
     ;; can store the client id (cid) of a newly-created object
     (when client-id (setf (gethash "cid" sync-record) client-id))
