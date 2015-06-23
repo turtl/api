@@ -152,7 +152,7 @@
                      :index (db-index "sync" "scan_user")
                      :left-bound "open")))
           ;; wrap changes around the above query
-          (query-poll (r:r (:changes query :squash 3))))
+          (query-poll (r:r (:changes query :squash 1))))
     ;; run the changes query, saving the return promise
     (let ((poll-promise (when poll (r:run sock-poll query-poll))))
       ;; run the non-changes query and grab the results
