@@ -36,6 +36,24 @@
         (alet* ((boards (get-all-boards user-id (map 'list (lambda (p) (gethash "id" p)) personas)))
                 (board-ids (map 'list (lambda (b) (gethash "id" b)) boards))
                 (notes (get-all-notes user-id board-ids))
+                ;; this is a weird case we need to handle. basically, notes in
+                ;; the old data model just got 1 board id and would be pulled
+                ;; out via that board id. now, notes can have multiple boards so
+                ;; are pulled out by board ids AND user id. if we get a note
+                ;; by user id that has a board_id we don't have access to, it
+                ;; means we added a note to a shared board we no longer are a
+                ;; member of, and that note is now undecryptable (to us). in
+                ;; this case, we just remove the note.
+                ;; 
+                ;; NOTE that this only happens in old notes (with a "board_id")
+                ;; vs new news (w/ "boards") because new notes will always have
+                ;; an accompanying keychain entry for that note (in case it's
+                ;; not in any boards).
+                (notes (remove-if (lambda (note)
+                                    (let ((board-id (gethash "board_id" note)))
+                                      (and board-id
+                                           (not (find board-id board-ids :test 'string=)))))
+                                  notes))
                 (files (remove-if-not (lambda (note)
                                         (and (hget note '("file"))
                                              (hget note '("file" "hash"))))
