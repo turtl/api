@@ -37,10 +37,9 @@
 (adefun get-all-boards (user-id persona-ids)
   "Given a user id and list of persona ids, get all boards this user has access
    to."
-  (declare (ignore persona-ids))
-  ;; TODO: actually build this function out and make it useful. until then, we
-  ;; rely on old (and slow) tricks
-  (get-user-boards user-id :get-persona-boards t :get-personas t))
+  (alet* ((board-ids (get-all-user-board-ids user-id :persona-ids persona-ids))
+          (boards (get-boards-by-ids board-ids :get-personas t)))
+    boards))
 
 (adefun get-affected-users-from-board-ids (board-ids)
   "For all given board-ids (list), find users that will be affected by changes
@@ -129,6 +128,47 @@
                   (board-ids (r:to-array sock cursor)))
             (r:stop sock cursor)
             (get-user-board-ids board-ids))))))
+
+(adefun get-boards-by-ids (board-ids &key get-personas)
+  "Given a list of board IDs, grab all associated boards (and optionally their
+   linked personas)."
+  (alet* ((sock (db-sock))
+          (query (r:r (:get-all
+                         (:table "boards")
+                         board-ids)))
+          (cursor (r:run sock query))
+          (boards (r:to-array sock cursor))
+          (nil (r:stop sock cursor)))
+    (finally
+      (if get-personas
+          (alet* ((query (r:r (:eq-join
+                                (:get-all
+                                  (:table "boards_personas_link")
+                                  board-ids
+                                  :index (db-index "boards_personas_link" "board_id"))
+                                "to"
+                                (:table "personas"))))
+                  (cursor (r:run sock query))
+                  (privs/personas (r:to-array sock cursor))
+                  (nil (r:stop sock cursor))
+                  (board-index (hash)))
+            (loop for board across boards
+                  for board-id = (gethash "id" board) do
+              (setf (gethash board-id board-index) board))
+            (loop for entry across privs/personas
+                  for link = (hget entry '("left"))
+                  for board-id = (gethash "board_id" link)
+                  for persona = (gethash "right" entry)
+                  for board = (gethash board-id board-index) do
+              (push persona (gethash "personas" board))
+              (unless (gethash "privs" board)
+                (setf (gethash "privs" board) (hash)))
+              (let ((privs (gethash "privs" board))
+                    (persona-id (gethash "id" persona)))
+                (setf (gethash persona-id privs) link)))
+            boards)
+          boards)
+      (r:disconnect sock))))
 
 (adefun get-user-board-perms (user-id &key min-perms)
   "Grab all a users boards, including shared, with permissions."
