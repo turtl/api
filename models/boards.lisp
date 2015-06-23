@@ -77,6 +77,7 @@
     (r:disconnect sock)
     (concatenate 'vector shared-user-ids board-user-ids)))
 
+;; TODO: remove me!!
 (adefun get-user-boards (user-id &key get-persona-boards get-notes get-personas)
   "Get all boards for a user."
   (alet* ((sock (db-sock))
