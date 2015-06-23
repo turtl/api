@@ -37,7 +37,7 @@
       (load file))
     file-list))
 
-(defun db-sock (&key (db *db-name*) (timeout 15))
+(defun db-sock (&key (db *db-name*) (timeout 60))
   "Makes connecting to the database a smidgen easier."
   (r:connect *db-host* *db-port* :db db :read-timeout timeout))
 
