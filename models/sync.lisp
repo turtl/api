@@ -206,9 +206,12 @@
             for table = (case (intern (string-upcase type) :keyword)
                           (:user "users")
                           (:keychain "keychain")
+                          (:persona "personas")
                           (:board "boards")
                           (:note "notes")
                           (:file "notes")) do
+        (unless table
+          (error (format nil "bad sync type: ~a" type)))
         (push (link-sync-items collection-arr table) actions))
       ;; once our objects finish linking, flatten our groups and sort by sync id
       ;; ascending
