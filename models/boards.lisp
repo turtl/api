@@ -38,7 +38,9 @@
   "Given a user id and list of persona ids, get all boards this user has access
    to."
   (alet* ((board-ids (get-all-user-board-ids user-id :persona-ids persona-ids))
-          (boards (get-boards-by-ids board-ids :get-personas t)))
+          (boards (if (zerop (length board-ids))
+                      #()
+                      (get-boards-by-ids board-ids :get-personas t))))
     boards))
 
 (adefun get-affected-users-from-board-ids (board-ids)
@@ -176,12 +178,14 @@
   (alet* ((persona-ids (get-user-persona-ids user-id))
           (user-board-ids (get-all-user-board-ids user-id))
           (sock (db-sock))
+          ;; TODO: "fake id" is stupid hack, don't run query at all if no personas
           (qry (r:r (:pluck
                       (:zip
                         (:eq-join
                           (:get-all
                             (:table "boards_personas_link")
-                            (coerce persona-ids 'list)
+                            (or (coerce persona-ids 'list)
+                                '("fake id"))
                             :index (db-index "boards_personas_link" "to"))
                           "board_id"
                           (:table "boards")))
