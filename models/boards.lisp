@@ -298,10 +298,10 @@
   ;; dataz immy boardt!"
   (alet ((perms (get-user-board-permissions user-id board-id)))
     (if (<= 3 perms)
-        (validate-board (board-data future :edit t)
+        (validate-board (board-data future)
           (remhash "user_id" board-data)
           (alet* ((sock (db-sock))
-                  (query (r:r (:update
+                  (query (r:r (:replace
                                 (:get (:table "boards") board-id)
                                 board-data)))
                   (nil (r:run sock query))

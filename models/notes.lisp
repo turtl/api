@@ -147,11 +147,12 @@
     (lambda (entry)
       (let* ((board-id (cdr entry))
              (action (car entry))
-             (board-perm (gethash board-id board-perms))
+             (board-perm (or (gethash board-id board-perms)
+                             (hash)))
              ;; set up our permissions
-             (has-board-write-perms-p (<= 2 (gethash "perms" board-perm)))
+             (has-board-write-perms-p (<= 2 (or (gethash "perms" board-perm) 0)))
              (user-owns-note-p (string= user-id note-owner-id))
-             (user-owns-board-p (string= user-id (gethash "owner" board-perm))))
+             (user-owns-board-p (string= user-id (or (gethash "owner" board-perm) ""))))
         (declare (ignore action))
         ;(or (and user-owns-note-p
         ;         user-owns-board-p)
@@ -242,14 +243,14 @@
       (error 'insufficient-privileges
              :msg "Sorry, you are editing a note you don't have access to."))
     (setf (gethash "boards" note-data) (coerce board-ids 'simple-array))
-    (validate-note (note-data :edit t)
+    (validate-note (note-data)
       (add-mod note-data)
       ;; don't allow changing the note user
       (remhash "user_id" note-data)
       ;; don't let a regular note edit mess with file hashes, since it will
       ;; throw syncing off.
       (alet* ((sock (db-sock))
-              (query (r:r (:update
+              (query (r:r (:replace
                             (:get (:table "notes") note-id)
                             note-data)))
               (nil (r:run sock query))
@@ -258,7 +259,6 @@
               (user-ids (get-affected-users-from-board-ids (append old-board-ids new-board-ids)))
               (sync-ids (add-sync-record user-id "note" note-id "edit" :rel-ids user-ids)))
         (r:disconnect sock)
-        (format t "data: ~a ~a~%" note-id note-data)
         (setf (gethash "sync_ids" note-data) sync-ids)
         note-data))))
 
