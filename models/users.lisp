@@ -173,7 +173,8 @@
         (all (mapcar (lambda (b) (delete-board user-id b)) boards))
         (all (mapcar (lambda (p) (delete-persona user-id p)) personas))
         (all (mapcar (lambda (k) (delete-keychain-entry user-id k)) keychain))
-        (delete-user-record user-id)))))
+        (delete-user-record user-id)
+        (delete-sync-items user-id :only-affects-user t)))))
 
 (defafun get-user-data (future) (user-id)
   "Get the private data section (`body` key) for a user."

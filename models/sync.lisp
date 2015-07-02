@@ -317,6 +317,25 @@
               ("fail" (mapcar (lambda (x) (gethash "id" x)) track-failed))
               ("error" error))))))
 
+(adefun delete-sync-items (user-id &key only-affects-user)
+  "Delete sync records by user id, with the option of only deleting records that
+   affect that one user."
+  (alet* ((sock (db-sock))
+          (query (r:r (:delete
+                        (:filter
+                          (:between
+                            (:table "sync")
+                            (list user-id (:minval))
+                            (list user-id (:maxval))
+                            :index (db-index "sync" "scan_user"))
+                          (r:fn (s)
+                            (if only-affects-user
+                                t
+                                (:== (:count (:attr s "rel")) 1)))))))
+          (nil (r:run sock query)))
+    (r:disconnect sock)
+    t))
+
 ;;; ----------------------------------------------------------------------------
 ;;; some more deprecated stuff
 ;;; ----------------------------------------------------------------------------
