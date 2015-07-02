@@ -61,3 +61,11 @@
             (user (edit-user user-id mod-user-id user-data)))
       (send-json res user))))
 
+(defroute (:delete "/api/users/([0-9a-f-]+)") (req res args)
+  "Remove a traitorous user and their data from Turtl."
+  (catch-errors (res)
+    (alet* ((user-id (user-id req))
+            (mod-user-id (car args))
+            (success (delete-user user-id mod-user-id)))
+      (send-json res success))))
+

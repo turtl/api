@@ -149,6 +149,32 @@
        (signal-error future (make-instance 'user-mismatch
                                            :msg "You tried to edit someone else's account. For shame."))))
 
+(adefun delete-user-record (user-id)
+  "Delete a user record"
+  (alet* ((sock (db-sock))
+          (query (r:r (:delete (:get (:table "users") user-id))))
+          (nil (r:run sock query)))
+    (r:disconnect sock)
+    t))
+
+(adefun delete-user (user-id mod-user-id)
+  "Delete a user and all their data."
+  (unless (string= user-id mod-user-id)
+    (error "You can only delete your own account."))
+  (flet ((ids (promise-collection)
+           (alet* ((collection promise-collection))
+             (map 'list (lambda (i) (gethash "id" i)) collection))))
+    (alet ((notes (ids (get-all-notes user-id nil)))
+           (boards (ids (get-all-boards user-id nil)))
+           (personas (ids (get-user-personas user-id)))
+           (keychain (ids (get-user-keychain user-id))))
+      (walk
+        (all (mapcar (lambda (n) (delete-note user-id n)) notes))
+        (all (mapcar (lambda (b) (delete-board user-id b)) boards))
+        (all (mapcar (lambda (p) (delete-persona user-id p)) personas))
+        (all (mapcar (lambda (k) (delete-keychain-entry user-id k)) keychain))
+        (delete-user-record user-id)))))
+
 (defafun get-user-data (future) (user-id)
   "Get the private data section (`body` key) for a user."
   (alet* ((sock (db-sock))
