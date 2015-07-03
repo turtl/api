@@ -247,9 +247,7 @@
     (validate-note (note-data)
       (add-mod note-data)
       ;; don't allow changing the note user
-      (remhash "user_id" note-data)
-      ;; don't let a regular note edit mess with file hashes, since it will
-      ;; throw syncing off.
+      (setf (gethash "user_id" note-data) (gethash "user_id" cur-note-data))
       (alet* ((sock (db-sock))
               (query (r:r (:replace
                             (:get (:table "notes") note-id)
@@ -374,6 +372,7 @@
             (sock (db-sock))
             (query (r:r (:delete (:get (:table "notes") note-id))))
             (nil (r:run sock query))
+            (nil (delete-keychain-entries user-id note-id))
             (sync-ids (add-sync-record user-id "note" note-id "delete" :rel-ids user-ids)))
       (r:disconnect sock)
       (append sync-ids file-sync-ids))))
