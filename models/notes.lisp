@@ -201,9 +201,10 @@
   ;; first, check that the user/persona is a member of this board
   (alet* ((board-ids (gethash "boards" note-data))
           (board-perms (get-user-board-perms user-id :min-perms 2))
-          (diff (map 'list (lambda (id) (list :add id)) board-ids))
+          (diff (map 'list (lambda (id) (cons :add id)) board-ids))
           ;; silently remove boards we don't have access to
-          (board-ids (validate-diff user-id user-id diff board-perms)))
+          (diff (validate-diff user-id user-id diff board-perms))
+          (board-ids (apply-diff nil diff)))
     (setf (gethash "boards" note-data) (coerce board-ids 'simple-array))
     (validate-note (note-data)
       (when (and (gethash "file" note-data)
