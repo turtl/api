@@ -322,7 +322,7 @@
                 (query (r:r (:delete (:get (:table "boards") board-id))))
                 (nil (r:run sock query))
                 (query (r:r (:delete
-                              (:get-all (:table "notes") board-id :index (db-index "notes" "board_id")))))
+                              (:get-all (:table "notes") board-id :index (db-index "notes" "boards")))))
                 (nil (r:run sock query))
                 (query (r:r (:delete
                               (:get-all (:table "boards_personas_link") board-id :index (db-index "boards_personas_link" "board_id")))))
