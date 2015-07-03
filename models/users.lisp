@@ -166,13 +166,13 @@
              (map 'list (lambda (i) (gethash "id" i)) collection))))
     (alet ((notes (ids (get-all-notes user-id nil)))
            (boards (ids (get-all-boards user-id nil)))
-           (personas (ids (get-user-personas user-id)))
-           (keychain (ids (get-user-keychain user-id))))
+           (personas (ids (get-user-personas user-id))))
       (walk
         (all (mapcar (lambda (n) (delete-note user-id n)) notes))
         (all (mapcar (lambda (b) (delete-board user-id b)) boards))
         (all (mapcar (lambda (p) (delete-persona user-id p)) personas))
-        (all (mapcar (lambda (k) (delete-keychain-entry user-id k)) keychain))
+        (alet ((keychain (ids (get-user-keychain user-id))))
+          (all (mapcar (lambda (k) (delete-keychain-entry user-id k)) keychain)))
         (delete-user-record user-id)
         (delete-sync-items user-id :only-affects-user t)))))
 
