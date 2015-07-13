@@ -5,7 +5,10 @@
      (:indexes
        (:a (:version 1)
         :invite_code (:version 1)))
-    :boards (:indexes (:user_id (:version 1)))
+    :boards
+     (:indexes
+       (:user_id (:version 1)
+        :parent_id (:version 1)))
     :notes
      (:indexes
        (:boards
