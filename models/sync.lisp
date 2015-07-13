@@ -290,7 +290,7 @@
         (t
           (error (format nil "Unknown sync record given (~a)" type)))))))
 
-(adefun bulk-sync (user-id sync-items)
+(adefun bulk-sync (user-id sync-items &key request)
   "Given a set of bulk items to sync to a user's profile, run them each. This is
    done sequentially in order to catch errors (and preserve order in the case of
    errors)."
@@ -302,11 +302,16 @@
                       ;; pop the failure that corresponds to this item off the
                       ;; head of the fails list
                       (setf track-failed (cdr track-failed))
-                      (let ((sync-ids (gethash "sync_ids" item)))
+                      (let* ((sync-ids (gethash "sync_ids" item))
+                             (type (gethash "type" sync))
+                             (action (gethash "action" sync))
+                             (track-action (string-downcase
+                                             (format nil "~a-~a" type action))))
+                        (track track-action nil request);
                         (remhash "sync_ids" item)
                         (push (hash ("id" (gethash "id" sync))
-                                    ("type" (gethash "type" sync))
-                                    ("action" (gethash "action" sync))
+                                    ("type" type)
+                                    ("action" action)
                                     ("sync_ids" sync-ids)
                                     ("data" item))
                               successes))))

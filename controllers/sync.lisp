@@ -46,7 +46,7 @@
                 ;; this case, we just remove the note.
                 ;; 
                 ;; NOTE that this only happens in old notes (with a "board_id")
-                ;; vs new news (w/ "boards") because new notes will always have
+                ;; vs new notes (w/ "boards") because new notes will always have
                 ;; an accompanying keychain entry for that note (in case it's
                 ;; not in any boards).
                 (notes (remove-if (lambda (note)
@@ -93,7 +93,10 @@
   (catch-errors (res)
     (alet* ((user-id (user-id req))
             (sync-items (jonathan:parse (babel:octets-to-string (request-body req)) :as :hash-table))
-            (synced (bulk-sync user-id sync-items)))
+            ;; i would normally turn my nose up at passing the req object to a
+            ;; model, but this is the easiest way to get analytics for bulk
+            ;; syncs
+            (synced (bulk-sync user-id sync-items :request req)))
       (send-json res synced))))
 
 
