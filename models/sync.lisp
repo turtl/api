@@ -341,62 +341,6 @@
     (r:disconnect sock)
     t))
 
-;;; ----------------------------------------------------------------------------
-;;; some more deprecated stuff
-;;; ----------------------------------------------------------------------------
-
-(defafun sync-user-items (future) (user-id sync-id item-type link-table)
-  "Generic query function to grab a user's sync items of a specific type. It
-   grabs the items themselves from link-table, and injects the sync_id of the
-   sync that the items is being pulled from."
-  ;; first, grab all sync items for this user/type
-  (alet* ((sock (db-sock))
-          (query (r:r
-                   (:between
-                     (:table "sync")
-                     (list user-id item-type (or sync-id ""))
-                     (list user-id item-type "z")
-                     :index (db-index "sync" "user_search")
-                     :left-bound "open")))
-          (cursor (r:run sock query))
-          (sync-items (r:to-array sock cursor)))
-    (r:stop/disconnect sock cursor)
-    (alet ((sync (link-sync-items sync-items link-table)))
-      (finish future sync))))
-
-(defafun sync-user (future) (user-id sync-id)
-  "Grab any changed user data."
-  (alet* ((users (sync-user-items user-id sync-id "user" "users")))
-    (loop for user across users do
-      (setf (gethash "storage" user) (calculate-user-storage user)))
-    (finish future users)))
-
-(defafun sync-user-keychain (future) (user-id sync-id)
-  "Grab all changed keychain entries."
-  (alet* ((keychain (sync-user-items user-id sync-id "keychain" "keychain")))
-    (finish future keychain)))
-
-(defafun sync-user-personas (future) (user-id sync-id)
-  "Grab any changed personas."
-  (alet* ((personas (sync-user-items user-id sync-id "persona" "personas")))
-    (finish future personas)))
-
-(defafun sync-user-boards (future) (user-id sync-id &key get-personas)
-  "Grab all changed boards for a user."
-  (alet* ((boards (sync-id-user-scan user-id sync-id "board" "boards"))
-          (boards (populate-boards-data boards :get-personas get-personas)))
-    (finish future boards)))
-
-(defafun sync-user-notes (future) (user-id sync-id)
-  "Grab all notes for this user that have changed."
-  (alet* ((notes (sync-id-user-scan user-id sync-id "note" "notes")))
-    (finish future notes)))
-
-(defafun sync-user-files (future) (user-id sync-id)
-  "Grab all files for this user that have changed."
-  (alet* ((files (sync-id-user-scan user-id sync-id "file" "notes")))
-    (finish future files)))
-
 (defafun cleanup-sync (future) ()
   "Remove all sync items older than 30 days."
   (alet* ((timestamp (- (get-timestamp) 2592000))
@@ -411,29 +355,4 @@
           (nil (r:run sock query)))
     (r:disconnect sock)
     (finish future t)))
-
-(defafun sync-id-user-scan (future) (user-id sync-id item-type link-table)
-  "Given a user id, sync id, and item type, pull out all sync records *after*
-   the given sync-id, where the `rel` field contains the given user-id, and the
-   sync type matches the passed type. Links grabbed sync items against the given
-   link-table.
-   
-   This is useful for boards/notes, because whenever they change (ie add a sync
-   record) they also record (in the `rel` field) which users are affected by the
-   change."
-  (alet* ((sock (db-sock))
-          (query (r:r
-                   (:filter
-                     (:get-all
-                       (:table "sync")
-                       user-id
-                       :index (db-index "sync" "rel"))
-                     (r:fn (s)
-                       (:&& (:== (:attr s "type") item-type)
-                            (:< sync-id (:attr s "id")))))))
-          (cursor (r:run sock query))
-          (sync-items (r:to-array sock cursor)))
-    (r:stop/disconnect sock cursor)
-    (alet ((sync (link-sync-items sync-items link-table)))
-      (finish future sync))))
 

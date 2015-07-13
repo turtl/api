@@ -68,7 +68,6 @@
      (:file "messages")
      (:file "notes")
      (:file "personas")
-     (:file "profile")
      (:file "sync")
      (:file "users")
      (:file "keychain")
