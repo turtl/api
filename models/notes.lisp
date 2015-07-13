@@ -365,17 +365,20 @@
   "Delete a note."
   (alet* ((note-data (get-note-by-id note-id))
           (board-perms (get-user-board-perms user-id :min-perms 2)))
-    (unless (user-can-edit-note-p user-id note-data board-perms)
-      (error 'insufficient-privileges :msg "Sorry, you are deleting a note you don't have access to."))
-    (alet* ((file-sync-ids (do-delete-note-file user-id note-id :note note-data))
-            (user-ids (get-affected-users-from-board-ids (gethash "boards" note-data)))
-            (sock (db-sock))
-            (query (r:r (:delete (:get (:table "notes") note-id))))
-            (nil (r:run sock query))
-            (nil (delete-keychain-entries user-id note-id))
-            (sync-ids (add-sync-record user-id "note" note-id "delete" :rel-ids user-ids)))
-      (r:disconnect sock)
-      (append sync-ids file-sync-ids))))
+    (block note-data
+      (unless note-data
+        (return-from note-data #()))
+      (unless (user-can-edit-note-p user-id note-data board-perms)
+        (error 'insufficient-privileges :msg "Sorry, you are deleting a note you don't have access to."))
+      (alet* ((file-sync-ids (do-delete-note-file user-id note-id :note note-data))
+              (user-ids (get-affected-users-from-board-ids (gethash "boards" note-data)))
+              (sock (db-sock))
+              (query (r:r (:delete (:get (:table "notes") note-id))))
+              (nil (r:run sock query))
+              (nil (delete-keychain-entries user-id note-id))
+              (sync-ids (add-sync-record user-id "note" note-id "delete" :rel-ids user-ids)))
+        (r:disconnect sock)
+        (append sync-ids file-sync-ids)))))
 
 (defun get-file-size-summary (bytes)
   "Given a size in bytes, return a summary of how large the file is (used mainly
