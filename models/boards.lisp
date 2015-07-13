@@ -296,10 +296,11 @@
   ;; first, check if the user owns the board. any non-owner edits have to be
   ;; done via different (more specific) methods than just "LOL replace all teh
   ;; dataz immy boardt!"
-  (alet ((perms (get-user-board-permissions user-id board-id)))
+  (alet* ((perms (get-user-board-permissions user-id board-id))
+          (current-board (get-board-by-id board-id)))
     (if (<= 3 perms)
         (validate-board (board-data future)
-          (remhash "user_id" board-data)
+          (setf (gethash "user_id" board-data) (gethash "user_id" current-board))
           (alet* ((sock (db-sock))
                   (query (r:r (:replace
                                 (:get (:table "boards") board-id)
@@ -313,23 +314,28 @@
         (signal-error future (make-instance 'insufficient-privileges
                                             :msg "Sorry, you are editing a board you don't own.")))))
 
-(defafun delete-board (future) (user-id board-id)
+(adefun delete-board (user-id board-id)
   "Delete a board."
-  (alet ((perms (get-user-board-permissions user-id board-id)))
-    (if (<= 3 perms)
-        (alet* ((user-ids (get-affected-users-from-board-ids (list board-id)))
-                (sock (db-sock))
-                (query (r:r (:delete (:get (:table "boards") board-id))))
-                (nil (r:run sock query))
-                (query (r:r (:delete
-                              (:get-all (:table "boards_personas_link") board-id :index (db-index "boards_personas_link" "board_id")))))
-                (nil (r:run sock query))
-                (nil (delete-keychain-entries user-id board-id))
-                (sync-ids (add-sync-record user-id "board" board-id "delete" :rel-ids user-ids)))
-          (r:disconnect sock)
-          (finish future sync-ids))
-        (signal-error future (make-instance 'insufficient-privileges
-                                            :msg "Sorry, you are deleting a board you don't own.")))))
+  (alet* ((board (and board-id (get-board-by-id board-id)))
+          (perms (if board
+                     (get-user-board-permissions user-id nil :board board)
+                     0)))
+    (if board
+        (if (<= 3 perms)
+            (alet* ((user-ids (get-affected-users-from-board-ids (list board-id)))
+                    (sock (db-sock))
+                    (query (r:r (:delete (:get (:table "boards") board-id))))
+                    (nil (r:run sock query))
+                    (query (r:r (:delete
+                                  (:get-all (:table "boards_personas_link") board-id :index (db-index "boards_personas_link" "board_id")))))
+                    (nil (r:run sock query))
+                    (nil (delete-keychain-entries user-id board-id))
+                    (sync-ids (add-sync-record user-id "board" board-id "delete" :rel-ids user-ids)))
+              (r:disconnect sock)
+              sync-ids)
+            (error (make-instance 'insufficient-privileges
+                                  :msg "Sorry, you are deleting a board you don't own.")))
+        #())))
 
 (defafun get-board-persona-link (future) (board-id to-persona-id)
   "Given a board id and a persona being shared with, pull out the ID of the
@@ -350,7 +356,7 @@
         (finish future nil)
         (finish future (aref links 0)))))
 
-(defafun get-user-board-permissions (future) (user/persona-id board-id)
+(adefun get-user-board-permissions (user/persona-id board-id &key board)
   "Returns an integer used to determine a user/persona's permissions for the
    given board.
 
@@ -358,7 +364,9 @@
    1 == read permissions
    2 == update permissions
    3 == owner"
-  (alet* ((board (get-board-by-id board-id :get-privs t)))
+  (alet* ((board (if board
+                     board
+                     (get-board-by-id board-id :get-privs t))))
     (if (hash-table-p board)
         (let* ((user-id (gethash "user_id" board))
                (privs (gethash "privs" board))
@@ -372,8 +380,8 @@
                                   persona-privs)
                                  (t
                                   0))))
-          (finish future user-privs))
-        (finish future 0))))
+          user-privs)
+        0)))
 
 (defafun set-board-persona-permissions (future) (user-id board-id from-persona-id to-persona-id permission-value &key invite invite-remote)
   "Gives a persona permissions to view/update a board."
