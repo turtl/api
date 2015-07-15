@@ -1,37 +1,5 @@
 (in-package :turtl)
 
-(defroute (:post "/api/boards") (req res args)
-  "Add a board."
-  (catch-errors (res)
-    (alet* ((user-id (user-id req))
-            (board-data (post-var req "data")))
-      (unless (string= (user-id req) user-id)
-        (error 'insufficient-privileges :msg "You are trying to access another user's boards. For shame."))
-      (alet ((board (add-board user-id board-data)))
-        (track "board-add" nil req)
-        (send-json res board)))))
-
-(defroute (:put "/api/boards/([0-9a-f-]+)") (req res args)
-  "Edit a board."
-  (catch-errors (res)
-    (alet* ((user-id (user-id req))
-            (board-id (car args))
-            (board-data (post-var req "data")))
-      (alet ((board (edit-board user-id board-id board-data)))
-        (track "board-edit" nil req)
-        (send-json res board)))))
-
-(defroute (:delete "/api/boards/([0-9a-f-]+)") (req res args)
-  "Delete a board."
-  (catch-errors (res)
-    (alet* ((board-id (car args))
-            (user-id (user-id req))
-            (sync-ids (delete-board user-id board-id)))
-      (track "board-delete" nil req)
-      (let ((hash (make-hash-table :test #'equal)))
-        (setf (gethash "sync_ids" hash) sync-ids)
-        (send-json res hash)))))
-
 (defroute (:put "/api/boards/([0-9a-f-]+)/invites/persona/([0-9a-f-]+)") (req res args)
   "Invite a persona to a board."
   (catch-errors (res)

@@ -51,6 +51,7 @@
     (alet* ((user-id (user-id req)))
       (send-json res user-id))))
 
+;; TODO: delete? this should be handled by sync system now
 (defroute (:put "/api/users/([0-9a-f-]+)") (req res args)
   "Update a user's data. This generally means saving the settings in the user's
    encrypted data."

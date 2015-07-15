@@ -70,7 +70,6 @@
      (:file "personas")
      (:file "sync")
      (:file "users")
-     (:file "keychain")
      (:file "feedback")
      (:file "log")))
    (:file "routes" :depends-on (lib "init" controllers "crypto" "errors"))

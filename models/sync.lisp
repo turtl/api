@@ -248,6 +248,7 @@
              (alet* ((sync-ids del-promise))
                (hash ("id" item-id)
                      ("sync_ids" sync-ids)))))
+      (vom:debug "bulk sync: ~s ~s ~a" type action item-id)
       (case type
         (:user
           (case action

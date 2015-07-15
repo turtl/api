@@ -71,7 +71,7 @@
         (signal-error future (make-instance 'not-found
                                             :msg "Keychain entry not found.")))))
 
-(defafun delete-keychain-entry (future) (user-id key-id)
+(adefun delete-keychain-entry (user-id key-id)
   "Delete a keychain entry."
   ;; check that the user owns it first
   (alet* ((entry (get-keychain-entry-by-id key-id)))
@@ -82,11 +82,11 @@
                     (nil (r:run sock query))
                     (sync-ids (add-sync-record user-id "keychain" key-id "delete")))
               (r:disconnect sock)
-              (finish future sync-ids))
-            (signal-error future (make-instance 'insufficient-privileges
-                                                :msg "You're trying to delete a keychain entry that isn't yours.")))
-        (signal-error future (make-instance 'not-found
-                                            :msg "Keychain entry not found.")))))
+              sync-ids)
+            (error (make-instance 'insufficient-privileges
+                                  :msg "You're trying to delete a keychain entry that isn't yours.")))
+        ;; no entry? fail silently
+        #())))
 
 (defafun delete-keychain-entries (future) (user-id item-id)
   "Delete all keychain entries that are attached to the given item ID."
