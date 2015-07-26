@@ -288,6 +288,10 @@
               (edit-note user-id item-id item))
             (:delete
               (standard-delete (delete-note user-id item-id)))))
+        (:file
+          (case action
+            (:delete
+              (standard-delete (delete-note-file user-id item-id)))))
         (t
           (error (format nil "Unknown sync record given (~a)" type)))))))
 

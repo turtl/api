@@ -1,7 +1,7 @@
 (in-package :turtl)
 
 (defvalidator validate-note-file
-  (("hash" :type string :required t)
+  (("id" :type id :required t)
    ("size" :type integer)
    ("body" :type cl-async-util:bytes-or-string)
    ("upload_id" :type string))
@@ -89,6 +89,7 @@
       (do-index board-notes))
     (coerce (reverse final) 'simple-vector)))
 
+#|
 (defafun get-user-note-permissions (future) (user-id note-id)
   "'Returns' an integer used to determine a user's permissions for the given
    note.
@@ -109,6 +110,7 @@
                              board-perms)))
         (signal-error future (make-instance 'not-found
                                             :msg "That note wasn't found.")))))
+|#
 
 (defun note-boards-diff (old-boards new-boards)
   "Given an old set of board IDs, a new set of board IDs, and a collection of
@@ -181,6 +183,17 @@
                  items)
       adds)))
 
+(defun user-can-read-note-p (user-id note-data board-perms)
+  "Given a set of ownership/permissions values, dtermine if a user has access to
+   edit a note."
+  (or (user-can-edit-note-p user-id note-data board-perms)
+    ;; the user has write access to a board the note is in
+    (not (zerop (length (remove-if (lambda (board-id)
+                                     (let ((perm (gethash board-id board-perms)))
+                                       (or (not perm)
+                                           (< (gethash "perms" perm) 1))))
+                                   (gethash "boards" note-data)))))))
+
 (defun user-can-edit-note-p (user-id note-data board-perms)
   "Given a set of ownership/permissions values, dtermine if a user has access to
    edit a note."
@@ -208,7 +221,7 @@
     (setf (gethash "boards" note-data) (coerce board-ids 'simple-array))
     (validate-note (note-data)
       (when (and (gethash "file" note-data)
-                 (gethash "hash" (gethash "file" note-data)))
+                 (gethash "id" (gethash "file" note-data)))
         (setf (gethash "upload_id" (gethash "file" note-data)) -1))
       (alet* ((sock (db-sock))
               (query (r:r (:insert
@@ -261,45 +274,41 @@
         (setf (gethash "sync_ids" note-data) sync-ids)
         note-data))))
 
-(defun make-note-file (&key hash)
-  "Make a file descriptor hash object."
-  (let ((filedata (make-hash-table :test #'equal)))
-    (when hash (setf (gethash "hash" filedata) hash))
-    filedata))
-
 (defun get-file-path (file-id)
   "Generate the path of a file in the storage system based on its ID."
   (if *local-upload*
       (format nil "~a/~a" *local-upload* file-id)
       (format nil "/files/~a" file-id)))
 
-(defafun get-note-file-url (future) (user-id note-id hash &key (lifetime 60))
+(defafun get-note-file-url (future) (user-id note-id &key (lifetime 60))
   "Get a note's file URL. If note has no file, return nil. By default, the URL
    returned expires in 10 seconds, which should genreally be sufficient
    (especially for a redirect)."
-  (alet* ((perms (get-user-note-permissions user-id note-id)))
-    (if (<= 1 perms)
-        (alet* ((note (get-note-by-id note-id))
-                (file (gethash "file" note)))
-          (finish future
-                  (when (and file (gethash "hash" file)
-                             (or (not hash)
-                                 (and hash (string= hash (gethash "hash" file)))))
-                    (if *local-upload*
-                        (format nil "~a/files/~a" *local-upload-url* note-id)
-                        (get-s3-auth-url (getf *amazon-s3* :bucket)
-                                         (get-file-path note-id)
-                                         lifetime)))))
-        (signal-error future (make-instance 'insufficient-privileges
-                                            :msg "Sorry, you are accessing a note you don't have access to.")))))
+  (alet* ((note (get-note-by-id note-id))
+          (board-perms (get-user-board-perms user-id :min-perms 1)))
+    (if note
+        (if (user-can-read-note-p user-id note board-perms)
+            (alet* ((file (gethash "file" note))
+                    (id (gethash "id" file)))
+              (finish future
+                      (when (and file id)
+                        (if *local-upload*
+                            (format nil "~a/files/~a" *local-upload-url* note-id)
+                            (get-s3-auth-url (getf *amazon-s3* :bucket)
+                                             (get-file-path note-id)
+                                             lifetime)))))
+            (signal-error future (make-instance 'insufficient-privileges
+                                                :msg "Sorry, you are accessing a note you don't have access to.")))
+        (signal-error future (make-instance 'not-found :msg "That note wasn't found.")))))
 
 (defafun edit-note-file (future) (user-id note-id file-data &key remove-upload-id skip-sync)
   "Edit a note's file data."
-  (alet* ((perms (get-user-note-permissions user-id note-id)))
-    (if (<= 2 perms)
+  (alet* ((note (get-note-by-id note-id))
+          (board-perms (get-user-board-perms user-id :min-perms 2))
+          (allowed (user-can-edit-note-p user-id note board-perms)))
+    (if allowed
         (validate-note-file (file-data future)
-          (alet* ((note (get-note-by-id note-id))
-                  (board-ids (gethash "boards" note))
+          (alet* ((board-ids (gethash "boards" note))
                   (sock (db-sock))
                   (query (r:r (:replace
                                 (:get (:table "notes") note-id)
@@ -314,10 +323,8 @@
                                                      file-data)))))))))
                   (nil (r:run sock query))
                   (user-ids (unless skip-sync (get-affected-users-from-board-ids board-ids)))
-                  (action (if (and (gethash "file" note)
-                                   (gethash "hash" (gethash "file" note)))
-                              "edit"
-                              "add"))
+                  ;; always add the file
+                  (action "add")
                   (sync-ids (unless skip-sync (add-sync-record user-id "file" note-id action :rel-ids user-ids))))
             (r:disconnect sock)
             (setf (gethash "sync_ids" file-data) sync-ids)
@@ -331,7 +338,7 @@
     (alet* ((note (or note (get-note-by-id note-id)))
             (board-ids (gethash "boards" note)))
       (when (and (gethash "file" note)
-               (gethash "hash" (gethash "file" note)))
+               (gethash "id" (gethash "file" note)))
         (multiple-promise-bind (nil res)
             (if *local-upload*
                 (let ((file-path (get-file-path note-id)))
@@ -357,9 +364,11 @@
    storage system, wiping the file out forever)."
   (alet* ((note-data (get-note-by-id note-id))
           (board-perms (get-user-board-perms user-id :min-perms 2)))
-    (unless (user-can-edit-note-p user-id note-data board-perms)
-      (error 'insufficient-privileges :msg "Sorry, you are editing a note you don't have access to."))
-    (do-delete-note-file user-id note-id :note note-data)))
+    ;; skip empty notes
+    (when note-data
+      (unless (user-can-edit-note-p user-id note-data board-perms)
+        (error 'insufficient-privileges :msg "Sorry, you are editing a note you don't have access to."))
+      (do-delete-note-file user-id note-id :note note-data))))
 
 (adefun delete-note (user-id note-id)
   "Delete a note."

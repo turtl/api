@@ -56,7 +56,7 @@
                                   notes))
                 (files (remove-if-not (lambda (note)
                                         (and (hget note '("file"))
-                                             (hget note '("file" "hash"))))
+                                             (hget note '("file" "id"))))
                                       notes))
                 (files (map 'vector (lambda (x) (copy-hash x)) files))
                 (sync nil))

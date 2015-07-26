@@ -6,13 +6,8 @@
   (catch-errors (res)
     (alet* ((user-id (user-id req))
             (note-id (car args))
-            (persona-id (get-var req "persona"))
             (disable-redirect (get-var req "disable_redirect"))
-            (hash (get-var req "hash"))
-            (file-url (if persona-id
-                          (with-valid-persona (persona-id user-id)
-                            (get-note-file-url persona-id note-id hash))
-                          (get-note-file-url user-id note-id hash)))
+            (file-url (get-note-file-url user-id note-id))
             (headers (unless (string= disable-redirect "1")
                        `(:location ,file-url))))
       (if file-url
@@ -25,8 +20,8 @@
     (let* ((note-id (car args))
            (persona-id (get-var req "persona"))
            (file-id note-id)
-           (hash (get-var req "hash"))
-           (file (make-note-file :hash hash))
+           (id (get-var req "id"))
+           (file (hash ("id" id)))
            (path (get-file-path file-id))
            (total-file-size 0)
            (fd nil)
@@ -59,8 +54,8 @@
     (alet* ((note-id (car args))
             (persona-id (get-var req "persona"))
             (file-id note-id)
-            (hash (get-var req "hash"))
-            (file (make-note-file :hash hash))
+            (id (get-var req "id"))
+            (file (hash ("id" id)))
             (s3-uploader :starting)
             (buffered-chunks nil)
             (path (get-file-path file-id))
@@ -130,30 +125,13 @@
   (catch-errors (res)
     (alet* ((user-id (user-id req))
             (note-id (car args))
-            (persona-id (get-var req "persona"))
-            (persona-or-user user-id)
-            (perms (if persona-id
-                       (with-valid-persona (persona-id user-id)
-                         (setf persona-or-user persona-id)
-                         (get-user-note-permissions persona-id note-id))
-                       (get-user-note-permissions user-id note-id))))
-      (if (<= 2 perms)
+            (note-data (get-note-by-id note-id))
+            (board-perms (get-user-board-perms user-id :min-perms 2))
+            (allowed (user-can-edit-note-p user-id note-data board-perms)))
+      (if allowed
           (if *local-upload*
-              (upload-local persona-or-user req res args)
-              (upload-remote persona-or-user req res args))
+              (upload-local user-id req res args)
+              (upload-remote user-id req res args))
           (error (make-instance 'insufficient-privileges
                                 :msg "Sorry, you are accessing a note you don't have access to."))))))
-
-(defroute (:delete "/api/notes/([0-9a-f-]+)/file") (req res args)
-  "Remove a note's file attachment."
-  (catch-errors (res)
-    (alet* ((note-id (car args))
-            (user-id (user-id req))
-            (persona-id (post-var req "persona"))
-            (nil (if persona-id
-                     (with-valid-persona (persona-id user-id)
-                       (delete-note-file persona-id note-id))
-                     (delete-note-file user-id note-id))))
-      (track "file-delete" `(:shared ,(when persona-id t)) req)
-      (send-json res t))))
 
