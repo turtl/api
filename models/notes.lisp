@@ -337,25 +337,23 @@
   (catcher
     (alet* ((note (or note (get-note-by-id note-id)))
             (board-ids (gethash "boards" note)))
-      (when (and (gethash "file" note)
-               (gethash "id" (gethash "file" note)))
-        (multiple-promise-bind (nil res)
-            (if *local-upload*
-                (let ((file-path (get-file-path note-id)))
-                  (values (and (probe-file file-path) (delete-file file-path)) 200))
-                (s3-op :delete (format nil "/files/~a" note-id)))
-          (if (<= 200 res 299)
-              (alet* ((sock (db-sock))
-                      (query (r:r (:replace
-                                    (:get (:table "notes") note-id)
-                                    (r:fn (note)
-                                      (:without note "file")))))
-                      (nil (r:run sock query))
-                      (user-ids (get-affected-users-from-board-ids board-ids))
-                      (sync-ids (add-sync-record user-id "file" note-id "delete" :rel-ids user-ids)))
-                (r:disconnect sock)
-                sync-ids)
-              (error 'server-error :msg "There was a problem removing that note's attachment.")))))
+      (multiple-promise-bind (nil res)
+          (if *local-upload*
+              (let ((file-path (get-file-path note-id)))
+                (values (and (probe-file file-path) (delete-file file-path)) 200))
+              (s3-op :delete (format nil "/files/~a" note-id)))
+        (if (<= 200 res 299)
+            (alet* ((sock (db-sock))
+                    (query (r:r (:replace
+                                  (:get (:table "notes") note-id)
+                                  (r:fn (note)
+                                    (:without note "file")))))
+                    (nil (r:run sock query))
+                    (user-ids (get-affected-users-from-board-ids board-ids))
+                    (sync-ids (add-sync-record user-id "file" note-id "delete" :rel-ids user-ids)))
+              (r:disconnect sock)
+              sync-ids)
+            (error 'server-error :msg "There was a problem removing that note's attachment."))))
     ;; silently fail when we're deleting a note file that doesn't exist
     (not-found () nil)))
 
@@ -365,6 +363,7 @@
   (alet* ((note-data (get-note-by-id note-id))
           (board-perms (get-user-board-perms user-id :min-perms 2)))
     ;; skip empty notes
+    (format t "! note data: ~a~%" note-data)
     (when note-data
       (unless (user-can-edit-note-p user-id note-data board-perms)
         (error 'insufficient-privileges :msg "Sorry, you are editing a note you don't have access to."))
