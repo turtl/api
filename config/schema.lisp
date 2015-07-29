@@ -11,7 +11,9 @@
         :parent_id (:version 1)))
     :notes
      (:indexes
-       (:boards
+       ;; TODO: compat: remove :board_id on 2016-08-01
+       (:board_id (:version 1)
+        :boards
          (:version 2
           :function ,(r:fn (n)
                        (reql::default (:attr n "boards")
@@ -34,13 +36,6 @@
           :function ,(r:fn (m)
                        (list (:attr m "from")
                              (:attr m "id") )))))
-    :challenges
-     (:indexes
-       (:search
-         (:version 2
-          :function ,(r:fn (c)
-                       (list (:attr c "type")
-                             (:attr c "item_id"))))))
     :invites (:indexes (:code (:version 1)))
     :boards_personas_link
      (:indexes
@@ -59,7 +54,15 @@
                        (:map (:attr s "rel")
                              (r:fn (user)
                                (list user (:attr s "id")))))
-          :multi t)))
+          :multi t)
+        ;; TODO: compat: remove :user_search / :rel on 2016-08-01
+        :user_search
+         (:version 1
+          :function ,(r:fn (s)
+                       (list (:attr s "user_id")
+                             (:attr s "type")
+                             (:attr s "id") )))
+        :rel (:version 1 :multi t)))
     :log (:indexes (:hash (:version 1)))
     :promo (:indexes (:code (:version 1))))
   "Holds our entire db/table/index schema. Tables are are created if they don't
