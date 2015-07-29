@@ -43,12 +43,34 @@
                       (get-boards-by-ids board-ids :get-personas t))))
     boards))
 
+(adefun expand-board-ids (board-ids)
+  "Given a set of board ids, also grab all parents of the given board ids."
+  (alet* ((sock (db-sock))
+          (query (r:r
+                   (:attr
+                     (:attr
+                       (:eq-join
+                         (:get-all
+                           (:table "boards")
+                           board-ids)
+                         "parent_id"
+                         (:table "boards"))
+                       "right")
+                     "id")))
+          (cursor (r:run sock query))
+          (ids (r:to-array sock cursor)))
+    (r:stop/disconnect sock cursor)
+    (concatenate 'vector (if (listp board-ids)
+                             (coerce board-ids 'vector)
+                             board-ids) ids)))
+
 (adefun get-affected-users-from-board-ids (board-ids)
   "For all given board-ids (list), find users that will be affected by changes
    to those boards or items in those boards. Returns a list of user-ids."
   (unless board-ids
     (return-from get-affected-users-from-board-ids))
-  (alet* ((sock (db-sock))
+  (alet* ((board-ids (expand-board-ids board-ids))
+          (sock (db-sock))
           (query (r:r
                    (:attr
                      (:attr
