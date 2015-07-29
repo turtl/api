@@ -154,7 +154,7 @@
           (cursor (r:run sock query-boards))
           (board-ids (r:to-array sock cursor))
           (board-ids (coerce board-ids 'list))
-          (nil (r:stop sock cursor))
+          (nil (when cursor (r:stop sock cursor)))
           (nil (r:run sock query-to))
           (nil (r:run sock query-from))
           (sync-records nil))
