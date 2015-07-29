@@ -6,7 +6,7 @@
 (defvalidator validate-persona
   (("id" :type id :required t)
    ("user_id" :type id :required t)
-   ("pubkey" :type string :required t)
+   ("pubkey" :type string :required nil)
    ("email" :type string :required t :transform string-downcase)
    ("name" :type string)
    ("body" :type cl-async-util:bytes-or-string :required t)
