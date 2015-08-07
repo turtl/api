@@ -45,8 +45,8 @@
 
   ;; start the server
   (unwind-protect
-    (let ((blackbird:*debug-on-error* t)
-          (wookie-config:*debug-on-error* t))
+    (let ((blackbird:*debug-on-error* *production-error-handling*)
+          (wookie-config:*debug-on-error* *production-error-handling*))
       (as:with-event-loop (:catch-app-errors (and *production-error-handling*
                                                   'error-handler))
         ;; set up the database schema
@@ -54,7 +54,7 @@
         (catcher
           (alet* ((report-main (apply-db-schema *db-schema*))
                   (report-analytics (when (getf *analytics* :enabled)
-                                      (apply-db-schema *analytics-schema* :db-name "analytics")))
+                                      (apply-db-schema *analytics-schema* :db-name (or (getf *analytics* :db) "analytics"))))
                   (report (append report-main report-analytics)))
             (vom:info "Schema applied: ~s" report)
             (let* ((listener (make-instance 'listener
