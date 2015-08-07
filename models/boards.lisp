@@ -8,31 +8,79 @@
    ("body" :type cl-async-util:bytes-or-string))
   :old t)
 
-(defafun populate-boards-data (future) (boards &key (get-privs t) get-notes get-personas)
-  "Populate certain information given a list of boards."
-  (if (and (< 0 (length boards))
-           (or get-privs get-notes get-personas))
-      (loop for i = 0
-            for board across boards
-            for board-id = (gethash "id" board) do
-        (alet ((board board) ;; bind for inner form or loop will shit all over it
-               (privs (when get-privs (get-board-privs board-id)))
-               (personas (when get-personas (get-board-personas board-id)))
-               (notes (when get-notes (get-board-notes board-id))))
-          (when privs (setf (gethash "privs" board) privs))
-          ;; filter out privs = 0 entries
-          (when (hash-table-p (gethash "privs" board))
-            (loop for persona-id being the hash-keys of (gethash "privs" board)
-                  for entry being the hash-values of (gethash "privs" board) do
-              (when (and (hash-table-p entry)
-                         (or (zerop (gethash "perms" entry))))
-                (remhash persona-id (gethash "privs" board)))))
-          (when (and get-notes notes) (setf (gethash "notes" board) notes))
-          (when (and get-personas personas) (setf (gethash "personas" board) personas))
-          (incf i)
-          (when (<= (length boards) i)
-            (finish future boards))))
-      (finish future boards)))
+;;; ----------------------------------------------------------------------------
+;;; crud stuff
+;;; ----------------------------------------------------------------------------
+
+(defafun add-board (future) (user-id board-data)
+  "Save a board with a user."
+  (setf (gethash "user_id" board-data) user-id)
+  (let ((cid (gethash "cid" board-data)))
+    (validate-board (board-data future)
+      (alet* ((sock (db-sock))
+              (query (r:r (:insert
+                            (:table "boards")
+                            board-data)))
+              (nil (r:run sock query))
+              (sync-ids (add-sync-record user-id
+                                         "board"
+                                         (gethash "id" board-data)
+                                         "add"
+                                         :client-id cid
+                                         :rel-ids (list user-id))))
+        (r:disconnect sock)
+        (setf (gethash "sync_ids" board-data) sync-ids)
+        (finish future board-data)))))
+
+(defafun edit-board (future) (user-id board-id board-data)
+  "Edit an existing board."
+  ;; first, check if the user owns the board. any non-owner edits have to be
+  ;; done via different (more specific) methods than just "LOL replace all teh
+  ;; dataz immy boardt!"
+  (alet* ((perms (get-user-board-permissions user-id board-id))
+          (current-board (get-board-by-id board-id)))
+    (if (<= 3 perms)
+        (validate-board (board-data future)
+          (setf (gethash "user_id" board-data) (gethash "user_id" current-board))
+          (alet* ((sock (db-sock))
+                  (query (r:r (:replace
+                                (:get (:table "boards") board-id)
+                                board-data)))
+                  (nil (r:run sock query))
+                  (user-ids (get-affected-users-from-board-ids (list board-id)))
+                  (sync-ids (add-sync-record user-id "board" board-id "edit" :rel-ids user-ids)))
+            (r:disconnect sock)
+            (setf (gethash "sync_ids" board-data) sync-ids)
+            (finish future board-data)))
+        (signal-error future (make-instance 'insufficient-privileges
+                                            :msg "Sorry, you are editing a board you don't own.")))))
+
+(adefun delete-board (user-id board-id)
+  "Delete a board."
+  (alet* ((board (and board-id (get-board-by-id board-id)))
+          (perms (if board
+                     (get-user-board-permissions user-id nil :board board)
+                     0)))
+    (if board
+        (if (<= 3 perms)
+            (alet* ((user-ids (get-affected-users-from-board-ids (list board-id)))
+                    (sock (db-sock))
+                    (query (r:r (:delete (:get (:table "boards") board-id))))
+                    (nil (r:run sock query))
+                    (query (r:r (:delete
+                                  (:get-all (:table "boards_personas_link") board-id :index (db-index "boards_personas_link" "board_id")))))
+                    (nil (r:run sock query))
+                    (nil (delete-keychain-entries user-id board-id))
+                    (sync-ids (add-sync-record user-id "board" board-id "delete" :rel-ids user-ids)))
+              (r:disconnect sock)
+              sync-ids)
+            (error (make-instance 'insufficient-privileges
+                                  :msg "Sorry, you are deleting a board you don't own.")))
+        #())))
+
+;;; ----------------------------------------------------------------------------
+;;; syncing
+;;; ----------------------------------------------------------------------------
 
 (adefun get-all-boards (user-id persona-ids)
   "Given a user id and list of persona ids, get all boards this user has access
@@ -100,27 +148,6 @@
           (nil (r:stop sock cursor)))
     (r:disconnect sock)
     (concatenate 'vector shared-user-ids board-user-ids)))
-
-;; TODO: remove me!!
-(adefun get-user-boards (user-id &key get-persona-boards get-notes get-personas)
-  "Get all boards for a user."
-  (alet* ((sock (db-sock))
-          (query (r:r (:get-all
-                        (:table "boards")
-                        user-id
-                        :index (db-index "boards" "user_id"))))
-          (cursor (r:run sock query))
-          (boards (r:to-array sock cursor)))
-    (r:stop/disconnect sock cursor)
-    ;; grab persona boards and populate all boards with note/personas/etc
-    (alet* ((persona-boards (if get-persona-boards
-                                (user-personas-map user-id 'get-persona-boards :flatten t)
-                                #()))
-            (all-boards (concatenate 'vector boards persona-boards))
-            (boards-populated (populate-boards-data all-boards
-                                                    :get-notes get-notes
-                                                    :get-personas get-personas)))
-      boards-populated)))
 
 (defafun get-all-user-board-ids (future) (user-id &key shared persona-ids)
   "Gets ALL a user's board IDs, with option to specify grabbing shared boards."
@@ -195,6 +222,10 @@
           boards)
       (r:disconnect sock))))
 
+;;; ----------------------------------------------------------------------------
+;;; permissions
+;;; ----------------------------------------------------------------------------
+
 (adefun get-user-board-perms (user-id &key min-perms)
   "Grab all a users boards, including shared, with permissions."
   (alet* ((persona-ids (get-user-persona-ids user-id))
@@ -235,29 +266,13 @@
                                        ("perms" perms)))))
     index))
 
-(defafun get-persona-boards (future) (persona-id &key populate get-notes)
-  "Get all boards for a persona."
-  (alet* ((sock (db-sock))
-          ;; TODO: index
-          (query (r:r
-                   (:attr
-                     (:inner-join
-                       (:table "boards")
-                       (:table "boards_personas_link")
-                       (r:fn (b bl)
-                         (:&& (:== (:attr b "id")
-                                   (:attr bl "board_id"))
-                              (:== (:attr bl "to")
-                                   persona-id)
-                              (:~ (:has-fields bl "invite")))))
-                     "left")))
-          (cursor (r:run sock query))
-          (boards (r:to-array sock cursor)))
-    (r:stop/disconnect sock cursor)
-    (if populate
-        (alet ((boards-populated (populate-boards-data boards :get-notes get-notes)))
-          (finish future boards-populated))
-        (finish future boards))))
+;;; ----------------------------------------------------------------------------
+;;; sharing
+;;; ----------------------------------------------------------------------------
+
+(adefun create-invite (board-id invite-data)
+  "Create an invite record attached to a board."
+  )
 
 (defafun get-board-privs (future) (board-id &key (indexed t))
   "Get privilege entries for a board (board <--> persona links)."
@@ -292,72 +307,6 @@
           (when privs (setf (gethash "privs" board) privs))
           (finish future board))
         (finish future nil))))
-
-(defafun add-board (future) (user-id board-data)
-  "Save a board with a user."
-  (setf (gethash "user_id" board-data) user-id)
-  (let ((cid (gethash "cid" board-data)))
-    (validate-board (board-data future)
-      (alet* ((sock (db-sock))
-              (query (r:r (:insert
-                            (:table "boards")
-                            board-data)))
-              (nil (r:run sock query))
-              (sync-ids (add-sync-record user-id
-                                         "board"
-                                         (gethash "id" board-data)
-                                         "add"
-                                         :client-id cid
-                                         :rel-ids (list user-id))))
-        (r:disconnect sock)
-        (setf (gethash "sync_ids" board-data) sync-ids)
-        (finish future board-data)))))
-
-(defafun edit-board (future) (user-id board-id board-data)
-  "Edit an existing board."
-  ;; first, check if the user owns the board. any non-owner edits have to be
-  ;; done via different (more specific) methods than just "LOL replace all teh
-  ;; dataz immy boardt!"
-  (alet* ((perms (get-user-board-permissions user-id board-id))
-          (current-board (get-board-by-id board-id)))
-    (if (<= 3 perms)
-        (validate-board (board-data future)
-          (setf (gethash "user_id" board-data) (gethash "user_id" current-board))
-          (alet* ((sock (db-sock))
-                  (query (r:r (:replace
-                                (:get (:table "boards") board-id)
-                                board-data)))
-                  (nil (r:run sock query))
-                  (user-ids (get-affected-users-from-board-ids (list board-id)))
-                  (sync-ids (add-sync-record user-id "board" board-id "edit" :rel-ids user-ids)))
-            (r:disconnect sock)
-            (setf (gethash "sync_ids" board-data) sync-ids)
-            (finish future board-data)))
-        (signal-error future (make-instance 'insufficient-privileges
-                                            :msg "Sorry, you are editing a board you don't own.")))))
-
-(adefun delete-board (user-id board-id)
-  "Delete a board."
-  (alet* ((board (and board-id (get-board-by-id board-id)))
-          (perms (if board
-                     (get-user-board-permissions user-id nil :board board)
-                     0)))
-    (if board
-        (if (<= 3 perms)
-            (alet* ((user-ids (get-affected-users-from-board-ids (list board-id)))
-                    (sock (db-sock))
-                    (query (r:r (:delete (:get (:table "boards") board-id))))
-                    (nil (r:run sock query))
-                    (query (r:r (:delete
-                                  (:get-all (:table "boards_personas_link") board-id :index (db-index "boards_personas_link" "board_id")))))
-                    (nil (r:run sock query))
-                    (nil (delete-keychain-entries user-id board-id))
-                    (sync-ids (add-sync-record user-id "board" board-id "delete" :rel-ids user-ids)))
-              (r:disconnect sock)
-              sync-ids)
-            (error (make-instance 'insufficient-privileges
-                                  :msg "Sorry, you are deleting a board you don't own.")))
-        #())))
 
 (defafun get-board-persona-link (future) (board-id to-persona-id)
   "Given a board id and a persona being shared with, pull out the ID of the
@@ -484,22 +433,9 @@
                             board-id
                             :index (db-index "boards_personas_link" "board_id"))
                           (r:fn (l)
+                            ;; TODO: why bother specifying from?
                             (:&& (:== from-persona-id (:attr l "from"))
                                  (:== to-persona-id (:attr l "to"))))))))
-          ;(query (r:r (:do
-          ;              (r:fn (val)
-          ;                (:branch val
-          ;                  (:delete val)
-          ;                  (:delete
-          ;                    (:filter
-          ;                      (:get-all
-          ;                        (:table "boards_personas_link")
-          ;                        board-id
-          ;                        :index (db-index "boards_personas_link" "board_id"))
-          ;                      (r:fn (l)
-          ;                        (:&& (:== from-persona-id (:attr l "from"))
-          ;                             (:== to-persona-id (:attr l "to"))))))))
-          ;              (:get (:table "boards_personas_link") id))))
           (nil (r:run sock query)))
     (r:disconnect sock)
     (finish future 0 sync-ids)))
@@ -509,6 +445,10 @@
    invite id)."
   (alet* ((entry (get-board-persona-link board-id privs-entry-id)))
     (finish future entry)))
+
+;;; ----------------------------------------------------------------------------
+;;; obsolete
+;;; ----------------------------------------------------------------------------
 
 (defafun add-board-remote-invite (future) (user-id board-id from-persona-id invite-id permission-value to-email)
   "Creates a remote (ie email) invite permission record on a board so the

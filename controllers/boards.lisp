@@ -1,5 +1,40 @@
 (in-package :turtl)
 
+(defroute (:post "/api/boards/([0-9a-f-]+)/invites") (req res args)
+  "Invite a person to a board."
+  (catch-errors (res)
+    (alet* ((user-id (user-id req))
+            (data (post-body req)))
+      )
+    )
+  )
+
+(defroute (:get "/api/boards/([0-9a-f-]+)/invites/([0-9a-f-]+)") (req res args)
+  "Get an invite by board/invite IDs."
+  (catch-errors (res)
+    )
+  )
+
+(defroute (:put "/api/boards/([0-9a-f-]+)/invites/([0-9a-f-]+)/accept") (req res args)
+  "Accept an invite by board/invite ID."
+  (catch-errors (res)
+    )
+  )
+
+(defroute (:delete "/api/boards/([0-9a-f-]+)/invites/([0-9a-f-]+)") (req res args)
+  "Reject/wemove an invite by board/invite ID."
+  (catch-errors (res)
+    )
+  )
+
+(defroute (:delete "/api/boards/([0-9a-f-]+)/persona/([0-9a-f-]+)") (req res args)
+  "Remove a shared persona from a board."
+  )
+
+;;; ----------------------------------------------------------------------------
+;;; obsolete
+;;; ----------------------------------------------------------------------------
+
 (defroute (:put "/api/boards/([0-9a-f-]+)/invites/persona/([0-9a-f-]+)") (req res args)
   "Invite a persona to a board."
   (catch-errors (res)
