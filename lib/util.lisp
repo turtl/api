@@ -1,5 +1,20 @@
 (in-package :turtl)
 
+(defun user-id (request)
+  "Grab a user id from a request."
+  (let ((data (request-data request)))
+    (when (hash-table-p data)
+      (gethash "id" data))))
+
+(defun post-body (request)
+  "Grab a hash-table JSON object if the body is JSON."
+  (jonathan:parse (babel:octets-to-string (request-body request)) :as :hash-table))
+
+(defun get-client (request)
+  "Grab the current client ID (desktop v0.4.1, chrome v0.5.6, etc)"
+  (let ((headers (request-headers request)))
+    (get-header headers :x-turtl-client)))
+
 (defun file-contents (path)
   "Sucks up an entire file from PATH into a freshly-allocated string,
    returning two values: the string and the number of bytes read."
