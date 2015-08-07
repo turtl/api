@@ -45,8 +45,8 @@
 
   ;; start the server
   (unwind-protect
-    (let ((blackbird:*debug-on-error* *production-error-handling*)
-          (wookie-config:*debug-on-error* *production-error-handling*))
+    (let ((blackbird:*debug-on-error* (not *production-error-handling*))
+          (wookie-config:*debug-on-error* (not *production-error-handling*)))
       (as:with-event-loop (:catch-app-errors (and *production-error-handling*
                                                   'error-handler))
         ;; set up the database schema
