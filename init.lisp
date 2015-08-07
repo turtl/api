@@ -50,8 +50,8 @@
       ;; set up the database schema
       (vom:info "Applying DB schema...")
       (catcher
-        (alet* ((report-main (when nil (apply-db-schema *db-schema*)))
-                (report-analytics (when nil ;(getf *analytics* :enabled)
+        (alet* ((report-main (apply-db-schema *db-schema*))
+                (report-analytics (when (getf *analytics* :enabled)
                                     (apply-db-schema *analytics-schema* :db-name "analytics")))
                 (report (append report-main report-analytics)))
           (vom:info "Schema applied: ~s" report)
