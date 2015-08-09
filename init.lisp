@@ -61,14 +61,15 @@
                                             :bind bind
                                             :port port
                                             :event-cb 'error-handler))
-                   (server (start-server listener)))
+                   (server (start-server listener))
+                   (sighandler (lambda (sig)
+                                 (vom:notice "Stopping turtl")
+                                 (as:clear-signal-handlers)
+                                 (as:close-tcp-server server)
+                                 (as:exit-event-loop))))
               (cleanup)
-              (as:signal-handler 2
-                (lambda (sig)
-                  (declare (ignore sig))
-                  (as:free-signal-handler 2)
-                  (as:close-tcp-server server)
-                  (as:exit-event-loop)))))
+              (as:signal-handler as:+sigint+ sighandler)
+              (as:signal-handler as:+sigterm+ sighandler)))
           (error (e) (vom:error "Error initializing: ~a" e)))))
     (when *pid-file*
       (delete-file *pid-file*))))
