@@ -23,6 +23,23 @@
            (data (make-string len)))
       (values data (read-sequence data s)))))
 
+(defmacro route (options (req res &optional args) &body body)
+  "Wrapper around wookie's defroute. Adds error handling and prepends our
+   *api-path* var to the resource."
+  (let* ((resource (cadr options))
+         (path (if (boundp '*api-path*)
+                   (symbol-value '*api-path*)
+                   ""))
+         (resource (concatenate 'string path resource)))
+    (setf (cadr options) resource)
+    `(defroute ,options (,req ,res ,args)
+       ,(when (stringp (car body))
+          (let ((docstr (car body)))
+            (setf body (cdr body))
+            docstr))
+       (catch-errors (,res)
+         ,@body))))
+
 (defun load-folder (path &optional load-order)
   "Load all lisp files in a directory."
   (let* ((filename (lambda (x) (pathname-name (pathname x))))
