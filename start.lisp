@@ -2,4 +2,5 @@
 (vom:config t :info)
 (vom:config :cl-rethinkdb :warn)
 (turtl:start :port 8182)
+(cl-user::quit)
 
