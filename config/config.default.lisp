@@ -55,9 +55,9 @@
    for production.")
 
 (defparameter *public-actions*
-  `((:post . "/api/users")
-    (:post . "/api/log/error")
-    (:get . ,(cl-ppcre:create-scanner "/api/invites/codes/([0-9a-f-]+)")))
+  `((:post . "/users")
+    (:post . "/log/error")
+    (:get . ,(cl-ppcre:create-scanner "/invites/codes/([0-9a-f-]+)")))
   "A list of public resources/actions that do not require authentication.")
 
 (defparameter *default-storage-limit* 100
