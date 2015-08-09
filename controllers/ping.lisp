@@ -1,6 +1,6 @@
 (in-package :turtl)
 
-(defroute (:get "/api/ping") (req res)
+(route (:get "/ping") (req res)
   "Send a pong"
   (alet* ((immediate (not (zerop (varint (get-var req "immediate") 0))))
           (delay (if immediate 0 60)))

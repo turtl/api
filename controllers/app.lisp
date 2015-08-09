@@ -21,9 +21,7 @@
                                                   :body (error-json err))
                                    (rej err))
                                  :time rand-wait)))))
-        (if (or (< (length path) 5)
-                (not (string= (subseq path 0 5) "/api/"))
-                (is-public-action method path)
+        (if (or (is-public-action method path)
                 (eq (request-method req) :options))
             ;; this is a signup or file serve. let it fly with no auth
             (res)
