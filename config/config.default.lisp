@@ -35,11 +35,8 @@
 (defvar *invite-site-url* "http://invites.turtl.dev:8182"
   "The main URL used to generate invite links.")
 
-(defvar *api-url* "/api"
-  "The location (absolute or relative to *site-url*) that API calls will go to.")
-
-(defvar *api-key* "12345"
-  "The API key used for the app. Completely unused.")
+(defvar *api-path* "/"
+  "The path the API lives under. Can be blank.")
 
 (defvar *admin-email* "andrew@lyonbros.com"
   "The email used for admin communications. This is reported to users on a
