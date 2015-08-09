@@ -63,6 +63,7 @@
                                             :event-cb 'error-handler))
                    (server (start-server listener))
                    (sighandler (lambda (sig)
+                                 (declare (ignore sig))
                                  (vom:notice "Stopping turtl")
                                  (as:clear-signal-handlers)
                                  (as:close-tcp-server server)
