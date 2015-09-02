@@ -16,7 +16,6 @@
 (defun upload-local (user-id req res args)
   "Upload a file to the local filesystem."
   (let* ((note-id (car args))
-         (persona-id (get-var req "persona"))
          (file-id note-id)
          (id (get-var req "id"))
          (file (hash ("id" id)))
@@ -31,25 +30,24 @@
                         (remhash "upload_id" file)
                         (alet* ((file (edit-note-file user-id file-id file :remove-upload-id t))
                                 (size (get-file-size-summary total-file-size)))
-                               (track "file-upload" `(:shared ,(when persona-id t) :size ,size) req)
+                               (track "file-upload" (list :shared nil :size size) req)
                           (send-json res file))))))
     (vom:debug1 "local: calling with-chunking")
     (when (string= (get-header (request-headers req) :expect) "100-continue")
       (send-100-continue res))
-    (with-chunking req (data lastp)
+    (with-chunking req (data lastp :start start :end end)
       (vom:debug2 "local: got chunk: ~a ~a" (length data) lastp)
       (unless fd
         (vom:debug1 "file: opening local fd: ~a" path)
         (setf fd (open path :direction :output :if-exists :supersede :element-type '(unsigned-byte 8))))
       (incf total-file-size (length data))
-      (write-sequence data fd)
+      (write-sequence data fd :start start :end end)
       (when lastp
         (funcall finish-fn)))))
 
 (defun upload-remote (user-id req res args)
   "Upload the given file data to a remote server."
   (alet* ((note-id (car args))
-          (persona-id (get-var req "persona"))
           (file-id note-id)
           (id (get-var req "id"))
           (file (hash ("id" id)))
@@ -66,7 +64,7 @@
                          (remhash "upload_id" file)
                          (alet* ((file (edit-note-file user-id file-id file :remove-upload-id t))
                                  (size (get-file-size-summary total-file-size)))
-                           (track "file-upload" `(:shared ,(when persona-id t) :size ,size) req)
+                           (track "file-upload" (list :shared nil :size size) req)
                            (send-json res file))))))
     ;; create an uploader lambda, used to stream our file chunk by chunk to S3
     (vom:debug1 "file: starting uploader with path: ~a" path)
