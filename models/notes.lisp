@@ -363,7 +363,6 @@
   (alet* ((note-data (get-note-by-id note-id))
           (board-perms (get-user-board-perms user-id :min-perms 2)))
     ;; skip empty notes
-    (format t "! note data: ~a~%" note-data)
     (when note-data
       (unless (user-can-edit-note-p user-id note-data board-perms)
         (error 'insufficient-privileges :msg "Sorry, you are editing a note you don't have access to."))
