@@ -24,22 +24,18 @@
      (:indexes
        (:email (:version 1)
         :user_id (:version 1)))
-    :messages
-     (:indexes
-       (:get_messages_to
-         (:version 2
-          :function ,(r:fn (m)
-                       (list (:attr m "to")
-                             (:attr m "id") )))
-        :get_messages_from
-         (:version 2
-          :function ,(r:fn (m)
-                       (list (:attr m "from")
-                             (:attr m "id") )))))
-    :invites (:indexes (:code (:version 1)))
     :boards_personas_link
      (:indexes
        (:board_id (:version 1)
+        :to (:version 1)
+        :from (:version 1)))
+    :invites
+     (:indexes
+       (:obj_to
+         (:version 2
+          :function ,(r:fn (i)
+                       (list (:attr i "object_id")
+                             (:attr i "to"))))
         :to (:version 1)
         :from (:version 1)))
     :keychain

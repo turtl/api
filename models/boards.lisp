@@ -8,6 +8,31 @@
    ("body" :type cl-async-util:bytes-or-string))
   :old t)
 
+(defvalidator validate-board-persona-link
+  (("id" :type id :required t)
+   ("board_id" :type id :required t)
+   ("from" :type id :required t)
+   ("to" :type string :required t)
+   ("perms" :type integer :required t)))
+
+;;; ----------------------------------------------------------------------------
+;;; util
+;;; ----------------------------------------------------------------------------
+
+(defafun get-board-by-id (future) (board-id &key get-notes (get-privs t))
+  "Grab a board by id."
+  (alet* ((sock (db-sock))
+          (query (r:r (:get (:table "boards") board-id)))
+          (board (r:run sock query)))
+    (r:disconnect sock)
+    (if board
+        (alet ((notes (when get-notes (get-board-notes board-id)))
+               (privs (when get-privs (get-board-privs board-id))))
+          (when notes (setf (gethash "notes" board) notes))
+          (when privs (setf (gethash "privs" board) privs))
+          (finish future board))
+        (finish future nil))))
+
 ;;; ----------------------------------------------------------------------------
 ;;; crud stuff
 ;;; ----------------------------------------------------------------------------
@@ -82,13 +107,13 @@
 ;;; syncing
 ;;; ----------------------------------------------------------------------------
 
-(adefun get-all-boards (user-id persona-ids)
+(adefun get-all-boards (user-id persona-ids &key get-invites)
   "Given a user id and list of persona ids, get all boards this user has access
    to."
-  (alet* ((board-ids (get-all-user-board-ids user-id :persona-ids persona-ids))
+  (alet* ((board-ids (get-all-user-board-ids user-id :persona-ids persona-ids :get-invites get-invites))
           (boards (if (zerop (length board-ids))
                       #()
-                      (get-boards-by-ids board-ids :get-personas t))))
+                      (get-boards-by-ids board-ids :get-personas t :get-invites get-invites))))
     boards))
 
 (adefun expand-board-ids (board-ids)
@@ -112,7 +137,7 @@
                              (coerce board-ids 'vector)
                              board-ids) ids)))
 
-(adefun get-affected-users-from-board-ids (board-ids)
+(adefun get-affected-users-from-board-ids (board-ids &key get-invites)
   "For all given board-ids (list), find users that will be affected by changes
    to those boards or items in those boards. Returns a list of user-ids."
   (unless board-ids
@@ -129,7 +154,9 @@
                              board-ids
                              :index (db-index "boards_personas_link" "board_id"))
                            (r:fn (l)
-                             (:== (:default (:attr l "invite") nil) nil)))
+                             (if get-invites
+                                 t
+                                 (:== (:default (:attr l "invite") nil) nil))))
                          "to"
                          (:table "personas"))
                        "right")
@@ -149,7 +176,7 @@
     (r:disconnect sock)
     (concatenate 'vector shared-user-ids board-user-ids)))
 
-(defafun get-all-user-board-ids (future) (user-id &key shared persona-ids)
+(defafun get-all-user-board-ids (future) (user-id &key shared persona-ids get-invites)
   "Gets ALL a user's board IDs, with option to specify grabbing shared boards."
   (alet* ((persona-ids (if persona-ids
                            persona-ids
@@ -171,17 +198,22 @@
       (if (zerop (length persona-ids))
           (get-user-board-ids #())
           (alet* ((query (r:r (:attr
-                                (:get-all
-                                  (:table "boards_personas_link")
-                                  (coerce persona-ids 'list)
-                                  :index (db-index "boards_personas_link" "to"))
+                                (:filter
+                                  (:get-all
+                                    (:table "boards_personas_link")
+                                    (coerce persona-ids 'list)
+                                    :index (db-index "boards_personas_link" "to"))
+                                  (r:fn (l)
+                                    (if get-invites
+                                        t
+                                        (:== (:default (:attr l "invite") nil) nil))))
                                 "board_id")))
                   (cursor (r:run sock query))
                   (board-ids (r:to-array sock cursor)))
             (r:stop sock cursor)
             (get-user-board-ids board-ids))))))
 
-(adefun get-boards-by-ids (board-ids &key get-personas)
+(adefun get-boards-by-ids (board-ids &key get-personas get-invites)
   "Given a list of board IDs, grab all associated boards (and optionally their
    linked personas)."
   (alet* ((sock (db-sock))
@@ -194,10 +226,15 @@
     (finally
       (if get-personas
           (alet* ((query (r:r (:eq-join
-                                (:get-all
-                                  (:table "boards_personas_link")
-                                  board-ids
-                                  :index (db-index "boards_personas_link" "board_id"))
+                                (:filter
+                                  (:get-all
+                                    (:table "boards_personas_link")
+                                    board-ids
+                                    :index (db-index "boards_personas_link" "board_id"))
+                                  (r:fn (l)
+                                    (if get-invites
+                                        t
+                                        (:== (:default (:attr l "invite") nil) nil))))
                                 "to"
                                 (:table "personas"))))
                   (cursor (r:run sock query))
@@ -213,6 +250,7 @@
                   for persona = (gethash "right" entry)
                   for board = (gethash board-id board-index) do
               (push persona (gethash "personas" board))
+              (remhash "token_server" link)
               (unless (gethash "privs" board)
                 (setf (gethash "privs" board) (hash)))
               (let ((privs (gethash "privs" board))
@@ -225,9 +263,8 @@
 ;;; ----------------------------------------------------------------------------
 ;;; permissions
 ;;; ----------------------------------------------------------------------------
-
 (adefun get-user-board-perms (user-id &key min-perms)
-  "Grab all a users boards, including shared, with permissions."
+  "Grab all a user's boards, including shared, with permissions."
   (alet* ((persona-ids (get-user-persona-ids user-id))
           (user-board-ids (get-all-user-board-ids user-id))
           (sock (db-sock))
@@ -266,67 +303,6 @@
                                        ("perms" perms)))))
     index))
 
-;;; ----------------------------------------------------------------------------
-;;; sharing
-;;; ----------------------------------------------------------------------------
-
-(adefun create-invite (board-id invite-data)
-  "Create an invite record attached to a board."
-  )
-
-(defafun get-board-privs (future) (board-id &key (indexed t))
-  "Get privilege entries for a board (board <--> persona links)."
-  (alet* ((sock (db-sock))
-          ;; TODO: do (:without ... "board_id") when ReQL permits
-          (query (r:r (:get-all
-                        (:table "boards_personas_link")
-                        (list board-id)
-                        :index (db-index "boards_personas_link" "board_id"))))
-          (cursor (r:run sock query))
-          (privs (r:to-array sock cursor)))
-    (r:stop/disconnect sock cursor)
-    (if indexed
-        ;; we want an object: {persona: {..entry...}, persona: {..entry..}}
-        (let ((index-hash (make-hash-table :test #'equal)))
-          (loop for priv across privs do
-            (setf (gethash (gethash "to" priv) index-hash) priv))
-          (finish future index-hash))
-        ;; return array of privs
-        (finish future privs))))
-
-(defafun get-board-by-id (future) (board-id &key get-notes (get-privs t))
-  "Grab a board by id."
-  (alet* ((sock (db-sock))
-          (query (r:r (:get (:table "boards") board-id)))
-          (board (r:run sock query)))
-    (r:disconnect sock)
-    (if board
-        (alet ((notes (when get-notes (get-board-notes board-id)))
-               (privs (when get-privs (get-board-privs board-id))))
-          (when notes (setf (gethash "notes" board) notes))
-          (when privs (setf (gethash "privs" board) privs))
-          (finish future board))
-        (finish future nil))))
-
-(defafun get-board-persona-link (future) (board-id to-persona-id)
-  "Given a board id and a persona being shared with, pull out the ID of the
-   persona that owns the share."
-  (alet* ((sock (db-sock))
-          ;; TODO: index
-          (query (r:r (:limit
-                        (:filter
-                          (:table "boards_personas_link")
-                          (r:fn (board)
-                            (:&& (:== (:attr board "board_id") board-id)
-                                 (:== (:attr board "to") to-persona-id))))
-                        1)))
-          (cursor (r:run sock query))
-          (links (r:to-array sock cursor)))
-    (r:stop/disconnect sock cursor)
-    (if (zerop (length links))
-        (finish future nil)
-        (finish future (aref links 0)))))
-
 (adefun get-user-board-permissions (user/persona-id board-id &key board)
   "Returns an integer used to determine a user/persona's permissions for the
    given board.
@@ -347,12 +323,87 @@
                                 (gethash "perms" persona-privs)))
                (user-privs (cond ((string= user-id user/persona-id)
                                   3)
-                                 ((and (numberp persona-privs) (< 0 persona-privs))
+                                 ((and (numberp persona-privs)
+                                       (< 0 persona-privs))
                                   persona-privs)
                                  (t
                                   0))))
           user-privs)
         0)))
+
+(defafun get-board-privs (future) (board-id &key (indexed t))
+  "Get privilege entries for a board (board <--> persona links)."
+  (alet* ((sock (db-sock))
+          (query (r:r (:get-all
+                        (:table "boards_personas_link")
+                        (list board-id)
+                        :index (db-index "boards_personas_link" "board_id"))))
+          (cursor (r:run sock query))
+          (privs (r:to-array sock cursor)))
+    (r:stop/disconnect sock cursor)
+    (if indexed
+        ;; we want an object: {persona: {..entry...}, persona: {..entry..}}
+        (let ((index-hash (make-hash-table :test #'equal)))
+          (loop for priv across privs do
+            (setf (gethash (gethash "to" priv) index-hash) priv))
+          (finish future index-hash))
+        ;; return array of privs
+        (finish future privs))))
+
+;;; ----------------------------------------------------------------------------
+;;; sharing
+;;; ----------------------------------------------------------------------------
+
+(adefun add-board-persona-link (user-id link-data)
+  "Quick crud function to insert a board <--> persona link (or a board invite)."
+  (alet* ((nil (validate-board-persona-link (link-data)))
+          (sock (db-sock))
+          (query (r:r (:insert
+                        (:table "boards_personas_link")
+                        link-data)))
+          (nil (r:run sock query))
+          (board-id (gethash "board_id" link-data))
+          (user-ids (get-affected-users-from-board-ids (list board-id) :get-invites t))
+          (user-ids (concatenate 'vector (vector user-id) user-ids))
+          (sync-ids (add-sync-record user-id
+                                     "board"
+                                     board-id
+                                     "edit"
+                                     :rel-ids user-ids)))
+    (r:disconnect sock)
+    (setf (gethash "sync_ids" link-data) sync-ids)
+    link-data))
+
+(adefun get-board-persona-links (board-id)
+  "Get all a board's persona links/invites."
+  (alet* ((sock (db-sock))
+          (query (r:r (:get-all
+                        (:table "boards_personas_link")
+                        board-id
+                        :index (db-index "boards_personas_link" "board_id"))))
+          (cursor (r:run sock query))
+          (links (r:to-array sock cursor)))
+    (r:stop/disconnect sock cursor)
+    links))
+
+(defafun get-board-persona-link (future) (board-id to-persona-id)
+  "Given a board id and a persona being shared with, pull out the ID of the
+   persona that owns the share."
+  (alet* ((sock (db-sock))
+          ;; TODO: index
+          (query (r:r (:limit
+                        (:filter
+                          (:table "boards_personas_link")
+                          (r:fn (board)
+                            (:&& (:== (:attr board "board_id") board-id)
+                                 (:== (:attr board "to") to-persona-id))))
+                        1)))
+          (cursor (r:run sock query))
+          (links (r:to-array sock cursor)))
+    (r:stop/disconnect sock cursor)
+    (if (zerop (length links))
+        (finish future nil)
+        (finish future (aref links 0)))))
 
 (defafun set-board-persona-permissions (future) (user-id board-id from-persona-id to-persona-id permission-value &key invite invite-remote)
   "Gives a persona permissions to view/update a board."

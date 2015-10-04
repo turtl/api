@@ -109,7 +109,7 @@
        (let ((validation (gensym "validation"))
              (validation-form-var (gensym "validation-form"))
              (future-var (gensym "future")))
-         `(let* ((,future-var ,(when ,old future))
+         `(let* ((,future-var ,,(when old 'future))
                  (,validation-form-var (getf *validation-forms* ,'',name))
                  (,validation (do-validate ,object ,validation-form-var :edit ,edit)))
             (declare (ignorable ,future-var))
@@ -119,6 +119,7 @@
                                                               :msg (format nil "Validation failed: ~s~%" ,validation)))
                      `(error 'validation-failed :msg (format nil "Validation failed: ~s~%" ,validation)))
                 (progn ,@body)))))))
+
 ;(defmacro defvalidator (name validation-form)
 ;  "Makes defining a validation function for a data type simpler."
 ;  `(progn

@@ -209,7 +209,8 @@
                           (:persona "personas")
                           (:board "boards")
                           (:note "notes")
-                          (:file "notes")) do
+                          (:file "notes")
+                          (:invite "invites")) do
         (unless table
           (error (format nil "bad sync type: ~a" type)))
         (push (link-sync-items collection-arr table) actions))
@@ -292,6 +293,7 @@
           (case action
             (:delete
               (standard-delete (delete-note-file user-id item-id)))))
+        ;; TODO: invites? yes? no?
         (t
           (error (format nil "Unknown sync record given (~a)" type)))))))
 
@@ -340,8 +342,8 @@
                             :index (db-index "sync" "scan_user"))
                           (r:fn (s)
                             (if only-affects-user
-                                t
-                                (:== (:count (:attr s "rel")) 1)))))))
+                                (:== (:count (:attr s "rel")) 1)
+                                t))))))
           (nil (r:run sock query)))
     (r:disconnect sock)
     t))

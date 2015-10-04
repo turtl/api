@@ -6,17 +6,19 @@
 ;; -----------------------------------------------------------------------------
 ;; email templates
 ;; -----------------------------------------------------------------------------
-(defparameter *emails-board-invite* (format nil "~
+(defparameter *emails-board-email-invite* (format nil "~
 Hello.
 
 {{from}} has shared a board with you on Turtl. ~
-Turtl is an easy way to track, share, and collaborate on ideas and projects ~
-with friends or coworkers.
+Turtl is an easy way to securely collaborate on projects with friends or ~
+coworkers.
  
-To accept this invite, go here: {{invite-site-url}}/invites/{{code}}/{{id}}/{{key}}{{invite-code}}
-  
-Otherwise, you can ignore this email entirely and things will just work ~
-themselves out.
+To accept this invite, download the Turtl app ({{site-url}}) and after ~
+installing, enter the following code into the \"Sharing\" section of the menu:
+
+{{invite-code}}
+
+Or you can safely ignore this email.
   
 Thanks!
 The Turtl Team
@@ -26,11 +28,10 @@ The Turtl Team
 (defparameter *emails-board-persona-invite* (format nil "~
 {{greeting}}.
 
-{{from}} has shared a board with you on Turtl. ~
-Log in to the Turtl app to start sharing!
+{{from}} has shared a board with you on Turtl. Log in to accept this invite.
 
 You can disable these notifications by opening the Personas dialog in the Turtl ~
-menu and clicking the mail icon next to your persona.
+menu and unchecking \"Email me when someone shares with me\".
 
 Thanks!
 The Turtl Team
@@ -111,30 +112,24 @@ Please respond in a timely manner!"))
                       email)))
     namestr))
      
-(defafun email-board-invite (future) (from-persona invite key invite-code)
+(adefun email-board-email-invite (from-persona invite)
   "Send a board invite email."
-  (let* ((msg *emails-board-invite*)
+  (let* ((msg *emails-board-email-invite*)
          (name (gethash "name" from-persona))
          (name (when (and name (not (string= name ""))) name))
          (email (gethash "email" from-persona))
          (from (get-persona-greeting from-persona))
+         (invite-code (concatenate 'string
+                                   (gethash "board_id" invite)
+                                   ":"
+                                   (gethash "id" invite)))
          (tpl-vars `(:site-url ,*site-url*
-                     :invite-site-url ,*invite-site-url*
                      :from ,from
-                     :id ,(gethash "id" invite)
-                     :code ,(gethash "code" invite)
-                     :key ,key
-                     :invite-code ,(if invite-code
-                                       (concatenate 'string "/" invite-code)
-                                       "")
-                     :used-secret ,(if (gethash "used_secret" (gethash "data" invite))
-                                       1
-                                       0)))
+                     :invite-code ,invite-code))
          (subject (format nil "~a shared a board with you on Turtl" (if name name email)))
          (body (email-template msg tpl-vars))
          (to (gethash "to" invite)))
-    (alet* ((sentp (send-email to subject body :reply-to email :from-name (if name name email))))
-      (finish future sentp))))
+    (send-email to subject body :reply-to email :from-name (if name name email))))
 
 (defafun email-board-persona-invite (future) (from-persona to-persona)
   "Send a board invite email to a persona."

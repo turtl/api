@@ -9,16 +9,43 @@
           (sync-id (get-var req "sync_id")))
     (multiple-promise-bind (sync latest-sync-id)
         (sync-all user-id sync-id :poll (not immediate))
-      ;; grab the highest global sync-id. if we have no sync items, we'll
-      ;; send this back. this not only keeps the client more up-to-date
-      ;; on the sync process, it cuts back on the amount of items we have
-      ;; to filter through when syncing since a lot of times we filter on
-      ;; the id index.
-      (if sync
-          (send-json res (hash ("sync_id" latest-sync-id)
-                               ("records" sync)))
-          (alet* ((global-sync-id (get-latest-sync-id)))
-            (send-json res nil))))))
+      ;; post-process some of our sync data
+      ;; load our boards' persona/invite data
+      ;; TODO: since we load the boards independent of the sync system here,
+      ;; maybe signal the sync to NOT link against boards? (just return IDs)
+      (let ((board-idx (hash))
+            (invites nil))
+        ;; index a board_id -> board_data hash. we're going to link personas and
+        ;; invites and such using this index
+        (dolist (rec sync)
+          ;; remove server tokens from invites
+          (when (string= (gethash "type" rec) "invite")
+            (push (gethash "data" rec) invites)
+            (remhash "token_server" (gethash "data" rec)))
+          (when (string= (gethash "type" rec) "board")
+            (let ((board-data (gethash "data" rec)))
+              (setf (gethash (gethash "id" board-data) board-idx) board-data))))
+        ;; load the boards from the sync
+        (alet* ((board-ids (loop for x being the hash-keys of board-idx collect x))
+                (nil (populate-invites-personas (coerce invites 'vector)))
+                (linked-boards (if (zerop (length board-ids))
+                                   #()
+                                   (get-boards-by-ids board-ids :get-personas t :get-invites t))))
+          ;; for each loaded board w/ personas/privs, set the extra data into
+          ;; the indexed board from the sync (desctructive modify)
+          (loop for board across linked-boards
+                for indexed = (gethash (gethash "id" board) board-idx) do
+            (setf (gethash "personas" indexed) (gethash "personas" board)
+                  (gethash "privs" indexed) (gethash "privs" board)))
+          ;; grab the highest global sync-id. if we have no sync items, we'll
+          ;; send this back. this not only keeps the client more up-to-date
+          ;; on the sync process, it cuts back on the amount of items we have
+          ;; to filter through when syncing since a lot of times we filter on
+          ;; the id index.
+          (if sync
+              (send-json res (hash ("sync_id" latest-sync-id)
+                                   ("records" sync)))
+              (send-json res nil)))))))
 
 (route (:get "/sync/full") (req res)
   "Called by the client if a user has no local profile data. Returns the profile
@@ -31,7 +58,7 @@
            (personas (get-user-personas user-id))
            (global-sync-id (get-latest-sync-id)))
       ;; notes require all our board ids, so load them here
-      (alet* ((boards (get-all-boards user-id (map 'list (lambda (p) (gethash "id" p)) personas)))
+      (alet* ((boards (get-all-boards user-id (map 'list (lambda (p) (gethash "id" p)) personas) :get-invites t))
               (board-ids (map 'list (lambda (b) (gethash "id" b)) boards))
               (notes (get-all-notes user-id board-ids))
               ;; this is a weird case we need to handle. basically, notes in
@@ -57,6 +84,8 @@
                                            (hget note '("file" "id"))))
                                     notes))
               (files (map 'vector (lambda (x) (copy-hash x)) files))
+              (invites (get-persona-invites (map 'list (lambda (p) (gethash "id" p)) personas)))
+              (invites (populate-invites-personas invites))
               (sync nil))
         (flet ((convert-to-sync (item type)
                  (let ((rec (make-sync-record (gethash "user_id" item)
@@ -71,7 +100,8 @@
                                                  (cons personas "persona")
                                                  (cons boards "board")
                                                  (cons notes "note")
-                                                 (cons files "file")) do
+                                                 (cons files "file")
+                                                 (cons invites "invite")) do
             (loop for item across collection do
               (push (convert-to-sync item type) sync))))
         (send-json res (hash ("sync_id" global-sync-id)

@@ -187,12 +187,12 @@
   "Given a set of ownership/permissions values, dtermine if a user has access to
    edit a note."
   (or (user-can-edit-note-p user-id note-data board-perms)
-    ;; the user has write access to a board the note is in
-    (not (zerop (length (remove-if (lambda (board-id)
-                                     (let ((perm (gethash board-id board-perms)))
-                                       (or (not perm)
-                                           (< (gethash "perms" perm) 1))))
-                                   (gethash "boards" note-data)))))))
+      ;; the user has write access to a board the note is in
+      (not (zerop (length (remove-if (lambda (board-id)
+                                       (let ((perm (gethash board-id board-perms)))
+                                         (or (not perm)
+                                             (< (gethash "perms" perm) 1))))
+                                     (gethash "boards" note-data)))))))
 
 (defun user-can-edit-note-p (user-id note-data board-perms)
   "Given a set of ownership/permissions values, dtermine if a user has access to

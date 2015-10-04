@@ -47,9 +47,8 @@
      (:file "personas")
      (:file "notes")
      (:file "boards")
-     (:file "profile")
-     (:file "messages")
      (:file "invites")
+     (:file "profile")
      (:file "sync")
      (:file "log")
      (:file "admin")
@@ -63,7 +62,6 @@
     :components
     ((:file "admin")
      (:file "app")
-     (:file "boards")
      (:file "invites")
      (:file "messages")
      (:file "notes")

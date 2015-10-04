@@ -26,6 +26,19 @@
     (r:disconnect sock)
     (finish future persona)))
 
+(adefun get-personas-by-ids (persona-ids)
+  "Get a buttload of personas by ids."
+  (when (zerop (length persona-ids))
+    (return-from get-personas-by-ids #()))
+  (alet* ((sock (db-sock))
+          (query (r:r (:get-all
+                        (:table "personas")
+                        persona-ids)))
+          (cursor (r:run sock query))
+          (personas (r:to-array sock cursor)))
+    (r:stop/disconnect sock cursor)
+    personas))
+
 (defafun get-user-personas (future) (user-id)
   "Get personas by user id."
   (alet* ((sock (db-sock))
@@ -105,16 +118,13 @@
       (when (string= (gethash "pubkey" persona-data) "false")
         (setf (gethash "pubkey" persona-data) nil))
       (setf (gethash "user_id" persona-data) user-id)
-      ;; make sure settings use numeric value
-      (let ((settings (gethash "settings" persona-data))
-            (new-settings (make-hash-table :test #'equal)))
+      ;; make sure settings translate `false` properly
+      (let ((settings (gethash "settings" persona-data)))
         (when (hash-table-p settings)
           (loop for k being the hash-keys of settings
                 for v being the hash-values of settings do
-            (let ((new-val (ignore-errors (parse-float v))))
-              (when new-val
-                (setf (gethash k new-settings) new-val))))
-          (setf (gethash "settings" persona-data) new-settings)))
+            (when (null v)
+              (setf (gethash k settings) :false)))))
       (alet* ((email (gethash "email" persona-data))
               (availablep (or (not email)
                               (persona-email-available-p email persona-id))))
