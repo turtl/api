@@ -5,17 +5,15 @@
   (alet* ((user-id (user-id req))
           (board-id (car args))
           (invite-data (post-body req))
-          (board (create-board-invite user-id board-id invite-data))
-          (response (hash ("board" board)
-                          ("sync_ids" (gethash "sync_ids" board)))))
-    (remhash "sync_ids" board)
+          (invite (create-board-invite user-id board-id invite-data)))
     (track "invite" (list :persona (gethash "has_persona" invite-data)) req)
-    (send-json res response)))
+    (send-json res invite)))
 
-(route (:get "/invites/([0-9a-f-]+)") (req res args)
-  "Get an invite by ID."
-  (alet* ((invite-id (car args))
-          (invite (get-invite-by-id invite-id)))
+(route (:get "/boards/([0-9a-f-]+)/invites/([0-9a-f-]+)") (req res args)
+  "Get a board invite by ID."
+  (alet* ((object-id (car args))
+          (invite-id (cadr args))
+          (invite (get-invite-by-id/object invite-id object-id)))
     (send-json res invite)))
 
 (route (:put "/boards/([0-9a-f-]+)/invites/([0-9a-f-]+)/accept") (req res args)
@@ -23,17 +21,29 @@
   (alet* ((user-id (user-id req))
           (board-id (car args))
           (invite-id (cadr args))
-          (token (get-var req "token")))
-    (accept-board-invite user-id board-id invite-id token)))
+          (token (get-var req "token"))
+          (to-persona-id (get-var req "to-persona-id"))
+          (board (accept-board-invite user-id invite-id board-id token :to-persona-id to-persona-id)))
+    (send-json res board)))
 
 (route (:delete "/boards/([0-9a-f-]+)/invites/([0-9a-f-]+)") (req res args)
   "Weject/wemove an invite by board ID/invite ID."
-  )
+  (alet* ((user-id (user-id req))
+          (board-id (car args))
+          (invite-id (cadr args))
+          (sync-ids (reject-board-invite user-id invite-id board-id)))
+    (send-json res (hash ("id" invite-id)
+                         ("sync_ids" sync-ids)))))
 
 (route (:delete "/boards/([0-9a-f-]+)/persona/([0-9a-f-]+)") (req res args)
   "Remove a shared persona from a board."
-  )
-
+  (alet* ((user-id (user-id req))
+          (board-id (car args))
+          (persona-id (cadr args))
+          (sync-ids (delete-board-persona-link user-id board-id persona-id))
+          (board (get-board-by-id board-id :get-privs t)))
+    (setf (gethash "sync_ids" board) sync-ids)
+    (send-json res board)))
 
 #|
 (route (:post "/invites/boards/([0-9a-f-]+)") (req res args)

@@ -62,7 +62,7 @@
     :components
     ((:file "admin")
      (:file "app")
-     (:file "invites")
+     (:file "sharing")
      (:file "messages")
      (:file "notes")
      (:file "personas")

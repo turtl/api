@@ -107,13 +107,13 @@
 ;;; syncing
 ;;; ----------------------------------------------------------------------------
 
-(adefun get-all-boards (user-id persona-ids &key get-invites)
+(adefun get-all-boards (user-id persona-ids)
   "Given a user id and list of persona ids, get all boards this user has access
    to."
-  (alet* ((board-ids (get-all-user-board-ids user-id :persona-ids persona-ids :get-invites get-invites))
+  (alet* ((board-ids (get-all-user-board-ids user-id :persona-ids persona-ids))
           (boards (if (zerop (length board-ids))
                       #()
-                      (get-boards-by-ids board-ids :get-personas t :get-invites get-invites))))
+                      (get-boards-by-ids board-ids :get-personas t))))
     boards))
 
 (adefun expand-board-ids (board-ids)
@@ -137,7 +137,7 @@
                              (coerce board-ids 'vector)
                              board-ids) ids)))
 
-(adefun get-affected-users-from-board-ids (board-ids &key get-invites)
+(adefun get-affected-users-from-board-ids (board-ids)
   "For all given board-ids (list), find users that will be affected by changes
    to those boards or items in those boards. Returns a list of user-ids."
   (unless board-ids
@@ -148,15 +148,10 @@
                    (:attr
                      (:attr
                        (:eq-join
-                         (:filter
-                           (:get-all
-                             (:table "boards_personas_link")
-                             board-ids
-                             :index (db-index "boards_personas_link" "board_id"))
-                           (r:fn (l)
-                             (if get-invites
-                                 t
-                                 (:== (:default (:attr l "invite") nil) nil))))
+                         (:get-all
+                           (:table "boards_personas_link")
+                           board-ids
+                           :index (db-index "boards_personas_link" "board_id"))
                          "to"
                          (:table "personas"))
                        "right")
@@ -176,7 +171,7 @@
     (r:disconnect sock)
     (concatenate 'vector shared-user-ids board-user-ids)))
 
-(defafun get-all-user-board-ids (future) (user-id &key shared persona-ids get-invites)
+(defafun get-all-user-board-ids (future) (user-id &key shared persona-ids)
   "Gets ALL a user's board IDs, with option to specify grabbing shared boards."
   (alet* ((persona-ids (if persona-ids
                            persona-ids
@@ -198,22 +193,17 @@
       (if (zerop (length persona-ids))
           (get-user-board-ids #())
           (alet* ((query (r:r (:attr
-                                (:filter
-                                  (:get-all
-                                    (:table "boards_personas_link")
-                                    (coerce persona-ids 'list)
-                                    :index (db-index "boards_personas_link" "to"))
-                                  (r:fn (l)
-                                    (if get-invites
-                                        t
-                                        (:== (:default (:attr l "invite") nil) nil))))
+                                (:get-all
+                                  (:table "boards_personas_link")
+                                  (coerce persona-ids 'list)
+                                  :index (db-index "boards_personas_link" "to"))
                                 "board_id")))
                   (cursor (r:run sock query))
                   (board-ids (r:to-array sock cursor)))
             (r:stop sock cursor)
             (get-user-board-ids board-ids))))))
 
-(adefun get-boards-by-ids (board-ids &key get-personas get-invites)
+(adefun get-boards-by-ids (board-ids &key get-personas)
   "Given a list of board IDs, grab all associated boards (and optionally their
    linked personas)."
   (alet* ((sock (db-sock))
@@ -226,15 +216,10 @@
     (finally
       (if get-personas
           (alet* ((query (r:r (:eq-join
-                                (:filter
-                                  (:get-all
-                                    (:table "boards_personas_link")
-                                    board-ids
-                                    :index (db-index "boards_personas_link" "board_id"))
-                                  (r:fn (l)
-                                    (if get-invites
-                                        t
-                                        (:== (:default (:attr l "invite") nil) nil))))
+                                (:get-all
+                                  (:table "boards_personas_link")
+                                  board-ids
+                                  :index (db-index "boards_personas_link" "board_id"))
                                 "to"
                                 (:table "personas"))))
                   (cursor (r:run sock query))
@@ -250,7 +235,6 @@
                   for persona = (gethash "right" entry)
                   for board = (gethash board-id board-index) do
               (push persona (gethash "personas" board))
-              (remhash "token_server" link)
               (unless (gethash "privs" board)
                 (setf (gethash "privs" board) (hash)))
               (let ((privs (gethash "privs" board))
@@ -263,7 +247,7 @@
 ;;; ----------------------------------------------------------------------------
 ;;; permissions
 ;;; ----------------------------------------------------------------------------
-(adefun get-user-board-perms (user-id &key min-perms)
+(adefun get-user-boards-and-perms (user-id &key min-perms)
   "Grab all a user's boards, including shared, with permissions."
   (alet* ((persona-ids (get-user-persona-ids user-id))
           (user-board-ids (get-all-user-board-ids user-id))
@@ -355,7 +339,7 @@
 ;;; ----------------------------------------------------------------------------
 
 (adefun add-board-persona-link (user-id link-data)
-  "Quick crud function to insert a board <--> persona link (or a board invite)."
+  "Insert a board <--> persona link (or a board invite)."
   (alet* ((nil (validate-board-persona-link (link-data)))
           (sock (db-sock))
           (query (r:r (:insert
@@ -363,16 +347,68 @@
                         link-data)))
           (nil (r:run sock query))
           (board-id (gethash "board_id" link-data))
-          (user-ids (get-affected-users-from-board-ids (list board-id) :get-invites t))
+          (user-ids (get-affected-users-from-board-ids (list board-id)))
           (user-ids (concatenate 'vector (vector user-id) user-ids))
+          (to-persona (get-persona-by-id (gethash "to" link-data)))
+          (sync-ids (add-sync-record user-id
+                                     "board"
+                                     board-id
+                                     "edit"
+                                     :rel-ids user-ids))
+          ;; this separate "share" action is sent only to the invitee, and
+          ;; signifies the sync controller to pull out all notes for this board
+          ;; and return them
+          (share-sync-ids (add-sync-record user-id
+                                           "board"
+                                           board-id
+                                           "share"
+                                           :rel-ids (list (gethash "user_id" to-persona)))))
+    (r:disconnect sock)
+    (setf (gethash "sync_ids" link-data) (concatenate 'vector
+                                                      sync-ids
+                                                      share-sync-ids))
+    link-data))
+
+(adefun do-delete-board-persona-link (user-id board-id to-persona-id)
+  "Low-level (no-permissions) board <--> persona link deleter."
+  ;; grab the affected users first, since once we remove the user being
+  ;; removed wouldn't "get the memo"
+  (alet* ((user-ids (get-affected-users-from-board-ids (list board-id)))
+          (sock (db-sock))
+          (query (r:r (:delete
+                        (:filter
+                          (:get-all
+                            (:table "boards_personas_link")
+                            board-id
+                            :index (db-index "boards_personas_link" "board_id"))
+                          (r:fn (l)
+                            (:== (:attr l "to")
+                                 to-persona-id))))))
+          (nil (r:run sock query))
           (sync-ids (add-sync-record user-id
                                      "board"
                                      board-id
                                      "edit"
                                      :rel-ids user-ids)))
     (r:disconnect sock)
-    (setf (gethash "sync_ids" link-data) sync-ids)
-    link-data))
+    sync-ids))
+
+(adefun delete-board-persona-link (user-id board-id to-persona-id)
+  "Remove a board <--> persona link."
+  (alet* ((perms (get-user-board-permissions user-id board-id)))
+    ;; user must have at least read-only access to board to be considered for
+    ;; removal
+    (cond ((< 2 perms)
+           ;; user is owner/admin, just delete the link
+           (do-delete-board-persona-link user-id board-id to-persona-id))
+          ((< 0 perms)
+           ;; user is a member, verify they are removing themselves
+           (alet* ((persona (get-persona-by-id to-persona-id)))
+             (if (string= (gethash "user_id" persona) user-id)
+                 (do-delete-board-persona-link user-id board-id to-persona-id)
+                 (error 'insufficient-privileges :msg "You are editing a board you don't have access to."))))
+          (t
+            (error 'insufficient-privileges :msg "You are editing a board you don't have access to.")))))
 
 (adefun get-board-persona-links (board-id)
   "Get all a board's persona links/invites."

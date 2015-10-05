@@ -119,10 +119,11 @@ Please respond in a timely manner!"))
          (name (when (and name (not (string= name ""))) name))
          (email (gethash "email" from-persona))
          (from (get-persona-greeting from-persona))
-         (invite-code (concatenate 'string
-                                   (gethash "board_id" invite)
-                                   ":"
-                                   (gethash "id" invite)))
+         (invite-code (base64:string-to-base64-string
+                        (concatenate 'string
+                                     (gethash "id" invite)
+                                     ":"
+                                     (gethash "object_id" invite))))
          (tpl-vars `(:site-url ,*site-url*
                      :from ,from
                      :invite-code ,invite-code))

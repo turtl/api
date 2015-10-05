@@ -132,9 +132,13 @@
   ;; lazy way
   (jonathan:parse (jonathan:to-json hash) :as :hash-table))
 
+(defun make-id ()
+  "Make a new server-generated ID."
+  (string-downcase (mongoid:oid-str (mongoid:oid))))
+
 (defun add-id (hash-object &key (id-key "id"))
   "Add a mongo id to a hash table object."
-  (setf (gethash id-key hash-object) (string-downcase (mongoid:oid-str (mongoid:oid))))
+  (setf (gethash id-key hash-object) (make-id))
   hash-object)
 
 (defun add-mod (hash-object &key (key "mod"))

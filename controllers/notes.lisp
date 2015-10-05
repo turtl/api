@@ -120,7 +120,7 @@
   (alet* ((user-id (user-id req))
           (note-id (car args))
           (note-data (get-note-by-id note-id))
-          (board-perms (get-user-board-perms user-id :min-perms 2))
+          (board-perms (get-user-boards-and-perms user-id :min-perms 2))
           (allowed (user-can-edit-note-p user-id note-data board-perms)))
     (if allowed
         (if *local-upload*

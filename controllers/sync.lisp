@@ -18,19 +18,23 @@
         ;; index a board_id -> board_data hash. we're going to link personas and
         ;; invites and such using this index
         (dolist (rec sync)
-          ;; remove server tokens from invites
-          (when (string= (gethash "type" rec) "invite")
-            (push (gethash "data" rec) invites)
-            (remhash "token_server" (gethash "data" rec)))
-          (when (string= (gethash "type" rec) "board")
-            (let ((board-data (gethash "data" rec)))
-              (setf (gethash (gethash "id" board-data) board-idx) board-data))))
+          (let ((data (gethash "data" rec)))
+            (if data
+                (progn 
+                  ;; remove server tokens from invites
+                  (when (string= (gethash "type" rec) "invite")
+                    (push data invites)
+                    (remhash "token_server" data))
+                  (when (string= (gethash "type" rec) "board")
+                    (let ((board-data data))
+                      (setf (gethash (gethash "id" board-data) board-idx) board-data))))
+                (setf (gethash "missing" rec) t))))
         ;; load the boards from the sync
         (alet* ((board-ids (loop for x being the hash-keys of board-idx collect x))
                 (nil (populate-invites-personas (coerce invites 'vector)))
                 (linked-boards (if (zerop (length board-ids))
                                    #()
-                                   (get-boards-by-ids board-ids :get-personas t :get-invites t))))
+                                   (get-boards-by-ids board-ids :get-personas t))))
           ;; for each loaded board w/ personas/privs, set the extra data into
           ;; the indexed board from the sync (desctructive modify)
           (loop for board across linked-boards
@@ -58,7 +62,7 @@
            (personas (get-user-personas user-id))
            (global-sync-id (get-latest-sync-id)))
       ;; notes require all our board ids, so load them here
-      (alet* ((boards (get-all-boards user-id (map 'list (lambda (p) (gethash "id" p)) personas) :get-invites t))
+      (alet* ((boards (get-all-boards user-id (map 'list (lambda (p) (gethash "id" p)) personas)))
               (board-ids (map 'list (lambda (b) (gethash "id" b)) boards))
               (notes (get-all-notes user-id board-ids))
               ;; this is a weird case we need to handle. basically, notes in

@@ -213,7 +213,7 @@
   (add-mod note-data)
   ;; first, check that the user/persona is a member of this board
   (alet* ((board-ids (gethash "boards" note-data))
-          (board-perms (get-user-board-perms user-id :min-perms 2))
+          (board-perms (get-user-boards-and-perms user-id :min-perms 2))
           (diff (map 'list (lambda (id) (cons :add id)) board-ids))
           ;; silently remove boards we don't have access to
           (diff (validate-diff user-id user-id diff board-perms))
@@ -248,7 +248,7 @@
           (note-user-id (gethash "user_id" cur-note-data))
           (old-board-ids (gethash "boards" cur-note-data))
           (new-board-ids (gethash "boards" note-data))
-          (board-perms (get-user-board-perms user-id :min-perms 2))
+          (board-perms (get-user-boards-and-perms user-id :min-perms 2))
           (diff (note-boards-diff old-board-ids new-board-ids))
           ;; silently remove boards we don't have access to
           (diff (validate-diff user-id note-user-id diff board-perms))
@@ -285,7 +285,7 @@
    returned expires in 10 seconds, which should genreally be sufficient
    (especially for a redirect)."
   (alet* ((note (get-note-by-id note-id))
-          (board-perms (get-user-board-perms user-id :min-perms 1)))
+          (board-perms (get-user-boards-and-perms user-id :min-perms 1)))
     (if note
         (if (user-can-read-note-p user-id note board-perms)
             (alet* ((file (gethash "file" note))
@@ -304,7 +304,7 @@
 (defafun edit-note-file (future) (user-id note-id file-data &key remove-upload-id skip-sync)
   "Edit a note's file data."
   (alet* ((note (get-note-by-id note-id))
-          (board-perms (get-user-board-perms user-id :min-perms 2))
+          (board-perms (get-user-boards-and-perms user-id :min-perms 2))
           (allowed (user-can-edit-note-p user-id note board-perms)))
     (if allowed
         (validate-note-file (file-data future)
@@ -361,7 +361,7 @@
   "Delete the file attachment for a note (also removes the file itself from the
    storage system, wiping the file out forever)."
   (alet* ((note-data (get-note-by-id note-id))
-          (board-perms (get-user-board-perms user-id :min-perms 2)))
+          (board-perms (get-user-boards-and-perms user-id :min-perms 2)))
     ;; skip empty notes
     (when note-data
       (unless (user-can-edit-note-p user-id note-data board-perms)
@@ -371,7 +371,7 @@
 (adefun delete-note (user-id note-id)
   "Delete a note."
   (alet* ((note-data (get-note-by-id note-id))
-          (board-perms (get-user-board-perms user-id :min-perms 2)))
+          (board-perms (get-user-boards-and-perms user-id :min-perms 2)))
     (block note-data
       (unless note-data
         (return-from note-data #()))
