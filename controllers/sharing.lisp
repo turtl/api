@@ -13,7 +13,8 @@
   "Get a board invite by ID."
   (alet* ((object-id (car args))
           (invite-id (cadr args))
-          (invite (get-invite-by-id/object invite-id object-id)))
+          (invite (get-invite-by-id/object invite-id object-id))
+          (nil (populate-invites-personas (vector invite))))
     (send-json res invite)))
 
 (route (:put "/boards/([0-9a-f-]+)/invites/([0-9a-f-]+)/accept") (req res args)
@@ -22,7 +23,7 @@
           (board-id (car args))
           (invite-id (cadr args))
           (token (get-var req "token"))
-          (to-persona-id (get-var req "to-persona-id"))
+          (to-persona-id (get-var req "to_persona_id"))
           (board (accept-board-invite user-id invite-id board-id token :to-persona-id to-persona-id)))
     (send-json res board)))
 

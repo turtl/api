@@ -47,26 +47,25 @@
     (r:disconnect sock)
     (finish future t)))
 
-(defafun add-sync-record (future) (user-id item-type item-id action &key sub-action client-id rel-ids fields)
+(adefun add-sync-record (user-id item-type item-id action &key sub-action client-id rel-ids fields)
   "Adds a record to the sync table describing a change to a specific object.
    Allows specifying relation ids (:rel-ids) which can be used for filtering on
    sync items. Returns the added sync records IDs as the first value and the
    full sync records as the second."
+  (declare (ignore sub-action fields))
   ;; bomb out if bac action given (should never happen since this function is
   ;; only used internally, but accidents to happen)
-  (unless (find action '("add" "edit" "delete") :test #'string=)
-    (signal-error future (make-instance 'server-error
-                                        :msg (format nil "Bad sync record action: ~s~%" action)))
-    (return-from add-sync-record))
+  (unless (find action '("add" "edit" "delete" "share") :test #'string=)
+    (error 'server-error :msg (format nil "Bad sync record action: ~s~%" action)))
   (alet* ((sync-record (make-sync-record user-id item-type item-id action :client-id client-id :rel-ids rel-ids))
           (nil (insert-sync-records (list sync-record))))
-    (finish future (list (gethash "id" sync-record)))))
+    (list (gethash "id" sync-record))))
 
 (defafun link-sync-items (future) (sync-items link-table)
   "Given an array of items pulled from the `sync` table and a string table name
    to link the items against, populate the sync items with their linked counter
    parts (including the sync_id field for each sync item).
-   
+
    Note that all functions that deal with syncing should call this function. It
    not only makes linking sync items to their data counterparts easier, it
    uses a standard format for everything."

@@ -186,26 +186,32 @@
 (defun user-can-read-note-p (user-id note-data board-perms)
   "Given a set of ownership/permissions values, dtermine if a user has access to
    edit a note."
-  (or (user-can-edit-note-p user-id note-data board-perms)
-      ;; the user has write access to a board the note is in
-      (not (zerop (length (remove-if (lambda (board-id)
-                                       (let ((perm (gethash board-id board-perms)))
-                                         (or (not perm)
-                                             (< (gethash "perms" perm) 1))))
-                                     (gethash "boards" note-data)))))))
+  (let* ((board-id (gethash "board_id" note-data))
+         (boards (or (gethash "boards" note-data)
+                     (and board-id (list board-id)))))
+    (or (user-can-edit-note-p user-id note-data board-perms)
+        ;; the user has write access to a board the note is in
+        (not (zerop (length (remove-if (lambda (board-id)
+                                         (let ((perm (gethash board-id board-perms)))
+                                           (or (not perm)
+                                               (< (gethash "perms" perm) 1))))
+                                       boards)))))))
 
 (defun user-can-edit-note-p (user-id note-data board-perms)
   "Given a set of ownership/permissions values, dtermine if a user has access to
    edit a note."
-  (or
-    ;; the user owns the note. no brainer
-    (string= user-id (gethash "user_id" note-data))
-    ;; the user has write access to a board the note is in
-    (not (zerop (length (remove-if (lambda (board-id)
-                                     (let ((perm (gethash board-id board-perms)))
-                                       (or (not perm)
-                                           (< (gethash "perms" perm) 2))))
-                                   (gethash "boards" note-data)))))))
+  (let* ((board-id (gethash "board_id" note-data))
+         (boards (or (gethash "boards" note-data)
+                     (and board-id (list board-id)))))
+    (or
+      ;; the user owns the note. no brainer
+      (string= user-id (gethash "user_id" note-data))
+      ;; the user has write access to a board the note is in
+      (not (zerop (length (remove-if (lambda (board-id)
+                                       (let ((perm (gethash board-id board-perms)))
+                                         (or (not perm)
+                                             (< (gethash "perms" perm) 2))))
+                                     boards)))))))
 
 (adefun add-note (user-id note-data)
   "Add a new note."
@@ -246,7 +252,9 @@
   ;; board, that the user has access tot he new board as well.
   (alet* ((cur-note-data (get-note-by-id note-id))
           (note-user-id (gethash "user_id" cur-note-data))
-          (old-board-ids (gethash "boards" cur-note-data))
+          (board-id (gethash "board_id" cur-note-data))
+          (old-board-ids (or (gethash "boards" cur-note-data)
+                             (and board-id (list board-id))))
           (new-board-ids (gethash "boards" note-data))
           (board-perms (get-user-boards-and-perms user-id :min-perms 2))
           (diff (note-boards-diff old-board-ids new-board-ids))

@@ -4,10 +4,12 @@
   (("id" :type id :required t)
    ("user_id" :type id :required t)
    ("object_id" :type id :required t)
+   ("perms" :type integer :required t)
    ("from" :type id :required t)
    ("to" :type string :required t)
    ("has_persona" :type boolean)
    ("has_passphrase" :type boolean)
+   ("title" :type string)
    ("token_server" :type string)
    ("body" :type string)))
 

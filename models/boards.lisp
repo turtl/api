@@ -389,13 +389,24 @@
                                      "board"
                                      board-id
                                      "edit"
-                                     :rel-ids user-ids)))
+                                     :rel-ids user-ids))
+          ;; this separate "unshare" action is sent only to the departed, and
+          ;; signifies the sync controller to delete all notes
+          ;(share-sync-ids (add-sync-record user-id
+          ;                                 "board"
+          ;                                 board-id
+          ;                                 "unshare"
+          ;                                 :rel-ids (list (gethash "user_id" to-persona))))
+          )
     (r:disconnect sock)
     sync-ids))
 
 (adefun delete-board-persona-link (user-id board-id to-persona-id)
   "Remove a board <--> persona link."
-  (alet* ((perms (get-user-board-permissions user-id board-id)))
+  (alet* ((board (get-board-by-id board-id :get-privs t))
+          (perms-user (get-user-board-permissions user-id board-id :board board))
+          (perms-persona (get-user-board-permissions to-persona-id board-id :board board))
+          (perms (max perms-user perms-persona)))
     ;; user must have at least read-only access to board to be considered for
     ;; removal
     (cond ((< 2 perms)

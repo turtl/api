@@ -1,5 +1,15 @@
 (in-package :turtl)
 
+(defun convert-to-sync (item type)
+  "Take a piece of data (say, a note) and turn it into an 'add' sync item the
+   app can understand."
+  (let ((rec (make-sync-record (gethash "user_id" item)
+                               type
+                               (gethash "id" item)
+                               "add")))
+    (setf (gethash "data" rec) item)
+    rec))
+
 (route (:get "/sync") (req res)
   "Given the current user and a sync-id, spits out all data that has changes in
    the user's profile since that sync id. Used by various clients to stay in
@@ -14,13 +24,23 @@
       ;; TODO: since we load the boards independent of the sync system here,
       ;; maybe signal the sync to NOT link against boards? (just return IDs)
       (let ((board-idx (hash))
-            (invites nil))
+            (invites nil)
+            (shares nil))
         ;; index a board_id -> board_data hash. we're going to link personas and
         ;; invites and such using this index
         (dolist (rec sync)
           (let ((data (gethash "data" rec)))
             (if data
                 (progn 
+                  ;; if we have a "share" action, load any needed data for it
+                  ;; and switch it to an "add" action
+                  (when (string= (gethash "action" rec) "share")
+                    (setf (gethash "action" rec) "add")
+                    (case (intern (string-upcase (gethash "type" rec)) :keyword)
+                      (:board
+                        (push (alet* ((items (get-board-notes (gethash "id" data))))
+                                (map 'vector (lambda (note) (convert-to-sync note "note")) items))
+                              shares))))
                   ;; remove server tokens from invites
                   (when (string= (gethash "type" rec) "invite")
                     (push data invites)
@@ -28,9 +48,13 @@
                   (when (string= (gethash "type" rec) "board")
                     (let ((board-data data))
                       (setf (gethash (gethash "id" board-data) board-idx) board-data))))
+                ;; hmm, looks like the record is missing. let the app know
                 (setf (gethash "missing" rec) t))))
         ;; load the boards from the sync
-        (alet* ((board-ids (loop for x being the hash-keys of board-idx collect x))
+        (alet* ((extras (all shares))
+                (extras (apply 'concatenate 'vector extras))
+                (board-ids (loop for x being the hash-keys of board-idx collect x))
+                ;; link personas into our invites
                 (nil (populate-invites-personas (coerce invites 'vector)))
                 (linked-boards (if (zerop (length board-ids))
                                    #()
@@ -48,7 +72,7 @@
           ;; the id index.
           (if sync
               (send-json res (hash ("sync_id" latest-sync-id)
-                                   ("records" sync)))
+                                   ("records" (concatenate 'vector sync extras))))
               (send-json res nil)))))))
 
 (route (:get "/sync/full") (req res)
@@ -91,23 +115,16 @@
               (invites (get-persona-invites (map 'list (lambda (p) (gethash "id" p)) personas)))
               (invites (populate-invites-personas invites))
               (sync nil))
-        (flet ((convert-to-sync (item type)
-                 (let ((rec (make-sync-record (gethash "user_id" item)
-                                              type 
-                                              (gethash "id" item)
-                                              "add")))
-                   (setf (gethash "data" rec) item)
-                   rec)))
-          ;; package it all up
-          (push (convert-to-sync user "user") sync)
-          (loop for (collection . type) in (list (cons keychain "keychain")
-                                                 (cons personas "persona")
-                                                 (cons boards "board")
-                                                 (cons notes "note")
-                                                 (cons files "file")
-                                                 (cons invites "invite")) do
-            (loop for item across collection do
-              (push (convert-to-sync item type) sync))))
+        ;; package it all up
+        (push (convert-to-sync user "user") sync)
+        (loop for (collection . type) in (list (cons keychain "keychain")
+                                               (cons personas "persona")
+                                               (cons boards "board")
+                                               (cons notes "note")
+                                               (cons files "file")
+                                               (cons invites "invite")) do
+          (loop for item across collection do
+            (push (convert-to-sync item type) sync)))
         (send-json res (hash ("sync_id" global-sync-id)
                              ("records" (nreverse sync))))))))
 
