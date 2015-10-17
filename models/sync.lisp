@@ -17,7 +17,7 @@
     (r:disconnect sock)
     (finish future (car sync-item))))
 
-(defun make-sync-record (user-id item-type item-id action &key client-id rel-ids fields)
+(defun make-sync-record (user-id item-type item-id action &key client-id rel-ids fields no-auto-add-user)
   "Creates a sync hash record from the given params."
   (let* ((sync-record (make-hash-table :test #'equal)))
     (add-id sync-record)
@@ -26,15 +26,34 @@
           (gethash "item_id" sync-record) item-id
           (gethash "action" sync-record) action)
     ;; the originating user should always be in the relations
-    (if (listp rel-ids)
-        (push user-id rel-ids)
-        (setf rel-ids (concatenate 'vector rel-ids (vector user-id))))
+    (unless no-auto-add-user
+      (if (listp rel-ids)
+          (push user-id rel-ids)
+          (setf rel-ids (concatenate 'vector rel-ids (vector user-id)))))
     (setf (gethash "rel" sync-record) (remove-duplicates rel-ids :test #'string=))
     ;; can store the client id (cid) of a newly-created object
     (when client-id (setf (gethash "cid" sync-record) client-id))
     ;; can be used to specify the public fields changed in an edit
     (when (and fields (listp fields)) (setf (gethash "fields" sync-record) fields))
     sync-record))
+
+(defun convert-to-sync (item type &key (action "add"))
+  "Take a piece of data (say, a note) and turn it into a sync item the app can
+   understand. Very useful for pulling out extra data into a profile that didn't
+   come through sync but we want to be available to the app.
+   
+   Defaults to an 'add' but can be specified via :action."
+  (let ((rec (make-sync-record (gethash "user_id" item)
+                               type
+                               (gethash "id" item)
+                               action)))
+    (case (intern (string-upcase action) :keyword)
+      (:delete
+        (setf (gethash "data" rec) (hash ("id" (gethash "id" item))
+                                         ("deleted" t))))
+      (t
+        (setf (gethash "data" rec) item)))
+    rec))
 
 (defafun insert-sync-records (future) (sync-records)
   "Insert one or more sync-records (list) objects (built with make-sync-record)
@@ -47,7 +66,7 @@
     (r:disconnect sock)
     (finish future t)))
 
-(adefun add-sync-record (user-id item-type item-id action &key sub-action client-id rel-ids fields)
+(adefun add-sync-record (user-id item-type item-id action &key sub-action client-id rel-ids fields no-auto-add-user)
   "Adds a record to the sync table describing a change to a specific object.
    Allows specifying relation ids (:rel-ids) which can be used for filtering on
    sync items. Returns the added sync records IDs as the first value and the
@@ -57,7 +76,7 @@
   ;; only used internally, but accidents to happen)
   (unless (find action '("add" "edit" "delete" "share" "unshare") :test #'string=)
     (error 'server-error :msg (format nil "Bad sync record action: ~s~%" action)))
-  (alet* ((sync-record (make-sync-record user-id item-type item-id action :client-id client-id :rel-ids rel-ids))
+  (alet* ((sync-record (make-sync-record user-id item-type item-id action :client-id client-id :rel-ids rel-ids :no-auto-add-user no-auto-add-user))
           (nil (insert-sync-records (list sync-record))))
     (list (gethash "id" sync-record))))
 
@@ -346,6 +365,57 @@
           (nil (r:run sock query)))
     (r:disconnect sock)
     t))
+
+(adefun convert-board-share-to-sync (board-id)
+  "Given a board's data, return a promise that is resolved with a VECTOR of
+   sync items that add the correct board(s) and note(s)."
+  (multiple-promise-bind (boards notes)
+      (get-board-tree board-id)
+    (concatenate
+      'vector
+      (map 'vector
+           (lambda (board) (convert-to-sync board "board"))
+           ;; don't need to sync the shared board since it's
+           ;; already in he sync list
+           (remove-if (lambda (board)
+                        (string= (gethash "id" board) board-id))
+                      boards))
+      (map 'vector (lambda (note) (convert-to-sync note "note")) notes))))
+
+(adefun convert-board-unshare-to-sync (user-id board-id)
+  "Given a board's data, return a promise that is resolved with a VECTOR of
+   sync items that delete the correct board(s) and note(s).
+   
+   NOTE that we have to be careful of situations where a note can be in two
+   shared boards, and if one of the boards is unshared, we do NOT delete the
+   note because it is still shared via the other board. Same goes for child
+   boards...Board A owns Board B, if Board A is unshared but Board B has a
+   separate and valid share to the same persona, Board B must NOT be deleted.
+
+   Also, once we find all the items we do want to delete, we need to sync
+   delete the keychain entries as well.
+   
+   Adding is much easier than deleting =]."
+  (multiple-promise-bind (boards notes)
+      (get-board-tree
+        board-id
+        :user-id user-id
+        :perm-filter (lambda (type user-id data board-perms)
+                       (case type
+                         (:board 
+                           (let* ((cur-board-id (gethash "id" data))
+                                  (perm-entry (gethash cur-board-id board-perms)))
+                             ;; remove any boards we still have some level of
+                             ;; permissions for. this includes the board being
+                             ;; unshared
+                             (and perm-entry
+                                  (< 0 (gethash "perms" perm-entry 0)))))
+                         (:note
+                           (user-can-read-note-p user-id data board-perms)))))
+    (concatenate
+      'vector
+      (map 'vector (lambda (board) (convert-to-sync board "board" :action "delete")) boards)
+      (map 'vector (lambda (note) (convert-to-sync note "note" :action "delete")) notes))))
 
 (defafun cleanup-sync (future) ()
   "Remove all sync items older than 30 days."

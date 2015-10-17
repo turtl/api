@@ -279,6 +279,28 @@
           boards)
       (r:disconnect sock))))
 
+(adefun get-board-tree (board-id &key user-id perm-filter)
+  "Given a board id, grab its child boards and grab all notes in all boards,
+   returning a vector of boards and notes. This is just kind of a convenience
+   function to make some things (like sharing/unsharing) easier in sync.
+   
+   Optionally allows running a filter against the returned data with a callback
+   that is given the item type (:note/:board), the user id, item data, and the
+   user's board perms. The filter is a remove-if so return T to remove."
+  (when (and perm-filter (not user-id))
+    (error "If running a perm-filter, please specify user-id"))
+  (alet* ((board-ids (expand-child-boards (list board-id)))
+          (board-perms (when perm-filter (get-user-boards-and-perms user-id)))
+          ;; get the main board/child boards
+          (boards (get-boards-by-ids board-ids :get-personas t))
+          ;; get ALL notes for this board AND child boards
+          (notes (get-board-notes board-ids)))
+    (if perm-filter
+        (values
+          (remove-if (lambda (board) (funcall perm-filter :board user-id board board-perms)) boards)
+          (remove-if (lambda (note) (funcall perm-filter :note user-id note board-perms)) notes))
+        (values boards notes))))
+
 ;;; ----------------------------------------------------------------------------
 ;;; permissions
 ;;; ----------------------------------------------------------------------------
@@ -442,10 +464,7 @@
 
 (adefun do-delete-board-persona-link (user-id board-id to-persona-id)
   "Low-level (no-permissions) board <--> persona link deleter."
-  ;; grab the affected users first, since once we remove the user being
-  ;; removed wouldn't "get the memo"
-  (alet* ((user-ids (get-affected-users-from-board-ids (list board-id)))
-          (sock (db-sock))
+  (alet* ((sock (db-sock))
           (query (r:r (:delete
                         (:filter
                           (:get-all
@@ -456,11 +475,16 @@
                             (:== (:attr l "to")
                                  to-persona-id))))))
           (nil (r:run sock query))
+          ;; we purposefully get the users AFTER removing the persona because we
+          ;; don't want the unsharee to get the "edit" action, we want them to
+          ;; see the "unshare" sync item that comes after it.
+          (user-ids (get-affected-users-from-board-ids (list board-id)))
           (sync-ids (add-sync-record user-id
                                      "board"
                                      board-id
                                      "edit"
-                                     :rel-ids user-ids))
+                                     :rel-ids user-ids
+                                     :no-auto-add-user t))
           ;; this separate "unshare" action is sent only to the departed, and
           ;; signifies the sync controller to delete all notes
           (to-persona (get-persona-by-id to-persona-id))
@@ -473,25 +497,32 @@
     (r:disconnect sock)
     (concatenate 'vector sync-ids share-sync-ids)))
 
-(adefun delete-board-persona-link (user-id board-id to-persona-id)
+(adefun delete-board-persona-link (user-id board-id to-persona-id &key delete-keychain-entries)
   "Remove a board <--> persona link."
   (alet* ((board (get-board-by-id board-id :get-privs t))
           (perms-user (get-user-board-permissions user-id board-id :board board))
           (perms-persona (get-user-board-permissions to-persona-id board-id :board board))
-          (perms (max perms-user perms-persona)))
-    ;; user must have at least read-only access to board to be considered for
-    ;; removal
-    (cond ((< 2 perms)
-           ;; user is owner/admin, just delete the link
-           (do-delete-board-persona-link user-id board-id to-persona-id))
-          ((< 0 perms)
-           ;; user is a member, verify they are removing themselves
-           (alet* ((persona (get-persona-by-id to-persona-id)))
-             (if (string= (gethash "user_id" persona) user-id)
-                 (do-delete-board-persona-link user-id board-id to-persona-id)
-                 (error 'insufficient-privileges :msg "You are editing a board you don't have access to."))))
-          (t
-            (error 'insufficient-privileges :msg "You are editing a board you don't have access to.")))))
+          (perms (max perms-user perms-persona))
+          (to-persona (get-persona-by-id to-persona-id)))
+    (flet ((do-delete ()
+             (alet* ((sync-ids (do-delete-board-persona-link user-id board-id to-persona-id)))
+               (if delete-keychain-entries
+                   (alet* ((to-user-id (gethash "user_id" to-persona))
+                           (keychain-sync (delete-keychain-tree to-user-id board-id)))
+                     (concatenate 'vector sync-ids keychain-sync))
+                   sync-ids))))
+      ;; user must have at least read-only access to board to be considered for
+      ;; removal
+      (cond ((< 2 perms)
+             ;; user is owner/admin, just delete the link
+             (do-delete))
+            ((< 0 perms)
+             ;; user is a member, verify they are removing themselves
+             (if (string= (gethash "user_id" to-persona) user-id)
+                 (do-delete)
+                 (error 'insufficient-privileges :msg "You are editing a board you don't have access to.")))
+            (t
+              (error 'insufficient-privileges :msg "You are editing a board you don't have access to."))))))
 
 (adefun get-board-persona-links (board-id)
   "Get all a board's persona links/invites."

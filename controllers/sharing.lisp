@@ -41,7 +41,7 @@
   (alet* ((user-id (user-id req))
           (board-id (car args))
           (persona-id (cadr args))
-          (sync-ids (delete-board-persona-link user-id board-id persona-id))
+          (sync-ids (delete-board-persona-link user-id board-id persona-id :delete-keychain-entries t))
           (board (get-board-by-id board-id :get-privs t)))
     (setf (gethash "sync_ids" board) sync-ids)
     (send-json res board)))

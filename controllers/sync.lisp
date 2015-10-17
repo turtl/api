@@ -1,20 +1,22 @@
 (in-package :turtl)
 
-(defun convert-to-sync (item type)
-  "Take a piece of data (say, a note) and turn it into an 'add' sync item the
-   app can understand. Very useful for pulling out extra data into a profile
-   that didn't come through sync but we want to be available to the app."
-  (let ((rec (make-sync-record (gethash "user_id" item)
-                               type
-                               (gethash "id" item)
-                               "add")))
-    (setf (gethash "data" rec) item)
-    rec))
-
 (route (:get "/sync") (req res)
   "Given the current user and a sync-id, spits out all data that has changes in
    the user's profile since that sync id. Used by various clients to stay in
-   sync with the canonical profile (hosted on the server)."
+   sync with the canonical profile (hosted on the server).
+   
+   Unlike the /sync/full call, this is stateful...we are syncing actual profile
+   changes here and thus depend on syncing the correct data. A mistake here can
+   put bad data into the profile that will sit there until the app clears its
+   local data. So we have to be careful to sync exactly what the client needs.
+   This is easy for tangible things like editing a note or adding a keychain
+   because there is a 1:1 mapping of sync record -> action. When things get
+   tricky is for 'share' and 'unshare' sync records: we have to create a bunch
+   of fake sync records that add the board(s) and their note(s) to the profile
+   and make sure they are injected at the correct place in the sync result.
+   
+   So in the cases where we're fabricating sync items, we have to be cautious
+   to add/remove the correct data or the app is going to have a bad time."
   (alet* ((user-id (user-id req))
           (immediate (not (zerop (varint (get-var req "immediate") 0))))
           (sync-id (get-var req "sync_id")))
@@ -27,54 +29,53 @@
       (let ((board-idx (hash))
             (invites nil)
             (shares nil))
-        ;; index a board_id -> board_data hash. we're going to link personas and
-        ;; invites and such using this index
+        ;; do some sync "tampering" (processing (un)shares, removing sensitive
+        ;; data from records (like invite server tokens), index our boards into
+        ;; a hash table, and mark any sync records missing their cor data as
+        ;; such
         (dolist (rec sync)
           (let ((data (gethash "data" rec)))
             (if data
                 (progn 
-                  ;; if we have a "share" action, load any needed data for it
-                  ;; and switch it to an "add" action
+                  ;; if we have a "share", convert it to a vector of "add" sync
+                  ;; items
                   (when (string= (gethash "action" rec) "share")
+                    ;; convert the CURRENT sync item to an add
                     (setf (gethash "action" rec) "add")
                     (case (intern (string-upcase (gethash "type" rec)) :keyword)
                       ;; can only share boards atm
                       (:board
-                        (push (alet* ((board-id (gethash "id" data))
-                                      ;; grab child board IDs as well (if they
-                                      ;; exist)
-                                      (board-ids (expand-child-boards (list board-id)))
-                                      ;; get the child boards so we can sync them
-                                      (boards (get-boards-by-ids board-ids :get-personas t))
-                                      ;; get ALL notes for this board AND child
-                                      ;; boards
-                                      (items (get-board-notes board-ids)))
-                                ;; convert the boards/notes to sync "add" actions
-                                (concatenate
-                                  'vector
-                                  (map 'vector
-                                       (lambda (board) (convert-to-sync board "board"))
-                                       ;; don't need to sync the shared board since it's
-                                       ;; already in he sync list
-                                       (remove-if (lambda (board)
-                                                    (string= (gethash "id" board) board-id))
-                                                  boards))
-                                  (map 'vector (lambda (note) (convert-to-sync note "note")) items)))
-                              shares))))
+                        (push (convert-board-share-to-sync (gethash "id" data)) shares))))
+                  ;; if we have an "unshare", convert it to a vector of "delete"
+                  ;; sync items
+                  (when (string= (gethash "action" rec) "unshare")
+                    ;; convert the CURRENT sync item to a NOP (will be removed
+                    ;; later down the line)
+                    (setf (gethash "action" rec) "nop")
+                    (case (intern (string-upcase (gethash "type" rec)) :keyword)
+                      ;; can only unshare boards atm
+                      (:board
+                        (push (convert-board-unshare-to-sync user-id (gethash "id" data)) shares))))
                   ;; remove server tokens from invites
                   (when (string= (gethash "type" rec) "invite")
                     (push data invites)
                     (remhash "token_server" data))
+                  ;; index a board_id -> board_data hash. we're going to link
+                  ;; personas and invites and such using this index
                   (when (string= (gethash "type" rec) "board")
                     (let ((board-data data))
                       (setf (gethash (gethash "id" board-data) board-idx) board-data))))
                 ;; hmm, looks like the record is missing. let the app know
                 (setf (gethash "missing" rec) t))))
-        ;; load the boards from the sync
+        ;; post-process our sync data. if we have shares, wait for them to
+        ;; finalize their returned data, then concat the data to the extras
+        ;; collection (appended to the end of the sync).
+        ;; 
+        ;; also, grab personas/privs for each board, and make sure invites have
+        ;; personas as well.
         (alet* ((extras (all shares))
                 (extras (apply 'concatenate 'vector extras))
                 (board-ids (loop for x being the hash-keys of board-idx collect x))
-                ;; link personas into our invites
                 (nil (populate-invites-personas (coerce invites 'vector)))
                 (linked-boards (if (zerop (length board-ids))
                                    #()
@@ -92,13 +93,22 @@
           ;; the id index.
           (if sync
               (send-json res (hash ("sync_id" latest-sync-id)
-                                   ("records" (concatenate 'vector sync extras))))
+                                   ("records" (remove-if
+                                                (lambda (sync)
+                                                  (string= "nop" (gethash "action" sync)))
+                                                (concatenate 'vector sync extras)))))
               (send-json res nil)))))))
 
 (route (:get "/sync/full") (req res)
   "Called by the client if a user has no local profile data. Returns the profile
    data in the same format as a sync call, allowing the client to process it the
-   same way as regular syncing."
+   same way as regular syncing.
+   
+   It's important to note that this isn't stateful in the sense that we need to
+   gather the correct sync items and send them...what we're doing is pulling out
+   all the needed data for the profile and returning it as sync 'add' items. Any
+   time the app needs a fresh set of *correct* data it can wipe its local data
+   and grab this."
   (let ((user-id (user-id req)))
     ;; note we load everything in parallel here to speed up loading
     (alet ((user (get-user-by-id user-id))
