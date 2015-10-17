@@ -55,7 +55,7 @@
   (declare (ignore sub-action fields))
   ;; bomb out if bac action given (should never happen since this function is
   ;; only used internally, but accidents to happen)
-  (unless (find action '("add" "edit" "delete" "share") :test #'string=)
+  (unless (find action '("add" "edit" "delete" "share" "unshare") :test #'string=)
     (error 'server-error :msg (format nil "Bad sync record action: ~s~%" action)))
   (alet* ((sync-record (make-sync-record user-id item-type item-id action :client-id client-id :rel-ids rel-ids))
           (nil (insert-sync-records (list sync-record))))

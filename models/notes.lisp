@@ -32,12 +32,12 @@
     (r:disconnect sock)
     note))
 
-(defafun get-board-notes (future) (board-id)
+(defafun get-board-notes (future) (board-ids)
   "Get the notes for a board."
   (alet* ((sock (db-sock))
           (query (r:r (:get-all
                         (:table "notes")
-                        board-id
+                        board-ids
                         :index (db-index "notes" "boards"))))
           (cursor (r:run sock query))
           (results (r:to-array sock cursor)))

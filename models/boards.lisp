@@ -116,8 +116,8 @@
                       (get-boards-by-ids board-ids :get-personas t))))
     boards))
 
-(adefun expand-board-ids (board-ids)
-  "Given a set of board ids, also grab all parents of the given board ids."
+(adefun expand-parent-boards (board-ids)
+  "Given a set of board IDs, also grab all parent IDs of the board ids."
   (alet* ((sock (db-sock))
           (query (r:r
                    (:attr
@@ -133,16 +133,37 @@
           (cursor (r:run sock query))
           (ids (r:to-array sock cursor)))
     (r:stop/disconnect sock cursor)
-    (concatenate 'vector (if (listp board-ids)
-                             (coerce board-ids 'vector)
-                             board-ids) ids)))
+    (remove-duplicates
+      (concatenate 'vector (if (listp board-ids)
+                               (coerce board-ids 'vector)
+                               board-ids) ids)
+      :test 'string=)))
+
+(adefun expand-child-boards (board-ids)
+  "Given a set of board IDs, also grab all child IDs of the board ids."
+  (alet* ((sock (db-sock))
+          (query (r:r
+                   (:attr
+                     (:get-all
+                       (:table "boards")
+                       board-ids
+                       :index (db-index "boards" "parent_id"))
+                     "id")))
+          (cursor (r:run sock query))
+          (child-ids (r:to-array sock cursor)))
+    (r:stop/disconnect sock cursor)
+    (remove-duplicates
+      (concatenate 'vector (if (listp board-ids)
+                               (coerce board-ids 'vector)
+                               board-ids) child-ids)
+      :test 'string=)))
 
 (adefun get-affected-users-from-board-ids (board-ids)
   "For all given board-ids (list), find users that will be affected by changes
    to those boards or items in those boards. Returns a list of user-ids."
   (unless board-ids
     (return-from get-affected-users-from-board-ids))
-  (alet* ((board-ids (expand-board-ids board-ids))
+  (alet* ((board-ids (expand-parent-boards board-ids))
           (sock (db-sock))
           (query (r:r
                    (:attr
@@ -179,17 +200,31 @@
                                (get-user-persona-ids user-id)
                                #())))
           (sock (db-sock)))
-    (flet ((get-user-board-ids (append)
-             (alet* ((query (r:r (:attr
-                                   (:get-all
-                                     (:table "boards")
-                                     user-id
-                                     :index (db-index "boards" "user_id"))
-                                   "id")))
-                     (cursor (r:run sock query))
-                     (board-ids (r:to-array sock cursor)))
-               (r:stop/disconnect sock cursor)
-               (finish future (concatenate 'vector board-ids append)))))
+    (labels ((get-child-board-ids (board-ids)
+               (if (zerop (length board-ids))
+                   #()
+                   (alet* ((query (r:r (:attr
+                                         (:get-all
+                                           (:table "boards")
+                                           board-ids
+                                           :index (db-index "boards" "parent_id"))
+                                         "id")))
+                           (cursor (r:run sock query))
+                           (board-ids (r:to-array sock cursor)))
+                     (r:stop sock cursor)
+                     board-ids)))
+             (get-user-board-ids (append)
+               (alet* ((query (r:r (:attr
+                                     (:get-all
+                                       (:table "boards")
+                                       user-id
+                                       :index (db-index "boards" "user_id"))
+                                     "id")))
+                       (cursor (r:run sock query))
+                       (board-ids (r:to-array sock cursor))
+                       (child-ids (get-child-board-ids board-ids)))
+                 (r:stop/disconnect sock cursor)
+                 (finish future (remove-duplicates (concatenate 'vector board-ids child-ids append) :test 'string=)))))
       (if (zerop (length persona-ids))
           (get-user-board-ids #())
           (alet* ((query (r:r (:attr
@@ -266,17 +301,53 @@
                       (list "user_id" "board_id" "perms"))))
           (cursor (r:run sock qry))
           (shared (r:to-array sock cursor))
-          (index (hash)))
+          (nil (r:stop sock cursor))
+          (qry (r:r (:pluck
+                      (:get-all
+                        (:table "boards")
+                        (or (map 'list (lambda (b) (gethash "board_id" b)) shared)
+                            '("fake id"))
+                        :index (db-index "boards" "parent_id"))
+                      (list "id" "user_id" "parent_id"))))
+          (cursor (r:run sock qry))
+          (shared-childs (r:to-array sock cursor))
+          (index (hash))
+          (child-index (hash)))
     (r:stop/disconnect sock cursor)
+    ;; index parent_id -> child_id relations
+    (loop for child across shared-childs
+          for user-id = (gethash "user_id" child)
+          for child-id = (gethash "id" child)
+          for parent-id = (gethash "parent_id" child)
+          for existing = (gethash parent-id child-index)
+          for entry = (hash ("id" child-id)
+                            ("user_id" user-id)) do
+      (if existing
+          (push entry existing)
+          (setf (gethash parent-id child-index) (list entry))))
     ;; set permissions for shared boards
     (loop for entry across shared
           for id = (gethash "board_id" entry)
-          for perms = (gethash "perms" entry) do
+          for user-id = (gethash "user_id" entry)
+          for perms = (gethash "perms" entry)
+          for children = (gethash id child-index) do
       (when (or (not min-perms)
                 (<= min-perms perms))
         (setf (gethash id index) (hash ("id" id)
-                                       ("owner" (gethash "user_id" entry))
-                                       ("perms" perms)))))
+                                       ("owner" user-id)
+                                       ("perms" perms)))
+        ;; if this board has children, set the children's permissions up with
+        ;; the same ones as the parent board
+        ;; TODO: instead of just blindly writing the child boards into the
+        ;; index, instead check if it's already there and if so use the *max
+        ;; permission value* set.
+        (when children
+          (loop for child in children
+                for child-id = (gethash "id" child)
+                for user-id = (gethash "user_id" child) do
+            (setf (gethash child-id index) (hash ("id" child-id)
+                                                 ("owner" user-id)
+                                                 ("perms" perms)))))))
     ;; set user-owned to the "owned" permission (3) in the index
     (loop for id across user-board-ids
           for perms = 3 do
@@ -392,14 +463,15 @@
                                      :rel-ids user-ids))
           ;; this separate "unshare" action is sent only to the departed, and
           ;; signifies the sync controller to delete all notes
-          ;(share-sync-ids (add-sync-record user-id
-          ;                                 "board"
-          ;                                 board-id
-          ;                                 "unshare"
-          ;                                 :rel-ids (list (gethash "user_id" to-persona))))
-          )
+          (to-persona (get-persona-by-id to-persona-id))
+          (persona-user-id (gethash "user_id" to-persona))
+          (share-sync-ids (add-sync-record user-id
+                                           "board"
+                                           board-id
+                                           "unshare"
+                                           :rel-ids (list persona-user-id))))
     (r:disconnect sock)
-    sync-ids))
+    (concatenate 'vector sync-ids share-sync-ids)))
 
 (adefun delete-board-persona-link (user-id board-id to-persona-id)
   "Remove a board <--> persona link."

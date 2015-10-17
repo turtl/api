@@ -2,7 +2,8 @@
 
 (defun convert-to-sync (item type)
   "Take a piece of data (say, a note) and turn it into an 'add' sync item the
-   app can understand."
+   app can understand. Very useful for pulling out extra data into a profile
+   that didn't come through sync but we want to be available to the app."
   (let ((rec (make-sync-record (gethash "user_id" item)
                                type
                                (gethash "id" item)
@@ -37,9 +38,28 @@
                   (when (string= (gethash "action" rec) "share")
                     (setf (gethash "action" rec) "add")
                     (case (intern (string-upcase (gethash "type" rec)) :keyword)
+                      ;; can only share boards atm
                       (:board
-                        (push (alet* ((items (get-board-notes (gethash "id" data))))
-                                (map 'vector (lambda (note) (convert-to-sync note "note")) items))
+                        (push (alet* ((board-id (gethash "id" data))
+                                      ;; grab child board IDs as well (if they
+                                      ;; exist)
+                                      (board-ids (expand-child-boards (list board-id)))
+                                      ;; get the child boards so we can sync them
+                                      (boards (get-boards-by-ids board-ids :get-personas t))
+                                      ;; get ALL notes for this board AND child
+                                      ;; boards
+                                      (items (get-board-notes board-ids)))
+                                ;; convert the boards/notes to sync "add" actions
+                                (concatenate
+                                  'vector
+                                  (map 'vector
+                                       (lambda (board) (convert-to-sync board "board"))
+                                       ;; don't need to sync the shared board since it's
+                                       ;; already in he sync list
+                                       (remove-if (lambda (board)
+                                                    (string= (gethash "id" board) board-id))
+                                                  boards))
+                                  (map 'vector (lambda (note) (convert-to-sync note "note")) items)))
                               shares))))
                   ;; remove server tokens from invites
                   (when (string= (gethash "type" rec) "invite")
