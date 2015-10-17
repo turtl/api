@@ -128,7 +128,7 @@
               (r:disconnect sock)
               (finish future (length entries))))))))
 
-(adefun delete-keychain-tree (user-id board-id)
+(adefun delete-keychain-tree (from-user-id user-id board-id)
   "Grab a board's tree data (board, child boards, all notes contained therein)
    and for each item we no longer have at least read access to, remove that
    item's keychain entry (if it exists)."
@@ -159,7 +159,12 @@
                          (map 'list (lambda (k) (gethash "id" k)) keychain-entries)))))
             (nil (r:run sock query))
             (sync-records (map 'vector
-                               (lambda (ke) (make-sync-record user-id "keychain" (gethash "id" ke) "delete"))
+                               (lambda (ke) (make-sync-record from-user-id
+                                                              "keychain"
+                                                              (gethash "id" ke)
+                                                              "delete"
+                                                              :rel-ids (list user-id)
+                                                              :no-auto-add-user t))
                                keychain-entries))
             (nil (insert-sync-records sync-records)))
       ;; return the sync id(s)

@@ -493,7 +493,8 @@
                                            "board"
                                            board-id
                                            "unshare"
-                                           :rel-ids (list persona-user-id))))
+                                           :rel-ids (list persona-user-id)
+                                           :no-auto-add-user t)))
     (r:disconnect sock)
     (concatenate 'vector sync-ids share-sync-ids)))
 
@@ -508,7 +509,7 @@
              (alet* ((sync-ids (do-delete-board-persona-link user-id board-id to-persona-id)))
                (if delete-keychain-entries
                    (alet* ((to-user-id (gethash "user_id" to-persona))
-                           (keychain-sync (delete-keychain-tree to-user-id board-id)))
+                           (keychain-sync (delete-keychain-tree user-id to-user-id board-id)))
                      (concatenate 'vector sync-ids keychain-sync))
                    sync-ids))))
       ;; user must have at least read-only access to board to be considered for
