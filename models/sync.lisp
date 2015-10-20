@@ -373,13 +373,7 @@
       (get-board-tree board-id)
     (concatenate
       'vector
-      (map 'vector
-           (lambda (board) (convert-to-sync board "board"))
-           ;; don't need to sync the shared board since it's
-           ;; already in he sync list
-           (remove-if (lambda (board)
-                        (string= (gethash "id" board) board-id))
-                      boards))
+      (map 'vector (lambda (board) (convert-to-sync board "board")) boards)
       (map 'vector (lambda (note) (convert-to-sync note "note")) notes))))
 
 (adefun convert-board-unshare-to-sync (user-id board-id)

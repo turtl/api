@@ -47,6 +47,8 @@
 
 (adefun get-persona-invites (persona-ids &key return-tokens)
   "Get all invites to or from the given persona ids."
+  (when (zerop (length persona-ids))
+    (return-from get-persona-invites #()))
   (flet ((get-invites (persona-ids index)
            (alet* ((sock (db-sock))
                    (query (r:r
@@ -143,6 +145,60 @@
                                      "delete"
                                      :rel-ids user-ids)))
     sync-ids))
+
+(adefun delete-persona-invites (user-id persona-id)
+  "Delete any invites from/to a persona. No permissions checks, so don't call
+   this unless you know user-id owns persona-id (or some other check has been
+   performed)."
+  (alet* ((sock (db-sock))
+          (query (r:r
+                   (:set-union
+                     (:coerce-to (:pluck
+                                   (:get-all
+                                     (:table "invites")
+                                     persona-id
+                                     :index (db-index "invites" "to"))
+                                   (list "id" "from" "to"))
+                      "array")
+                     (:coerce-to (:pluck
+                                   (:get-all
+                                     (:table "invites")
+                                     persona-id
+                                     :index (db-index "invites" "from"))
+                                   (list "id" "from" "to"))
+                      "array"))))
+          (cursor (r:run sock query))
+          (invites (r:to-array sock cursor))
+          (nil (r:stop sock cursor))
+          (query (r:r (:delete (:get-all (:table "invites") persona-id :index (db-index "invites" "to")))))
+          (nil (r:run sock query))
+          (query (r:r (:delete (:get-all (:table "invites") persona-id :index (db-index "invites" "from")))))
+          (nil (r:run sock query))
+          (persona-ids (loop for inv across invites
+                             for from = (gethash "from" inv)
+                             for to = (gethash "to" inv)
+                             append (list from to)))
+          (personas (get-personas-by-ids persona-ids))
+          (persona-idx (let ((idx (hash)))
+                         (loop for persona across personas
+                               for id = (gethash "id" persona) do
+                           (setf (gethash id idx) persona))
+                         idx))
+          (sync-records (map 'vector
+                             (lambda (invite)
+                               (let* ((id (gethash "id" invite))
+                                      (from (gethash "from" invite))
+                                      (to (gethash "to" invite))
+                                      (from-user (gethash "user_id" (gethash from persona-idx (hash))))
+                                      (to-user (gethash "user_id" (gethash to persona-idx (hash)))))
+                                 (make-sync-record user-id
+                                                   "invite"
+                                                   id
+                                                   "delete"
+                                                   :rel-ids (remove-if-not 'identity (list from-user to-user)))))
+                             invites))
+          (nil (insert-sync-records sync-records)))
+    (map 'vector (lambda (s) (gethash "id" s)) sync-records)))
 
 (adefun create-board-invite (user-id board-id invite-data)
   "Create an invite record."

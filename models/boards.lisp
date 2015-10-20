@@ -451,11 +451,13 @@
           ;; this separate "share" action is sent only to the invitee, and
           ;; signifies the sync controller to pull out all notes for this board
           ;; and return them
-          (share-sync-ids (add-sync-record user-id
-                                           "board"
-                                           board-id
-                                           "share"
-                                           :rel-ids (list (gethash "user_id" to-persona)))))
+          (share-sync-ids (if (hash-table-p to-persona)
+                              (add-sync-record user-id
+                                             "board"
+                                             board-id
+                                             "share"
+                                             :rel-ids (list (gethash "user_id" to-persona)))
+                              #())))
     (r:disconnect sock)
     (setf (gethash "sync_ids" link-data) (concatenate 'vector
                                                       sync-ids
@@ -488,13 +490,14 @@
           ;; this separate "unshare" action is sent only to the departed, and
           ;; signifies the sync controller to delete all notes
           (to-persona (get-persona-by-id to-persona-id))
-          (persona-user-id (gethash "user_id" to-persona))
-          (share-sync-ids (add-sync-record user-id
-                                           "board"
-                                           board-id
-                                           "unshare"
-                                           :rel-ids (list persona-user-id)
-                                           :no-auto-add-user t)))
+          (share-sync-ids (if (hash-table-p to-persona)
+                              (add-sync-record user-id
+                                               "board"
+                                               board-id
+                                               "unshare"
+                                               :rel-ids (list (gethash "user_id" to-persona))
+                                               :no-auto-add-user t)
+                              #())))
     (r:disconnect sock)
     (concatenate 'vector sync-ids share-sync-ids)))
 
@@ -507,7 +510,8 @@
           (to-persona (get-persona-by-id to-persona-id)))
     (flet ((do-delete ()
              (alet* ((sync-ids (do-delete-board-persona-link user-id board-id to-persona-id)))
-               (if delete-keychain-entries
+               (if (and (hash-table-p to-persona)
+                        delete-keychain-entries)
                    (alet* ((to-user-id (gethash "user_id" to-persona))
                            (keychain-sync (delete-keychain-tree user-id to-user-id board-id)))
                      (concatenate 'vector sync-ids keychain-sync))

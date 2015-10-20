@@ -4,7 +4,7 @@
   "Given the current user and a sync-id, spits out all data that has changes in
    the user's profile since that sync id. Used by various clients to stay in
    sync with the canonical profile (hosted on the server).
-   
+
    Unlike the /sync/full call, this is stateful...we are syncing actual profile
    changes here and thus depend on syncing the correct data. A mistake here can
    put bad data into the profile that will sit there until the app clears its
@@ -14,7 +14,7 @@
    tricky is for 'share' and 'unshare' sync records: we have to create a bunch
    of fake sync records that add the board(s) and their note(s) to the profile
    and make sure they are injected at the correct place in the sync result.
-   
+
    So in the cases where we're fabricating sync items, we have to be cautious
    to add/remove the correct data or the app is going to have a bad time."
   (alet* ((user-id (user-id req))
@@ -40,8 +40,8 @@
                   ;; if we have a "share", convert it to a vector of "add" sync
                   ;; items
                   (when (string= (gethash "action" rec) "share")
-                    ;; convert the CURRENT sync item to an add
-                    (setf (gethash "action" rec) "add")
+                    ;; convert the CURRENT sync item to a nop (remove later)
+                    (setf (gethash "action" rec) "nop")
                     (case (intern (string-upcase (gethash "type" rec)) :keyword)
                       ;; can only share boards atm
                       (:board
@@ -49,8 +49,7 @@
                   ;; if we have an "unshare", convert it to a vector of "delete"
                   ;; sync items
                   (when (string= (gethash "action" rec) "unshare")
-                    ;; convert the CURRENT sync item to a NOP (will be removed
-                    ;; later down the line)
+                    ;; convert the CURRENT sync item to a nop (remove later)
                     (setf (gethash "action" rec) "nop")
                     (case (intern (string-upcase (gethash "type" rec)) :keyword)
                       ;; can only unshare boards atm

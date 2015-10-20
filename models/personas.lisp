@@ -144,37 +144,59 @@
 (defafun delete-persona (future) (user-id persona-id)
   "Delete a persona."
   (with-valid-persona (persona-id user-id future)
-    (alet* ((sock (db-sock))
+    (format t "- dp: start~%")
+    (alet* ((nil (delete-persona-links user-id persona-id))
+            (nil (format t "dp: deleted links~%"))
+            (nil (delete-persona-invites user-id persona-id))
+            (nil (format t "dp: deleted invites~%"))
+            (sock (db-sock))
             (query (r:r (:delete (:get (:table "personas") persona-id))))
             (nil (r:run sock query))
-            (sync-ids (add-sync-record user-id "persona" persona-id "delete"))
-            (nil (delete-persona-links user-id persona-id)))
+            (sync-ids (add-sync-record user-id "persona" persona-id "delete")))
+      (format t "dp: add sync~%")
       (r:disconnect sock)
       (finish future sync-ids))))
 
-(defafun delete-persona-links (future) (user-id persona-id)
+;; TODO: either move this board model, or move delete-persona-invites to this
+;; model.
+(adefun delete-persona-links (user-id persona-id)
   "Delete all persona-related information. This generally means board-persona
    links."
   (alet* ((sock (db-sock))
           (query-boards (r:r (:set-union
-                               (:coerce-to (:attr (:get-all (:table "boards_personas_link") persona-id :index (db-index "boards_personas_link" "to")) "board_id") "array")
-                               (:coerce-to (:attr (:get-all (:table "boards_personas_link") persona-id :index (db-index "boards_personas_link" "from")) "board_id") "array"))))
+                               (:coerce-to (:pluck (:get-all (:table "boards_personas_link") persona-id :index (db-index "boards_personas_link" "to")) (list "board_id" "to")) "array")
+                               (:coerce-to (:pluck (:get-all (:table "boards_personas_link") persona-id :index (db-index "boards_personas_link" "from")) (list "board_id" "to")) "array"))))
+          (cursor (r:run sock query-boards))
+          (board-links (r:to-array sock cursor))
+          (nil (r:stop sock cursor))
           (query-to (r:r (:delete (:get-all (:table "boards_personas_link") persona-id :index (db-index "boards_personas_link" "to")))))
           (query-from (r:r (:delete (:get-all (:table "boards_personas_link") persona-id :index (db-index "boards_personas_link" "from")))))
-          (cursor (r:run sock query-boards))
-          (board-ids (r:to-array sock cursor))
-          (board-ids (coerce board-ids 'list))
-          (nil (when cursor (r:stop sock cursor)))
           (nil (r:run sock query-to))
           (nil (r:run sock query-from))
-          (sync-records nil))
-    (wait (adolist (board-id board-ids)
-                (alet ((user-ids (get-affected-users-from-board-ids (list board-id))))
-                  (push (make-sync-record user-id "board" board-id "edit" :rel-ids user-ids) sync-records)))
-      (wait (when sync-records
-                  (insert-sync-records sync-records))
-        (r:disconnect sock)
-        (finish future t)))))
+          (sync-records nil)
+          ;; loop over the board links, grab affected users, and push our sync
+          ;; records
+          (nil (all (loop for link across board-links
+                          for board-id = (gethash "board_id" link)
+                          for to = (gethash "to" link) collect
+                      (alet* ((user-ids (get-affected-users-from-board-ids (list board-id)))
+                              (to-persona (get-persona-by-id to))
+                              (to-user-id (gethash "user_id" to-persona)))
+                        ;; edit the board
+                        (push (make-sync-record user-id
+                                                "board"
+                                                board-id
+                                                "edit"
+                                                :rel-ids user-ids) sync-records)
+                        (push (make-sync-record user-id
+                                                "board"
+                                                board-id
+                                                "unshare"
+                                                :rel-ids (list to-user-id)
+                                                :no-auto-add-user t) sync-records)))))
+          (nil (insert-sync-records sync-records)))
+    (r:disconnect sock)
+    (map 'vector (lambda (sync) (gethash "id" sync)) sync-records)))
 
 (defafun get-persona-by-email (future) (email &key ignore-persona require-key)
   "Grab a persona via its email. Must be an exact match (for now)."
