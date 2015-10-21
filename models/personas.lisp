@@ -144,16 +144,12 @@
 (defafun delete-persona (future) (user-id persona-id)
   "Delete a persona."
   (with-valid-persona (persona-id user-id future)
-    (format t "- dp: start~%")
     (alet* ((nil (delete-persona-links user-id persona-id))
-            (nil (format t "dp: deleted links~%"))
             (nil (delete-persona-invites user-id persona-id))
-            (nil (format t "dp: deleted invites~%"))
             (sock (db-sock))
             (query (r:r (:delete (:get (:table "personas") persona-id))))
             (nil (r:run sock query))
             (sync-ids (add-sync-record user-id "persona" persona-id "delete")))
-      (format t "dp: add sync~%")
       (r:disconnect sock)
       (finish future sync-ids))))
 

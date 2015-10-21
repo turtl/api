@@ -107,10 +107,13 @@
 ;;; syncing
 ;;; ----------------------------------------------------------------------------
 
-(adefun get-all-boards (user-id persona-ids)
+(adefun get-all-boards (user-id persona-ids &key grab-child-boards)
   "Given a user id and list of persona ids, get all boards this user has access
    to."
   (alet* ((board-ids (get-all-user-board-ids user-id :persona-ids persona-ids))
+          (board-ids (if grab-child-boards
+                         (expand-child-boards board-ids)
+                         board-ids))
           (boards (if (zerop (length board-ids))
                       #()
                       (get-boards-by-ids board-ids :get-personas t))))
