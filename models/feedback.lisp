@@ -2,7 +2,7 @@
 
 (defvalidator validate-feedback
   (("user_id" :type id :required t)
-   ("email" :type string :required t)
+   ("email" :type string)
    ("body" :type string :required t))
   :old t)
 
