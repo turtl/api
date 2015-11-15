@@ -318,7 +318,7 @@
                              (:insert
                                (:table "boards_personas_link")
                                priv-record
-                               :upsert t)))
+                               :conflict "update")))
                     (nil (r:run sock query))
                     (user-ids (get-affected-users-from-board-ids (list board-id)))
                     (sync-ids (add-sync-record user-id "board" board-id "edit" :rel-ids user-ids)))
