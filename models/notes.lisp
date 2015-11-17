@@ -297,7 +297,8 @@
     (if note
         (if (user-can-read-note-p user-id note board-perms)
             (alet* ((file (gethash "file" note))
-                    (id (gethash "id" file)))
+                    (id (or (gethash "id" file)
+                            (gethash "hash" file))))
               (finish future
                       (when (and file id)
                         (if *local-upload*
