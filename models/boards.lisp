@@ -144,6 +144,8 @@
 
 (adefun expand-child-boards (board-ids)
   "Given a set of board IDs, also grab all child IDs of the board ids."
+  (when (zerop (length board-ids))
+    (return-from expand-child-boards #()))
   (alet* ((sock (db-sock))
           (query (r:r
                    (:attr
