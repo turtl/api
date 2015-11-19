@@ -181,7 +181,7 @@
           (prog1 (car body)
             (setf body (cdr body))))
        (catcher
-         (progn ,@body)
+         (block ,name ,@body)
          (error (e)
            (vom:error "wrapping (~a): ~a" ',name e)
            ;; wrap the caught error in the error wrapper, which when
