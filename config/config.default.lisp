@@ -32,17 +32,14 @@
 (defvar *site-url* "http://turtl.dev:8181"
   "The main URL the site will load from.")
 
-(defvar *invite-site-url* "http://invites.turtl.dev:8182"
-  "The main URL used to generate invite links.")
-
-(defvar *api-path* "/"
+(defvar *api-path* ""
   "The path the API lives under. Can be blank.")
 
-(defvar *admin-email* "andrew@lyonbros.com"
+(defvar *admin-email* "your@mom.com"
   "The email used for admin communications. This is reported to users on a
    server error, and possibly other instances.")
 
-(defvar *email-from* "noreply@turtl.it"
+(defvar *email-from* "noreply@yourdomain.com"
   "The email address all turtl emails come from.")
 
 (defvar *email-user* ""
@@ -55,9 +52,9 @@
    for production.")
 
 (defparameter *public-actions*
-  `((:post . "/users")
-    (:post . "/log/error")
-    (:get . ,(cl-ppcre:create-scanner "/invites/codes/([0-9a-f-]+)")))
+  `((:post . ,(concatenate 'string *api-path* "/users"))
+    (:post . ,(concatenate 'string *api-path* "/log/error"))
+    (:get . ,(concatenate 'string *api-path* (cl-ppcre:create-scanner "/invites/codes/([0-9a-f-]+)"))))
   "A list of public resources/actions that do not require authentication.")
 
 (defparameter *default-storage-limit* 100
@@ -73,6 +70,12 @@
 (defvar *analytics* '(:enabled t
                       :db "analytics")
   "Holds analytics config")
+
+;; -----------------------------------------------------------------------------
+;; File storage section.
+;; -----------------------------------------------------------------------------
+
+;; Choose either local uploads or S3.
 
 (defvar *local-upload* nil
   "NIL disables local files storage (files are uploaded to S3). Set to a local
