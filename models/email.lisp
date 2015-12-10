@@ -39,7 +39,7 @@ The Turtl Team
 "))
 
 (defparameter *emails-feedback* (format nil "~
-You have received feedback from {{email}} (user id {{user-id}}):
+You have received feedback from {{email}} (user id {{user-id}}, client {{client}}):
 
 ********
 
@@ -158,10 +158,12 @@ Please respond in a timely manner!"))
   "Send feedback to a Turtl admin email."
   (let* ((msg *emails-feedback*)
          (email (gethash "email" feedback-data))
+         (client (gethash "client" feedback-data))
          (to-email *admin-email*)
          (body (gethash "body" feedback-data))
          (user-id (gethash "user_id" feedback-data))
          (tpl-vars `(:user-id ,user-id
+                     :client ,client
                      :email ,email
                      :body ,body))
          (subject (format nil "New Turtl feedback from ~a" email))
