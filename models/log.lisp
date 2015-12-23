@@ -2,12 +2,14 @@
 
 (defun hash-log (log-data)
   "Generate a hash for this log from its data. Used to de-dupe log records."
-  (md5 (concatenate
-         'string
-         (gethash "msg" log-data)
-         (gethash "url" log-data)
-         (gethash "line" log-data)
-         (gethash "version" log-data))))
+  (flet ((ensure-string (x)
+           (if (stringp x) x (write-to-string x))))
+    (md5 (concatenate
+           'string
+           (ensure-string (gethash "msg" log-data))
+           (ensure-string (gethash "url" log-data))
+           (ensure-string (gethash "line" log-data))
+           (ensure-string (gethash "version" log-data))))))
 
 (defafun add-server-log (future) (err location)
   "Add a server log entry (when we catch errors that shouldn't necessarily
