@@ -54,7 +54,7 @@
 (defparameter *public-actions*
   `((:post . ,(concatenate 'string *api-path* "/users"))
     (:post . ,(concatenate 'string *api-path* "/log/error"))
-    (:get . ,(concatenate 'string *api-path* (cl-ppcre:create-scanner "/invites/codes/([0-9a-f-]+)"))))
+    (:get . ,(cl-ppcre:create-scanner (concatenate 'string *api-path* "/invites/codes/([0-9a-f-]+)"))))
   "A list of public resources/actions that do not require authentication.")
 
 (defparameter *default-storage-limit* 100
