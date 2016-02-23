@@ -12,6 +12,12 @@
   (:report (lambda (c s) (format s "Turtl wrapped error: ~a: ~a" (error-function c) (error-error c))))
   (:documentation "Used to wrap caught errors and provide more debugging information about them."))
 
+(defmethod jonathan:%to-json ((error turtl-error))
+  (jonathan:%write-string (format nil "(~a) ~a" (error-code error) (error-msg error))))
+
+(defmethod jonathan:%to-json ((error turtl-error-wrapper))
+  (jonathan:%to-json (error-error error)))
+
 (define-condition validation-failed (turtl-error)
   ((code :initform 400)))
 

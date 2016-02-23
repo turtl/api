@@ -86,7 +86,6 @@
               (finish future (coerce (nreverse items) 'simple-vector)))))
         (finish future #()))))
   
-;; TODO: limit number of personas a user can have
 (defafun add-persona (future) (user-id persona-data)
   "Add a persona to the system."
   (setf (gethash "user_id" persona-data) user-id)
