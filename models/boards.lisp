@@ -128,7 +128,8 @@
                        (:eq-join
                          (:get-all
                            (:table "boards")
-                           board-ids)
+                           board-ids
+                           :index (db-index "boards" "id"))
                          "parent_id"
                          (:table "boards"))
                        "right")

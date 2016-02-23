@@ -7,7 +7,11 @@
         :invite_code (:version 1)))
     :boards
      (:indexes
-       (:user_id (:version 1)
+       ;; NOTE: we index id specifically as a secondary index here to fix an
+       ;; issue where querying multiple ids throws a `Primary key too long`
+       ;; error
+       (:id (:version 1)
+        :user_id (:version 1)
         :parent_id (:version 1)))
     :notes
      (:indexes
