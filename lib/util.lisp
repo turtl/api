@@ -90,6 +90,9 @@
 (defmethod jonathan:%to-json ((_ (eql nil)))
   (jonathan:%write-string "null"))
 
+(defmethod jonathan:%to-json ((error error))
+  (jonathan:%write-string (format nil "~a~%" error)))
+
 (defun to-json (object &key indent)
   "Convert an object to JSON."
   (declare (ignore indent))
