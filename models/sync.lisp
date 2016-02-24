@@ -61,7 +61,9 @@
   (alet* ((sock (db-sock))
           (query (r:r (:insert
                         (:table "sync")
-                        (or sync-records #()))))
+                        (if (zerop (length sync-records))
+                            #()
+                            sync-records))))
           (nil (r:run sock query)))
     (r:disconnect sock)
     (finish future t)))

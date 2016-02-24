@@ -157,7 +157,8 @@
                        (:get-all
                          (:table "keychain")
                          (map 'list (lambda (k) (gethash "id" k)) keychain-entries)))))
-            (nil (r:run sock query))
+            (nil (unless (zerop (length keychain-entries))
+                   (r:run sock query)))
             (sync-records (map 'vector
                                (lambda (ke) (make-sync-record from-user-id
                                                               "keychain"
