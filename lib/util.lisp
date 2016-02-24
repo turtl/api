@@ -187,6 +187,7 @@
          (block ,name ,@body)
          (error (e)
            (vom:error "wrapping (~a): ~a" ',name e)
+           (add-server-log e (format nil "adefun ~a" ',name))
            ;; wrap the caught error in the error wrapper, which when
            ;; printed out gives us the name of the function the error
            ;; occurred in. makes debugging, oh, about 6000x easier.
