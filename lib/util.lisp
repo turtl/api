@@ -237,27 +237,27 @@
      (progn ,@body)
      ;; catch errors that can be easily transformed to HTTP
      (turtl-error (e)
-      (send-response ,response
-                     :status (error-code e)
-                     :headers '(:content-type "application/json")
-                     :body (error-json e)))
+       (send-response ,response
+                      :status (error-code e)
+                      :headers '(:content-type "application/json")
+                      :body (error-json e)))
      ;; catch anything else and send a response out for it
      (error (e)
-      (vom:error "Caught error: ~a" e)
-      (if (wookie:response-finished-p ,response)
-          (vom:error "(turtl) ...double error: ~a" e)
-          (unless (as:socket-closed-p (get-socket ,response))
-            (send-response ,response
-                           :status 500
-                           :headers '(:content-type "application/json")
-                           :body (to-json
-                                   (with-output-to-string (s)
-                                     (format s "Internal server error. Please report to ~a" *admin-email*)
-                                     (when *display-errors*
-                                       (format s "~%(~a)" (type-of e))
-                                       (if (typep e 'cl-rethinkdb:query-error)
-                                           (format s ": ~a~%" (cl-rethinkdb::query-error-msg e))
-                                           (format s ": ~a~%" e)))))))))))
+       (vom:error "Caught error: ~a" e)
+       (if (wookie:response-finished-p ,response)
+           (vom:error "(turtl) ...double error: ~a" e)
+           (unless (as:socket-closed-p (get-socket ,response))
+             (send-response ,response
+                            :status 500
+                            :headers '(:content-type "application/json")
+                            :body (to-json
+                                    (with-output-to-string (s)
+                                      (format s "Internal server error. Please report to ~a" *admin-email*)
+                                      (when *display-errors*
+                                        (format s "~%(~a)" (type-of e))
+                                        (if (typep e 'cl-rethinkdb:query-error)
+                                            (format s ": ~a~%" (cl-rethinkdb::query-error-msg e))
+                                            (format s ": ~a~%" e)))))))))))
 
 (defun is-public-action (method path)
   "Checks if the given method/path combination are in the configured list of
