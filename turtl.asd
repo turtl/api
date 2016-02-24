@@ -63,7 +63,6 @@
     ((:file "admin")
      (:file "app")
      (:file "sharing")
-     (:file "messages")
      (:file "notes")
      (:file "personas")
      (:file "sync")
