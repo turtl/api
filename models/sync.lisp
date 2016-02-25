@@ -331,10 +331,7 @@
                       (setf track-failed (cdr track-failed))
                       (let* ((sync-ids (gethash "sync_ids" item))
                              (type (gethash "type" sync))
-                             (action (gethash "action" sync))
-                             (track-action (string-downcase
-                                             (format nil "~a-~a" type action))))
-                        (track track-action nil request);
+                             (action (gethash "action" sync)))
                         (remhash "sync_ids" item)
                         (push (hash ("id" (gethash "id" sync))
                                     ("type" type)
@@ -345,6 +342,11 @@
                   sync-items)
       (:catch (err) (setf error err))
       (:then ()
+        (dolist (sync successes)
+          (let* ((type (gethash "type" sync))
+                 (action (gethash "action" sync))
+                 (track-action (string-downcase (format nil "~a-~a" type action))))
+            (track track-action nil request)))
         (hash ("success" (nreverse successes))
               ("fail" (mapcar (lambda (x) (gethash "id" x)) track-failed))
               ("error" error))))))
