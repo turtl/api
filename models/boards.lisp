@@ -190,7 +190,8 @@
                    (:attr
                      (:get-all
                        (:table "boards")
-                       board-ids)
+                       board-ids
+                       :index (db-index "boards" "id"))
                      "user_id")))
           (cursor (r:run sock query))
           (board-user-ids (r:to-array sock cursor))
