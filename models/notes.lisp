@@ -234,7 +234,7 @@
                             (:table "notes")
                             note-data)))
               (nil (r:run sock query))
-              (user-ids (get-affected-users-from-board-ids (list (gethash "boards" note-data))))
+              (user-ids (get-affected-users-from-board-ids (gethash "boards" note-data)))
               (user-ids (concatenate 'vector (vector user-id) user-ids))
               (sync-ids (add-sync-record user-id
                                          "note"
