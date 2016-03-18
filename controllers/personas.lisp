@@ -8,7 +8,7 @@
         (send-json res persona)
         (send-json res "Persona not found." :status 404))))
 
-(route (:get "/personas/email/([a-zA-Z0-9@\/\.\-]+)") (req res args)
+(route (:get "/personas/email/(.+@.+)") (req res args)
   "Get a persona by email (must be an *exact* match as there is no wildcard
    searching or antyhing like that)."
   (alet* ((email (car args))
