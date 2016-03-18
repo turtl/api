@@ -162,7 +162,9 @@
                                (:coerce-to (:pluck (:get-all (:table "boards_personas_link") persona-id :index (db-index "boards_personas_link" "to")) (list "board_id" "to")) "array")
                                (:coerce-to (:pluck (:get-all (:table "boards_personas_link") persona-id :index (db-index "boards_personas_link" "from")) (list "board_id" "to")) "array"))))
           (cursor (r:run sock query-boards))
-          (board-links (r:to-array sock cursor))
+          (board-links (if cursor
+                           (r:to-array sock cursor)
+                           #()))
           (nil (r:stop sock cursor))
           (query-to (r:r (:delete (:get-all (:table "boards_personas_link") persona-id :index (db-index "boards_personas_link" "to")))))
           (query-from (r:r (:delete (:get-all (:table "boards_personas_link") persona-id :index (db-index "boards_personas_link" "from")))))
