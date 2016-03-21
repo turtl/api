@@ -169,8 +169,8 @@
 (adefun get-affected-users-from-board-ids (board-ids)
   "For all given board-ids (list), find users that will be affected by changes
    to those boards or items in those boards. Returns a list of user-ids."
-  (unless board-ids
-    (return-from get-affected-users-from-board-ids))
+  (when (zerop (length board-ids))
+    (return-from get-affected-users-from-board-ids #()))
   (alet* ((board-ids (expand-parent-boards board-ids))
           (sock (db-sock))
           (query (r:r
