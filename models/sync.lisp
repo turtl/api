@@ -9,12 +9,13 @@
                      (:limit
                        (:order-by
                          (:table "sync")
-                         (:desc "id"))
+                         :index (:desc "id"))
                        1)
                      "id")))
-          (sync-item  (r:run sock query))
+          (cursor  (r:run sock query))
+          (sync-item (r:to-array sock cursor))
           (sync-item (coerce sync-item 'list)))
-    (r:disconnect sock)
+    (r:stop/disconnect sock cursor)
     (finish future (car sync-item))))
 
 (defun make-sync-record (user-id item-type item-id action &key client-id rel-ids fields no-auto-add-user)
