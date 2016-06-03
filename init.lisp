@@ -33,7 +33,7 @@
 ;; load all enabled wookie plugins
 (load-plugins :use-quicklisp t)
 
-(defun start (&key bind (port 81))
+(defun start (&key bind (port 81) custom-setup)
   "Start the Turtl app."
   ;; write our PID file (if *pid-file* is set)
   (when *pid-file*
@@ -51,11 +51,10 @@
                                                   'error-handler))
         ;; set up the database schema
         (vom:info "Applying DB schema...")
+        (when custom-setup (funcall custom-setup))
         (catcher
           (alet* ((report-main (apply-db-schema *db-schema*))
-                  (report-analytics (when (getf *analytics* :enabled)
-                                      (apply-db-schema *analytics-schema* :db-name (or (getf *analytics* :db) "analytics"))))
-                  (report (append report-main report-analytics)))
+                  (report report-main))
             (vom:info "Schema applied: ~s" report)
             (let* ((listener (make-instance 'listener
                                             :bind bind
