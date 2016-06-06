@@ -19,6 +19,7 @@
                #:ironclad
                #:secure-random
                #:bordeaux-threads
+               #:trivial-backtrace
                #:xmls
                #:vom)
   :components

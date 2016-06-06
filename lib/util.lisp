@@ -231,6 +231,10 @@
   (let ((msg (error-msg err)))
     (to-json msg)))
 
+(defun print-backtrace (err)
+  "Standard function to print an error backtrace."
+  (vom:error "-- Backtrace: ~a~%" (trivial-backtrace:print-backtrace err :output nil)))
+
 (defmacro catch-errors ((response) &body body)
   "Define a macro that catches errors and responds via HTTP to them."
   `(catcher
@@ -244,6 +248,7 @@
      ;; catch anything else and send a response out for it
      (error (e)
        (vom:error "Caught error: ~a" e)
+       (print-backtrace e)
        (if (wookie:response-finished-p ,response)
            (vom:error "(turtl) ...double error: ~a" e)
            (unless (as:socket-closed-p (get-socket ,response))
