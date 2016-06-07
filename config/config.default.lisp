@@ -6,6 +6,12 @@
 (defparameter *pid-file* nil
   "File to write the current proc's PID to.")
 
+(defvar *server-bind* nil
+  "The address to bind Turtl to (nil is the same as 0.0.0.0).")
+
+(defvar *server-port* 8181
+  "The port we want to start the Turtl service on.")
+
 (defvar *db-name* "turtl"
   "The name of the database we'll be using LOL")
 

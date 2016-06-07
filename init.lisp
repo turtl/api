@@ -33,8 +33,15 @@
 ;; load all enabled wookie plugins
 (load-plugins :use-quicklisp t)
 
-(defun start (&key bind (port 81) custom-setup)
+(defun start (&key (bind nil bind-supplied-p) (port nil port-supplied-p) custom-setup)
   "Start the Turtl app."
+  ;; if no port was given, use the default from the config (if it exists)
+  (when (and (not bind-supplied-p)
+             (boundp '*server-bind*))
+    (setf bind *server-bind*))
+  (when (and (not port-supplied-p)
+             (boundp '*server-port*))
+    (setf port *server-port*))
   ;; write our PID file (if *pid-file* is set)
   (when *pid-file*
     (with-open-file (s *pid-file*
@@ -51,6 +58,7 @@
                                                   'error-handler))
         ;; set up the database schema
         (vom:info "Applying DB schema...")
+        ;; call our setup function if we have one
         (when custom-setup (funcall custom-setup))
         (catcher
           (alet* ((report-main (apply-db-schema *db-schema*))
