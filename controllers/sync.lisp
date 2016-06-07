@@ -138,10 +138,10 @@
                                 notes))
               (files (remove-if-not (lambda (note)
                                       (let ((file (hget note '("file"))))
-                                      (and file
-                                           (hash-table-p file)
-                                           (or (hget file '("id"))
-                                               (hget file '("hash"))))))
+                                        (and file
+                                             (hash-table-p file)
+                                             (or (hget file '("id"))
+                                                 (hget file '("hash"))))))
                                     notes))
               (files (map 'vector (lambda (x) (copy-hash x)) files))
               (invites (get-persona-invites (map 'list (lambda (p) (gethash "id" p)) personas)))
