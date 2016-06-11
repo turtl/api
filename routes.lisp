@@ -15,6 +15,51 @@
           (resolve))))
   :options-support)
 
+(defroute (:post "/cla/sign") (req res)
+  "Someone wants to sign our CLA! What a glorious day this is."
+  (let* ((redirect-err (post-var req "redirect-err"))
+         (redirect-err (if (or (not redirect-err)
+                               (string= redirect-err ""))
+                           "https://turtl.it/contributing/sign-error"
+                           redirect-err)))
+    (catcher
+      (alet* ((fields (list "type"
+                            "entity"
+                            "fullname"
+                            "email"
+                            "address1"
+                            "address2"
+                            "city"
+                            "state"
+                            "zip"
+                            "country"
+                            "phone"
+                            "github"
+                            "sign"))
+              (redirect (post-var req "redirect"))
+              (redirect (if (or (not redirect)
+                                (string= redirect ""))
+                            "https://turtl.it/contributing/sign-thanks"
+                            redirect))
+              (data (let ((hash (hash)))
+                      (dolist (field fields)
+                        (setf (gethash field hash) (post-var req field)))
+                      hash))
+              (nil (cla-sign data)))
+        (send-response res
+                       :status 302
+                       :headers (list :location redirect)
+                       :body "Thanks for signing! Redirecting..."))
+      (error (e)
+        (vom:error "Caught error: ~a" e)
+        (print-backtrace e)
+        (unless (wookie:response-finished-p res)
+          (unless (as:socket-closed-p (get-socket res))
+            (send-response res
+                           :status 302
+                           :headers (list :location redirect-err)
+                           :body "There was an error processing your signature. Redirecting.")))))))
+
 (defroute (:* "/api/.+") (req res)
   "Any /api/* route that lands here wasn't caught by our controllers. Send the
    client a nice 404 and be done with it."

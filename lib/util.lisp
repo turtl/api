@@ -321,6 +321,15 @@
   "Pretty printer for JSON (mainly for database results)."
   (to-json db-result :indent 2))
 
+(defmacro with-sock ((sockvar &key db) &body body)
+  `(let (,sockvar)
+     (chain (db-sock :db ,db)
+       (:then (x)
+         (setf ,sockvar x)
+         (progn ,@body))
+       (:finally
+         (when sock (r:disconnect sock))))))
+
 (defmacro with-test (&body body)
   "Makes testing async functions easier by abstracting an extremely common
    pattern."

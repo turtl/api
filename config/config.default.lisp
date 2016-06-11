@@ -60,6 +60,7 @@
 (defparameter *public-actions*
   `((:post . ,(concatenate 'string *api-path* "/users"))
     (:post . ,(concatenate 'string *api-path* "/log/error"))
+    (:post . "/cla/sign")
     (:get . ,(cl-ppcre:create-scanner (concatenate 'string *api-path* "/invites/codes/([0-9a-f-]+)"))))
   "A list of public resources/actions that do not require authentication.")
 

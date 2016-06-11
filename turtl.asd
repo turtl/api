@@ -55,7 +55,8 @@
      (:file "admin")
      (:file "analytics")
      (:file "feedback")
-     (:file "promo")))
+     (:file "promo")
+     (:file "cla")))
    (:file "init" :depends-on (lib "crypto" "errors" "cron" "config/schema" models))
    (:module controllers
     :depends-on ("init" "errors" lib models "package")
