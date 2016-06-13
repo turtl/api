@@ -120,18 +120,3 @@
                      `(error 'validation-failed :msg (format nil "Validation failed: ~s~%" ,validation)))
                 (progn ,@body)))))))
 
-;(defmacro defvalidator (name validation-form)
-;  "Makes defining a validation function for a data type simpler."
-;  `(progn
-;     (setf (getf *validation-forms* ',name) ',validation-form)
-;     (defun ,name (object &key edit)
-;       (let ((validation (gensym "validation"))
-;             (validation-form-var (gensym "validation-form")))
-;         (with-promise (res rej)
-;           (let* ((validation-form (getf *validation-forms* ',name))
-;                  (validation (do-validate object validation-form :edit edit)))
-;             (if validation
-;                 (rej (make-instance 'validation-failed
-;                                     :msg (format nil "Validation failed: ~s~%" validation)))
-;                 (res))))))))
-
