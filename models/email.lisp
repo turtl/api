@@ -49,6 +49,12 @@ You have received feedback from {{email}} (user id {{user-id}}, client {{client}
 
 Please respond in a timely manner!"))
 
+(defparameter *cla-signature* (format nil "~
+Someone signed the CLA:
+
+{{sigdata}}
+"))
+
 ;; -----------------------------------------------------------------------------
 ;; / email templates
 ;; -----------------------------------------------------------------------------
@@ -170,4 +176,17 @@ Please respond in a timely manner!"))
          (body (email-template msg tpl-vars)))
     (alet ((sentp (send-email to-email subject body :email-from email :reply-to email :from-name "Turtl feedback")))
       (finish future sentp))))
+
+(adefun email-cla (cla-data)
+  "Send an email notification about a CLA signature."
+  (let* ((msg *cla-signature*)
+         (to-email *admin-email*)
+         (sigdata (loop for k being the hash-keys of cla-data
+                        for v being the hash-values of cla-data
+                        collect (format nil "~a: ~a~%" k v)))
+         (sigdata (apply 'concatenate (append (list 'string) sigdata)))
+         (tpl-vars (list :sigdata sigdata))
+         (subject (format nil "CLA signature"))
+         (body (email-template msg tpl-vars)))
+    (send-email to-email subject body :email-from "cla@turtl.it" :from-name "Turtl CLA Signature")))
 

@@ -32,7 +32,5 @@
                             (:table "cla")
                             cla-data)))
               (nil (r:run sock query)))
-        t))))
-
-
+        (email-cla cla-data)))))
 

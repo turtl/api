@@ -43,7 +43,9 @@
                             redirect))
               (data (let ((hash (hash)))
                       (dolist (field fields)
-                        (setf (gethash field hash) (post-var req field)))
+                        (let ((val (post-var req field)))
+                          (when val
+                            (setf (gethash field hash) val))))
                       hash))
               (nil (cla-sign data)))
         (send-response res
