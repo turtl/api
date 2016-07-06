@@ -48,10 +48,13 @@
 (defvar *email-from* "noreply@yourdomain.com"
   "The email address all turtl emails come from.")
 
+(defvar *smtp-host* nil
+  "If you want to send mail with SMTP rather than sendgrid.com, set to a valid
+   SMTP server (can be localhost)")
 (defvar *email-user* ""
-  "The username used for sending email. Needs to be set on load.")
+  "The sendgrid username used for sending email. Needs to be set on load.")
 (defvar *email-pass* ""
-  "The password used for sending email. Needs to be set on load.")
+  "The sendgrid password used for sending email. Needs to be set on load.")
 
 (defvar *display-errors* t
   "Whether or not to show errors in HTTP responses. Useful for debugging, bad

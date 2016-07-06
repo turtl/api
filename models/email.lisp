@@ -77,32 +77,42 @@ Someone signed the CLA:
 (defafun send-email (future) (to subject body &key reply-to from-name (email-from *email-from*))
   "Send an email. Returns a future that finishes when the operation is done (or
    errors out otherwise)."
-  (let ((params `(("api_user" . ,*email-user*)
-                  ("api_key" . ,*email-pass*)
-                  ("to" . ,to)
-                  ("from" . ,email-from)
-                  ("subject" . ,subject)
-                  ("text" . ,body))))
-    (when from-name (push `("fromname" . ,from-name) params))
-    (when reply-to (push `("replyto" . ,reply-to) params))
-    (multiple-promise-bind (res status)
-        (das:http-request "https://sendgrid.com/api/mail.send.json"
-                          :read-timeout 5
-                          :method :post
-                          :force-binary t
-                          :parameters params)
-      (if (<= 200 status 299)
-          ;; success, return t
-          (finish future t)
-          ;; error. grab the message and signal
-          (let* ((res (babel:octets-to-string res))
-                 (hash (jonathan:parse res :as :hash-table))
-                 (msg (gethash "error" hash))
-                 (msg (if (hash-table-p msg)
-                          (gethash "message" msg)
-                          (car (gethash "errors" hash))))
-                 (msg (concatenate 'string "Failed to send email: " msg)))
-            (signal-error future (error 'email-send-failed :msg msg)))))))
+  (if *smtp-host*
+    (if (cl-smtp:send-email *smtp-host*
+                     email-from
+                     to
+                     subject
+                     body
+                     :reply-to (if reply-to reply-to email-from)
+                     :display-name (if from-name from-name email-from))
+      (finish future t)
+      (signal-error future (error 'email-send-failed :msg "Sending mail through SMTP failed")))
+    (let ((params `(("api_user" . ,*email-user*)
+                    ("api_key" . ,*email-pass*)
+                    ("to" . ,to)
+                    ("from" . ,email-from)
+                    ("subject" . ,subject)
+                    ("text" . ,body))))
+      (when from-name (push `("fromname" . ,from-name) params))
+      (when reply-to (push `("replyto" . ,reply-to) params))
+      (multiple-promise-bind (res status)
+          (das:http-request "https://sendgrid.com/api/mail.send.json"
+                            :read-timeout 5
+                            :method :post
+                            :force-binary t
+                            :parameters params)
+        (if (<= 200 status 299)
+            ;; success, return t
+            (finish future t)
+            ;; error. grab the message and signal
+            (let* ((res (babel:octets-to-string res))
+                   (hash (jonathan:parse res :as :hash-table))
+                   (msg (gethash "error" hash))
+                   (msg (if (hash-table-p msg)
+                            (gethash "message" msg)
+                            (car (gethash "errors" hash))))
+                   (msg (concatenate 'string "Failed to send email: " msg)))
+              (signal-error future (error 'email-send-failed :msg msg))))))))
 
 (defun get-persona-greeting (persona-data)
   "Given a persona hash object, pull out something like

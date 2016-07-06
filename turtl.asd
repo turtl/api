@@ -21,6 +21,7 @@
                #:bordeaux-threads
                #:trivial-backtrace
                #:xmls
+               #:cl-smtp
                #:vom)
   :components
   ((:file "package")
