@@ -100,7 +100,7 @@ Someone signed the CLA:
 (adefun send-email (to subject body &key reply-to from-name (email-from *email-from*))
   "Send an email. Returns a future that finishes when the operation is done (or
    errors out otherwise)."
-  (when *smtp-host*
+  (when (and (boundp '*smtp-host*) *smtp-host*)
     (return-from send-email (send-email-smtp
                               *smtp-host*
                               email-from
