@@ -12,7 +12,7 @@
    ("state" :type string)
    ("zip" :type string)
    ("country" :type string :required t)
-   ("phone" :type string :required t)
+   ;("phone" :type string :required t)
    ("github" :type string :required t)
    ("sign" :type string :required t)))
 
