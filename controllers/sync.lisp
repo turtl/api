@@ -115,7 +115,7 @@
            (personas (get-user-personas user-id))
            (global-sync-id (get-latest-sync-id)))
       ;; notes require all our board ids, so load them here
-      (alet* ((boards (get-all-boards user-id (map 'list (lambda (p) (gethash "id" p)) personas) :grab-child-boards t))
+      (alet* ((boards (get-all-boards user-id (map 'list (lambda (p) (when (hash-table-p p) (gethash "id" p))) personas) :grab-child-boards t))
               (board-ids (map 'list (lambda (b) (gethash "id" b)) boards))
               (notes (get-all-notes user-id board-ids))
               ;; this is a weird case we need to handle. basically, notes in
