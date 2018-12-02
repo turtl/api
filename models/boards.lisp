@@ -274,15 +274,15 @@
                   for board-id = (gethash "id" board) do
               (setf (gethash board-id board-index) board))
             (loop for entry across privs/personas
-                  for link = (hget entry '("left"))
-                  for board-id = (gethash "board_id" link)
-                  for persona = (gethash "right" entry)
+                  for link = (when (hash-table-p entry) (hget entry '("left")))
+                  for board-id = (when (hash-table-p link) (gethash "board_id" link))
+                  for persona = (when (hash-table-p entry) (gethash "right" entry))
                   for board = (gethash board-id board-index) do
               (push persona (gethash "personas" board))
               (unless (gethash "privs" board)
                 (setf (gethash "privs" board) (hash)))
               (let ((privs (gethash "privs" board))
-                    (persona-id (gethash "id" persona)))
+                    (persona-id (when (hash-table-p persona) (gethash "id" persona))))
                 (setf (gethash persona-id privs) link)))
             boards)
           boards)
